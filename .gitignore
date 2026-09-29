@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------
+# Telegrana — .gitignore
+# O repositório é PÚBLICO (D015): nada de segredo nem dado pessoal aqui.
+# ---------------------------------------------------------------
+
+# Segredos e configuração local (NUNCA versionar)
+.env
+.env.*
+!.env.local.example
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+samconfig.local.toml
+
+# Dados reais da família (conjunto de avaliação da IA) — ver D016
+tests/eval/data/*
+!tests/eval/data/.gitkeep
+!tests/eval/data/LEIA-ME.md
+
+# Sessões do Telethon (testes E2E) contêm credenciais de login
+*.session
+*.session-journal
+
+# Arquivos gerados em teste (relatórios, exportações, capturas do celular)
+*.xlsx
+*.pdf
+out/
+screenshots/
+!assets/brand/out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version.local
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# AWS SAM
+.aws-sam/
+
+# Node (ferramentas eventuais)
+node_modules/
+
+# Editores e sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

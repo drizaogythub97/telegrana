@@ -1,0 +1,7 @@
+# Finais de linha normalizados (máquina Windows, Lambda Linux)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ogg binary
+*.pdf binary
+*.xlsx binary
