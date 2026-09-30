@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "Bot de Telegram com IA para as finanças pessoais da família."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
-# Dependências de execução entram junto com o código que as usa (S1.2 em diante),
-# cada uma justificada em docs/DECISOES.md.
-dependencies = []
+# Dependências de execução: cada uma justificada em docs/DECISOES.md.
+dependencies = [
+    "certifi>=2026.7",       # CAs para TLS verify-full com o Neon (D030)
+    "psycopg[binary]>=3.3",  # driver Postgres, sem ORM (PLANO 2; D030)
+]
 
 [dependency-groups]
 dev = [
@@ -14,7 +16,6 @@ dev = [
     "mypy>=1.18",
     "pip-audit>=2.9",
     "pre-commit>=4.3",
-    "psycopg[binary]>=3.3",
     "pytest>=8.4",
     "ruff>=0.14",
 ]

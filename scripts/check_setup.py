@@ -45,6 +45,9 @@ SECRET_KEYS = (
     "TELEGRAM_BOT_TOKEN_DEV",
     "TELEGRAM_API_HASH",
     "NEON_API_KEY",
+    "NEON_APP_URL_DEV",
+    "NEON_MIGRATOR_URL_DEV",
+    "TELEGRANA_TEST_DATABASE_URL",
 )
 
 GROQ_REQUIRED_MODELS = ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "whisper-large-v3")
