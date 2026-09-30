@@ -126,3 +126,9 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Casos de borda revelados pelos áudios**: "Bot" transcrito como "Bote"; "guardar na poupança" (movimentação, não gasto); "dar dinheiro para a esposa ir ao mercado" (gasto ou transferência familiar?). Decidir o tratamento na S2.
 - **Risco aceito**: frases sintéticas tendem a ser mais "comportadas" que as reais. Mitigação: na S8, as mensagens reais do uso do Adriano (com consentimento, anonimizadas) entram no conjunto.
 - Tudo fica em `tests/eval/data/` (fora do Git, D016).
+
+## D028 · 2026-09-30 · Regras de interpretação definidas pelos áudios de teste
+- **Finalidade explícita manda** (Adriano): se a mensagem diz para que foi o dinheiro, esse é o lançamento. Ex.: "dei 80 reais pra minha esposa ir no mercado" → **gasto de R$ 80,00 em 🛒 Mercado**. O resto da frase é só a naturalidade de um áudio rápido e não muda a classificação.
+- **Guardar na poupança/investir não é gasto** (proposta do agente, aceita sem objeção): vira **transferência** para uma forma de pagamento/conta "Poupança" da própria pessoa e não entra no total de gastos. Ex.: áudio 07, "guardar na poupança 52 mil reais" (valor confirmado pelo Adriano).
+- **Sem finalidade identificável → o bot pergunta** (reforça a regra de ouro 7): a extração devolve `categoria = null` com um motivo, e o bot responde com botões das categorias mais prováveis mais "Outra". Nunca chuta nem usa "Outros" sem perguntar. Ex.: "50 reais", "gastei no mercado" (sem valor), "uns 30 e poucos" (valor vago).
+- Esses casos entram no gabarito da avaliação (S2).
