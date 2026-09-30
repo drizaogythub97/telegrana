@@ -30,6 +30,8 @@
 - Ruleset `protege-main` (id 24246219) na branch padrão: bloqueia exclusão e force-push e exige PR. **O papel admin tem bypass "always"**, então o agente (logado como o dono) ainda consegue dar push direto. Ao criar o CI na S1, acrescentar os *required status checks* ao ruleset.
 - `check_setup s0.1`: 11/11 OK. `GITHUB_REPO` preenchido no `.env.local`.
 
+- 30/09/2026: o Adriano liberou a logo no repositório público e no README. Ela entrou como `assets/brand/logo-original.png`, com fundo branco; a versão transparente sai nos recortes da S1.
+
 **Não feito (depende do Adriano)**
 
 - Nenhuma conta ou recurso criado em nenhum serviço (regra desta sessão: só depois da micro-fase concluída e do `check_setup` verde).
@@ -83,14 +85,12 @@ adb connect IP:PORTA ; adb devices
 - Executar os guias S0.2 → S0.7 (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
-- Dizer se a logo pode ficar pública no repositório (está em `assets/brand/logo-original.png`, ainda não commitada).
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
 
 ## Perguntas em aberto
 
-1. A logo pode ir para o repositório público? Até a resposta, ela fica **fora do commit**.
-2. CloudTrail: só o Event history (grátis) ou trilha com S3 (centavos)? Decidir na S0.2.
-3. Avaliação da IA no CI sem publicar os dados: decidir na S2 (proposta em D016).
+1. CloudTrail: só o Event history (grátis) ou trilha com S3 (centavos)? Decidir na S0.2.
+2. Avaliação da IA no CI sem publicar os dados: decidir na S2 (proposta em D016).
 
 ## Gotcha novo (30/09/2026)
 
