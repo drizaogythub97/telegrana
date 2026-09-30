@@ -7,12 +7,14 @@ requires-python = ">=3.14,<3.15"
 # Dependências de execução: cada uma justificada em docs/DECISOES.md.
 dependencies = [
     "certifi>=2026.7",       # CAs para TLS verify-full com o Neon (D030)
+    "httpx>=0.28",           # chamadas à Bot API do Telegram, com timeouts (PLANO 2; D031)
     "psycopg[binary]>=3.3",  # driver Postgres, sem ORM (PLANO 2; D030)
 ]
 
 [dependency-groups]
 dev = [
     "bandit>=1.8",
+    "boto3>=1.40",  # já vem no runtime da Lambda; aqui só para scripts e testes (D031)
     "mypy>=1.18",
     "pip-audit>=2.9",
     "pre-commit>=4.3",
@@ -60,7 +62,7 @@ files = ["src", "scripts"]
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["certifi"]
+module = ["certifi", "boto3", "boto3.*", "botocore.*"]
 ignore_missing_imports = true
 
 # -------------------------------------------------------------------

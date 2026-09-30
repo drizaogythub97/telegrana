@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Telegrana — base da conta (S0.2): orçamentos, alertas, kill-switch e OIDC do GitHub.
-  Tudo dentro do Always Free (sem KMS de cliente, sem S3, sem ações de orçamento pagas).
+  Telegrana — base da conta: orçamentos, alertas, kill-switch, OIDC do GitHub, limite de
+  permissões das Lambdas e bucket de artefatos (S0.2 + S1.3). Sem KMS de cliente e sem
+  ações de orçamento pagas.
 
 Parameters:
   AlertEmail:
@@ -156,6 +157,19 @@ Resources:
                 Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
                 Resource: !GetAtt KillSwitchLogGroup.Arn
+              - Sid: TelegramDoAdmin
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/prod/telegram/bot_token"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/admin_telegram_id"
+              - Sid: DecifrarSsm
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   KillSwitchFunction:
     Type: AWS::Lambda::Function
@@ -177,11 +191,22 @@ Resources:
         ZipFile: |
           # Kill-switch do Telegrana. Evento SNS do orçamento -> concorrência 0 nas Lambdas
           # "telegrana-*" (exceto esta). {"dry_run": true} só lista, sem alterar nada.
-          import json, os
+          import json, os, urllib.parse, urllib.request
           import boto3
 
           lam = boto3.client("lambda")
           sns = boto3.client("sns")
+          ssm = boto3.client("ssm")
+
+          def avisa_telegram(texto):
+              # Melhor esforço: o e-mail (SNS) continua sendo o aviso garantido.
+              try:
+                  token = ssm.get_parameter(Name="/telegrana/prod/telegram/bot_token", WithDecryption=True)["Parameter"]["Value"]
+                  admin = ssm.get_parameter(Name="/telegrana/admin_telegram_id")["Parameter"]["Value"]
+                  dados = urllib.parse.urlencode({"chat_id": admin, "text": texto}).encode()
+                  urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=dados, timeout=10)
+              except Exception as exc:
+                  print(json.dumps({"aviso_telegram": "falhou", "erro": type(exc).__name__}))
 
           def handler(event, context):
               dry_run = bool(isinstance(event, dict) and event.get("dry_run"))
@@ -204,16 +229,14 @@ Resources:
               report = {"dry_run": dry_run, "alvos": targets, "zeradas": done, "falhas": failed}
               print(json.dumps(report))
               if not dry_run:
-                  sns.publish(
-                      TopicArn=os.environ["NOTICE_TOPIC_ARN"],
-                      Subject="Telegrana: kill-switch acionado",
-                      Message=(
-                          "O orçamento mensal estourou e o kill-switch parou as Lambdas do Telegrana.\n"
-                          f"Zeradas: {', '.join(done) or 'nenhuma'}\n"
-                          f"Falhas: {', '.join(failed) or 'nenhuma'}\n"
-                          "Para religar, veja docs/manual (operação) ou peça ao agente."
-                      ),
+                  texto = (
+                      "O orçamento mensal estourou e o kill-switch parou as Lambdas do Telegrana.\n"
+                      f"Zeradas: {', '.join(done) or 'nenhuma'}\n"
+                      f"Falhas: {', '.join(failed) or 'nenhuma'}\n"
+                      "Para religar, veja deploy/README.md ou peça ao agente."
                   )
+                  sns.publish(TopicArn=os.environ["NOTICE_TOPIC_ARN"], Subject="Telegrana: kill-switch acionado", Message=texto)
+                  avisa_telegram("⚠️ " + texto)
               return report
 
   KillSwitchSubscription:
@@ -245,7 +268,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: telegrana-github-deploy
-      Description: Assumido pelo GitHub Actions só na branch main do repositório do Telegrana.
+      Description: Deploy do Telegrana pelo GitHub Actions (ambientes dev/prod, só a partir da main).
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -256,12 +279,176 @@ Resources:
             Condition:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
-                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepo}:ref:refs/heads/main"
+                "token.actions.githubusercontent.com:sub":
+                  - !Sub "repo:${GitHubRepo}:environment:dev"
+                  - !Sub "repo:${GitHubRepo}:environment:prod"
+      Policies:
+        - PolicyName: deploy-telegrana
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Stacks
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplateSummary
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/telegrana-dev/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/telegrana-prod/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+              - Sid: ValidarTemplate
+                Effect: Allow
+                Action: cloudformation:ValidateTemplate
+                Resource: "*"
+              - Sid: Artefatos
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub "${ArtifactBucket.Arn}/*"
+              - Sid: Lambdas
+                Effect: Allow
+                Action: lambda:*
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:telegrana-dev-*"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:telegrana-prod-*"
+              - Sid: PapeisSoComLimite
+                Effect: Allow
+                Action: [iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:DeleteRolePolicy]
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-dev-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-prod-*"
+                Condition:
+                  StringEquals:
+                    "iam:PermissionsBoundary": !Ref LambdaBoundary
+              - Sid: PapeisLeitura
+                Effect: Allow
+                Action: [iam:GetRole, iam:GetRolePolicy, iam:DeleteRole, iam:TagRole, iam:UntagRole, iam:UpdateAssumeRolePolicy, iam:ListRolePolicies, iam:ListAttachedRolePolicies]
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-dev-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-prod-*"
+              - Sid: PassarPapel
+                Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-dev-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/telegrana-prod-*"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": [lambda.amazonaws.com, scheduler.amazonaws.com]
+              - Sid: Logs
+                Effect: Allow
+                Action: [logs:CreateLogGroup, logs:DeleteLogGroup, logs:PutRetentionPolicy, logs:TagResource, logs:UntagResource, logs:ListTagsForResource]
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-dev-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-prod-*"
+              - Sid: LogsDescrever
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: "*"
+              - Sid: Agendas
+                Effect: Allow
+                Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule, scheduler:DeleteSchedule, scheduler:GetSchedule, scheduler:TagResource]
+                Resource: !Sub "arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/telegrana-*"
+              - Sid: SegredosDoDeploy
+                Effect: Allow
+                Action: [ssm:GetParameter, ssm:GetParameters]
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/*/neon/migrator_url"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/*/telegram/bot_token"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/*/telegram/webhook_secret"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/admin_telegram_id"
+              - Sid: DecifrarSsm
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  # -------------------------------------------------------------------
+  # Limite de permissões obrigatório para todo papel criado pelo deploy (S1.3)
+  # -------------------------------------------------------------------
+  LambdaBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: telegrana-limite-lambdas
+      Description: Teto de permissões dos papéis das Lambdas e agendas do Telegrana.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Logs
+            Effect: Allow
+            Action: [logs:CreateLogStream, logs:PutLogEvents]
+            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-*"
+          - Sid: Segredos
+            Effect: Allow
+            Action: [ssm:GetParameter, ssm:GetParameters]
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/*"
+          - Sid: DecifrarSsm
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+          - Sid: InvocarLambdasDoProjeto
+            Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:telegrana-*"
+
+  # -------------------------------------------------------------------
+  # Artefatos do SAM (apagados em 7 dias; custo de centavos pago pelos créditos)
+  # -------------------------------------------------------------------
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "telegrana-artefatos-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      LifecycleConfiguration:
+        Rules:
+          - Id: apaga-artefatos-antigos
+            Status: Enabled
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 1}
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SoTls
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt ArtifactBucket.Arn, !Sub "${ArtifactBucket.Arn}/*"]
+            Condition:
+              Bool: {"aws:SecureTransport": "false"}
 
 Outputs:
   GitHubDeployRoleArn:
-    Description: Papel para o aws-actions/configure-aws-credentials (sem permissões até a S1).
+    Description: Papel para o aws-actions/configure-aws-credentials (ambientes dev/prod).
     Value: !GetAtt GitHubDeployRole.Arn
+  LambdaBoundaryArn:
+    Value: !Ref LambdaBoundary
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
   KillSwitchFunctionName:
     Value: !Ref KillSwitchFunction
   BudgetTripTopicArn:
