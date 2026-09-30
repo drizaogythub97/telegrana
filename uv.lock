@@ -725,6 +725,10 @@ wheels = [
 name = "telegrana"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "certifi" },
+    { name = "psycopg", extra = ["binary"] },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -732,12 +736,15 @@ dev = [
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "pre-commit" },
-    { name = "psycopg", extra = ["binary"] },
     { name = "pytest" },
     { name = "ruff" },
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "certifi", specifier = ">=2026.7" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -745,7 +752,6 @@ dev = [
     { name = "mypy", specifier = ">=1.18" },
     { name = "pip-audit", specifier = ">=2.9" },
     { name = "pre-commit", specifier = ">=4.3" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "ruff", specifier = ">=0.14" },
 ]

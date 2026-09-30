@@ -35,7 +35,9 @@ uv run pytest
 ## Banco nos testes (D018)
 
 - **CI**: Postgres 18 em container, por meio de `TELEGRANA_TEST_DATABASE_URL`.
-- **Local**: sem Docker. Os testes de integração pulam se `TELEGRANA_TEST_DATABASE_URL` não estiver definida. Para rodá-los, aponte para a branch `dev` do Neon (a partir da S1.2, com o papel de testes; nunca o de produção).
+- **Local**: sem Docker. Os testes usam a branch **`testes`** do Neon: `TELEGRANA_TEST_DATABASE_URL` no `.env.local` (dono da branch; o conftest lê sozinho). Cada sessão cria e apaga um banco descartável `telegrana_t_*`. Nunca aponte para `dev` ou produção.
+- **Preparar/rotacionar a branch dev**: `uv run python scripts/db_bootstrap.py dev` (papéis, migrações, URLs no `.env.local`).
+- **Nova tabela** = nova migração `NNNN_nome.sql` **e** classificação em `ISOLADAS` ou `GLOBAIS` em `tests/isolation/test_isolamento.py` (o meta-teste falha se faltar).
 
 ## Regras que os testes já garantem
 
