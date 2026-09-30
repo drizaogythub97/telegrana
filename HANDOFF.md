@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 30/09/2026 · **S0 ENCERRADA** · Próxima: **S1 — Fundação**.
+> Atualizado em 30/09/2026 · S0 encerrada · **S1.1 encerrada** · Próxima: **S1.2 — Banco**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -13,7 +13,17 @@
 
 ## Estado atual
 
-Nenhum código de funcionalidade foi escrito. Toda a preparação manual e de conta está pronta e validada.
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI) concluída** no PR #17 (`a69e6e7`). Ainda não existe código de funcionalidade.
+
+### S1.1 — o que existe (D029)
+
+- `pyproject.toml` (uv, Python 3.14 = runtime `python3.14` da Lambda), `uv.lock` com hashes. Por enquanto, nenhuma dependência de execução.
+- Pacote `src/telegrana/{core,ai,channels/telegram,infra,exports}` só com os `__init__` (docstrings das camadas).
+- Testes: `tests/unit/test_arquitetura.py` (núcleo agnóstico de canal), `tests/unit/test_check_setup.py` (mascaramento de segredos; toda variável marcada `SEGREDO` no modelo precisa estar em `SECRET_KEYS`), `tests/integration/test_postgres.py` (Postgres 18).
+- CI `.github/workflows/ci.yml`: jobs **`qualidade`**, **`testes`** (Postgres 18 em container) e **`segredos`** (gitleaks). Os três são **checks obrigatórios** no ruleset `protege-main`.
+- Actions: **só as permitidas** (as do GitHub, `astral-sh/setup-uv`, `gitleaks/gitleaks-action`) e **fixação por hash obrigatória** (`sha_pinning_required`). Uma action nova precisa entrar na lista (`gh api -X PUT repos/<repo>/actions/permissions/selected-actions`).
+- CodeQL *default setup* ligado (Python + Actions). Dependabot semanal (uv + actions).
+- pre-commit instalado na máquina: gitleaks (baixa o Go sozinho), ruff, higiene e a trava `bloqueia-dados-pessoais`. Guia em `docs/DESENVOLVIMENTO.md`.
 
 `python scripts/check_setup.py` → **42 OK, 0 falhas, 1 pendente** (11 de 15 áudios de avaliação; não bloqueia).
 
@@ -52,14 +62,16 @@ Nenhum código de funcionalidade foi escrito. Toda a preparação manual e de co
 | #13 | `1d7bbdf` | fix: celular duplicado no adb |
 | #14 | `592c3a9` | créditos AWS completos (D026) |
 | #15 | `811908d` | conjunto de avaliação (D027) |
-| #16 | (este) | encerramento da S0 (D028) |
+| #16 | `7c67819` | encerramento da S0 (D028) |
+| #17 | `a69e6e7` | **S1.1**: esqueleto, ferramentas de qualidade e CI (D029) |
+| #18 | (este) | encerramento da S1.1 |
 
-## Ponto de partida exato da próxima sessão (S1 — Fundação)
+## Ponto de partida exato da próxima sessão (S1.2 — Banco)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
 2. `python scripts/check_setup.py`. Se a AWS acusar sessão expirada, pedir ao Adriano: `aws login --profile telegrana`. No PowerShell do agente, recarregar o PATH antes de chamar `aws`/`sam` (ver Gotchas).
-3. **Propor ao Adriano a divisão da S1 em micro-fases** (a S1 do plano é grande demais para uma entrega só). Proposta:
-   - **S1.1 — Esqueleto e CI**: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
+3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.2**; a S1.1 está feita:
+   - ~~**S1.1 — Esqueleto e CI**~~ ✅ PR #17: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
    - **S1.2 — Banco**: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
    - **S1.3 — Infra e webhook**: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
    - **S1.4 — Entrada e cadastro**: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
@@ -79,6 +91,11 @@ Nenhum código de funcionalidade foi escrito. Toda a preparação manual e de co
 2. Como o CI roda a avaliação da IA sem publicar os dados (D016): decidir na S2.
 
 ## Gotchas (acumulados)
+
+**Fluxo com CI (desde a S1.1)**
+- O admin tem bypass no ruleset, mas **não o use**: sempre branch → PR → esperar `qualidade`, `testes` e `segredos` verdes → `gh pr merge --squash`. Leia o CI com `mcp__ccd_pr__get_status` e confirme uma vez com `gh pr checks <n>`, sem ficar consultando em laço.
+- Arquivos gravados pelo Python no Windows saem com CRLF, e o hook `mixed-line-ending` interrompe o commit ao corrigir. Grave com `write_text(..., newline="\n")` ou refaça o `git add` e o commit.
+- O `uv` não está no PATH do Git Bash: use `~/AppData/Roaming/Python/Python314/Scripts/uv.exe`.
 
 **Repositório e privacidade**
 - O nome é **Telegrana**, não "TeleGrana".
