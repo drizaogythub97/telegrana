@@ -100,3 +100,8 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Papel OIDC `telegrana-github-deploy`** com confiança restrita a `repo:drizaogythub97/telegrana:ref:refs/heads/main` e **nenhuma permissão** até a S1 (menor privilégio: as permissões nascem junto com o template SAM).
 - **Na S9**: subir o teto mensal para o custo planejado da EC2 (pago com créditos) e acrescentar a parada da EC2 ao kill-switch.
 - **Descartado**: Budgets Actions (limite de 2 grátis; não param Lambda diretamente); SAM para a base (exigiria bucket S3 de artefatos).
+
+## D024 · 2026-09-30 · Gestão do Neon por chave de API Project-scoped, sem MCP
+- **Decisão**: o agente recebe uma chave **Project-scoped** (`NEON_API_KEY`, nome `telegrana-agente`) e gerencia o Neon (branches, senhas, computação) por chamadas diretas à API v2, em scripts versionados. Dentro do banco, o acesso é pelas strings do papel dono.
+- **Motivo**: o Adriano quer o mínimo de passos manuais. A chave Project-scoped tem papel de editor, mas **não apaga o projeto** nem gerencia acessos.
+- **Descartado**: o *Agent prompt* do Neon (CLI global via npm + MCP + skills + `neon.ts`). Ele puxaria dados reais da família para o contexto do agente (risco de privacidade e de prompt injection por texto livre salvo no banco), acrescentaria dependências fora da stack Python e deixaria o acesso preso à configuração do agente, em vez de scripts auditáveis.
