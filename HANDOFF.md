@@ -32,6 +32,11 @@
 
 - 30/09/2026: o Adriano liberou a logo no repositório público e no README. Ela entrou como `assets/brand/logo-original.png`, com fundo branco; a versão transparente sai nos recortes da S1.
 
+**Conta AWS nova (30/09/2026, D021)**
+
+- A conta antiga foi suspensa. A nova foi criada em 30/09/2026, está no **plano gratuito** e tem US$ 100 de créditos (validade 30/09/2027); as 5 atividades de US$ 20 valem até 30/03/2027. **Não fazer upgrade de plano** antes de orçamentos e kill-switch prontos; o upgrade é obrigatório antes de 30/03/2027. A auditoria da S0.2 vira só uma conferência (conta vazia).
+- Proposta de WhatsApp não oficial financiado pelos créditos: **aguardando a decisão do Adriano** (ver "Perguntas em aberto").
+
 **Não feito (depende do Adriano)**
 
 - Nenhuma conta ou recurso criado em nenhum serviço (regra desta sessão: só depois da micro-fase concluída e do `check_setup` verde).
@@ -88,6 +93,8 @@ adb connect IP:PORTA ; adb devices
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
 
 ## Perguntas em aberto
+
+0. **WhatsApp (proposta de 30/09/2026)**: gateway não oficial (whatsmeow em Go, ou Baileys) numa EC2 `t4g.nano/micro` sem porta de entrada, pago pelos créditos até 09/2027, com chip dedicado e o Telegram continuando como canal principal. Se aprovado, revisar D001/D014 e criar a sprint S9.
 
 1. CloudTrail: só o Event history (grátis) ou trilha com S3 (centavos)? Decidir na S0.2.
 2. Avaliação da IA no CI sem publicar os dados: decidir na S2 (proposta em D016).
