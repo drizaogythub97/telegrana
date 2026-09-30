@@ -32,6 +32,12 @@
 
 - 30/09/2026: o Adriano liberou a logo no repositório público e no README. Ela entrou como `assets/brand/logo-original.png`, com fundo branco; a versão transparente sai nos recortes da S1.
 
+**S0.2 concluída em 30/09/2026**
+
+- `check_setup s0.2`: 9/9 OK (AWS CLI 2.37.6, `adriano-dev` com MFA via `aws login`, `us-east-1`, MFA na root, nenhuma chave de acesso, sem Organizations, SAM CLI 1.166.2). Caminhos longos ativos no Windows.
+- Conferência somente leitura: conta **vazia** nas 17 regiões (EC2, EBS, EIP, Lambda, S3); 0 orçamentos. `aws freetier get-account-plan-state`: FREE, ACTIVE, US$ 100, expira em 2027-03-30.
+- **Pendente**: autorização explícita do Adriano (passo 12) para o agente criar, por IaC, os orçamentos, o OIDC do GitHub e o kill-switch. O kill-switch avisa por e-mail (SNS) até existir o bot da S0.5; o aviso pelo Telegram entra na S1.
+
 **Conta AWS nova (30/09/2026, D021)**
 
 - A conta antiga foi suspensa. A nova foi criada em 30/09/2026, está no **plano gratuito** e tem US$ 100 de créditos (validade 30/09/2027); as 5 atividades de US$ 20 valem até 30/03/2027. **Não fazer upgrade de plano** antes de orçamentos e kill-switch prontos; o upgrade é obrigatório antes de 30/03/2027. A auditoria da S0.2 vira só uma conferência (conta vazia).
@@ -89,7 +95,7 @@ adb connect IP:PORTA ; adb devices
 
 ## Pendências do Adriano
 
-- Executar os guias S0.2 → S0.7 (ordem e tempos em `docs/manual/README.md`).
+- Executar os guias S0.3 → S0.7 (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
