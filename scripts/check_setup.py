@@ -528,6 +528,53 @@ def check_neon(env: dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Limite diário de requisições do gpt-oss-20b em cada projeto do Groq (D025).
+GROQ_EXPECTED_RPD = {"prod": 1000, "dev": 400}
+
+
+def check_groq_project(name: str, key: str) -> None:
+    """Descobre o projeto da chave pelo limite diário que o Groq devolve nos cabeçalhos.
+
+    Faz 1 chamada mínima ao gpt-oss-20b (~100 tokens da cota).
+    """
+    body = json.dumps(
+        {
+            "model": "openai/gpt-oss-20b",
+            "messages": [{"role": "user", "content": "ok"}],
+            "max_completion_tokens": 32,
+            "reasoning_effort": "low",
+        }
+    ).encode()
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "telegrana-check-setup/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            limit = resp.headers.get("x-ratelimit-limit-requests", "")
+    except urllib.error.HTTPError as exc:
+        limit = exc.headers.get("x-ratelimit-limit-requests", "") if exc.headers else ""
+        if not limit:
+            R.warn(f"chave {name}: não consegui ler o projeto (HTTP {exc.code})")
+            return
+    except (urllib.error.URLError, TimeoutError, OSError):
+        R.warn(f"chave {name}: não consegui ler o projeto (rede)")
+        return
+    expected = GROQ_EXPECTED_RPD[name]
+    if limit.isdigit() and int(limit) == expected:
+        R.ok(f"chave {name} está no projeto telegrana-{name} (limite de {limit} req/dia no 20b)")
+    else:
+        R.fail(
+            f"chave {name} com limite de {limit or '?'} req/dia; esperado {expected}",
+            f"a chave foi criada no projeto errado: recrie-a com 'telegrana-{name}' selecionado no topo",
+        )
+
+
 def check_groq(env: dict[str, str]) -> None:
     R.section("S0.4 · Groq")
     keys = {"prod": env.get("GROQ_API_KEY_PROD", ""), "dev": env.get("GROQ_API_KEY_DEV", "")}
@@ -550,12 +597,13 @@ def check_groq(env: dict[str, str]) -> None:
                 R.fail(f"chave {name} válida, mas faltam modelos: {', '.join(absent)}")
             else:
                 R.ok(f"chave {name} válida; modelos do plano disponíveis")
+            check_groq_project(name, key)
         elif status == 401:
             R.fail(f"chave {name} recusada (401): inválida ou apagada")
         else:
             R.fail(f"chave {name}: resposta inesperada ({status or data})")
 
-    R.info("Zero Data Retention não é verificável pela API: confirme no console (guia S0.4, passo 3)")
+    R.info("Zero Data Retention não é verificável pela API (ligado pelo agente em 30/09/2026, D025)")
 
 
 # ---------------------------------------------------------------------------
