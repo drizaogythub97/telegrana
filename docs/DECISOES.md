@@ -132,3 +132,13 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Guardar na poupança/investir não é gasto** (proposta do agente, aceita sem objeção): vira **transferência** para uma forma de pagamento/conta "Poupança" da própria pessoa e não entra no total de gastos. Ex.: áudio 07, "guardar na poupança 52 mil reais" (valor confirmado pelo Adriano).
 - **Sem finalidade identificável → o bot pergunta** (reforça a regra de ouro 7): a extração devolve `categoria = null` com um motivo, e o bot responde com botões das categorias mais prováveis mais "Outra". Nunca chuta nem usa "Outros" sem perguntar. Ex.: "50 reais", "gastei no mercado" (sem valor), "uns 30 e poucos" (valor vago).
 - Esses casos entram no gabarito da avaliação (S2).
+
+## D029 · 2026-09-30 · S1.1 — ferramentas do projeto e CI
+- **Runtime**: `python3.14` (Lambda, Amazon Linux 2023, arm64; suporte até 06/2029), a mesma versão da máquina. `requires-python = ">=3.14,<3.15"`.
+- **Dependências**: `uv` com `uv.lock` (hashes) e instalação sempre com `--locked`. Build com `uv_build`. As dependências de execução só entram junto com o código que as usa.
+- **Qualidade**: ruff (inclui as regras S de segurança e DTZ, que exige datetime com fuso), mypy `strict` em `src/` e `scripts/`, bandit, pip-audit, pytest com marcadores `integration`/`isolation`.
+- **CI** (`.github/workflows/ci.yml`): jobs `qualidade`, `testes` (Postgres 18 em service container) e `segredos` (gitleaks no histórico completo); actions fixadas por hash de commit; `permissions: contents: read`.
+- **pre-commit**: gitleaks, ruff, higiene de arquivos e uma **trava própria** que recusa `tests/eval/data/*` e `.env*` mesmo com `git add -f`.
+- **Testes de arquitetura** desde o primeiro dia: `core/`, `ai/` e `exports/` não podem importar canais (regra de ouro 10).
+- **Dependabot** semanal (uv e GitHub Actions).
+- **Descartado**: Poetry/pip-tools (o uv já cobre lock com hashes e é mais rápido); pre-commit sem gitleaks local (o CI sozinho detectaria o vazamento tarde demais).
