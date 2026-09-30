@@ -1,0 +1,37 @@
+# Verificações locais antes de cada commit. Instalar uma vez:
+#   uv run pre-commit install
+# Revisões fixadas por hash (pre-commit autoupdate --freeze).
+repos:
+  - repo: local
+    hooks:
+      - id: bloqueia-dados-pessoais
+        name: bloqueia dados reais e segredos (repositório público — D015/D016)
+        language: fail
+        entry: "Arquivo proibido no repositório público (dados de avaliação ou .env). Remova do commit."
+        files: '^(tests/eval/data/(?!LEIA-ME\.md$|\.gitkeep$).+|(.*/)?\.env(\..+)?)$'
+        exclude: '^\.env\.local\.example$'
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 2ca41cc1372d1e939a6a879f18cdc19fc1cac1ce  # frozen: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: a56c0b927e6465d37cae3e97d35d4d18ab2b96cd  # frozen: v0.16.9
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+        exclude: '^deploy/.*\.ya?ml$'  # CloudFormation usa tags !Ref/!Sub
+      - id: check-toml
+      - id: mixed-line-ending
+        args: ["--fix=lf"]

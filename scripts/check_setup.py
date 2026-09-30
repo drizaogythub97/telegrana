@@ -151,16 +151,18 @@ def first_line(text: str) -> str:
 
 def http_json(url: str, headers: dict[str, str] | None = None) -> tuple[int | None, object]:
     """GET que devolve (status, json). Nunca propaga a URL (pode conter token)."""
+    if not url.startswith("https://"):
+        raise ValueError("só URLs https são permitidas")
     req = urllib.request.Request(
         url, headers={"User-Agent": "telegrana-check-setup/1.0", **(headers or {})}
     )
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # nosec B310 — https verificado acima
             return resp.status, json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
             return exc.code, json.loads(exc.read().decode("utf-8"))
-        except (ValueError, OSError):
+        except ValueError, OSError:
             return exc.code, {}
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         return None, {"erro": type(exc).__name__}
@@ -210,7 +212,9 @@ def check_github(env: dict[str, str]) -> None:
 
     res = run(["gh", "api", f"repos/{repo}"])
     if not res or res[0] != 0:
-        R.fail(f"repositório {repo} não encontrado ou sem acesso", first_line(res[2]) if res else None)
+        R.fail(
+            f"repositório {repo} não encontrado ou sem acesso", first_line(res[2]) if res else None
+        )
         return
     data = json.loads(res[1])
     if data.get("visibility") == "public":
@@ -221,7 +225,7 @@ def check_github(env: dict[str, str]) -> None:
         R.fail("a conta do gh não é administradora do repositório")
 
     sa = data.get("security_and_analysis") or {}
-    features = {
+    features = {  # nosec B105 — rótulos de tela, não senhas
         "secret_scanning": "Secret Protection (secret scanning)",
         "secret_scanning_push_protection": "Push protection",
         "dependabot_security_updates": "Dependabot security updates",
@@ -324,7 +328,9 @@ def check_aws(env: dict[str, str]) -> None:
         R.fail("o perfil está usando a conta ROOT", "use o usuário IAM criado no guia S0.2")
         return
     user_name = arn.rsplit("/", 1)[-1]
-    R.ok(f"perfil '{profile}' autenticado como usuário IAM '{user_name}' (conta {mask_tail(account)})")
+    R.ok(
+        f"perfil '{profile}' autenticado como usuário IAM '{user_name}' (conta {mask_tail(account)})"
+    )
 
     reg = run(["aws", "configure", "get", "region", "--profile", profile])
     if reg and reg[1] == region:
@@ -446,7 +452,10 @@ def check_neon_api(env: dict[str, str]) -> None:
 def check_neon(env: dict[str, str]) -> None:
     R.section("S0.3 · Neon Postgres")
     check_neon_api(env)
-    urls ={"production": env.get("NEON_OWNER_URL_PROD", ""), "dev": env.get("NEON_OWNER_URL_DEV", "")}
+    urls = {
+        "production": env.get("NEON_OWNER_URL_PROD", ""),
+        "dev": env.get("NEON_OWNER_URL_DEV", ""),
+    }
     hosts: dict[str, str] = {}
 
     for branch, url in urls.items():
@@ -509,9 +518,13 @@ def check_neon(env: dict[str, str]) -> None:
                     " pg_has_role(current_user, 'neon_superuser', 'member')"
                 ).fetchone()
         except psycopg.Error as exc:
-            R.fail(f"branch '{branch}': não conectou ({type(exc).__name__}: {first_line(str(exc))})")
+            R.fail(
+                f"branch '{branch}': não conectou ({type(exc).__name__}: {first_line(str(exc))})"
+            )
             continue
-        assert row is not None
+        if row is None:
+            R.fail(f"branch '{branch}': a consulta de verificação não retornou dados")
+            continue
         version_num, user, createrole, neon_su = row
         major = version_num // 10000
         R.ok(f"branch '{branch}': conectou com TLS verificado como '{user}' (Postgres {major})")
@@ -555,14 +568,14 @@ def check_groq_project(name: str, key: str) -> None:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # nosec B310 — URL https fixa
             limit = resp.headers.get("x-ratelimit-limit-requests", "")
     except urllib.error.HTTPError as exc:
         limit = exc.headers.get("x-ratelimit-limit-requests", "") if exc.headers else ""
         if not limit:
             R.warn(f"chave {name}: não consegui ler o projeto (HTTP {exc.code})")
             return
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except urllib.error.URLError, TimeoutError, OSError:
         R.warn(f"chave {name}: não consegui ler o projeto (rede)")
         return
     expected = GROQ_EXPECTED_RPD[name]
@@ -603,7 +616,9 @@ def check_groq(env: dict[str, str]) -> None:
         else:
             R.fail(f"chave {name}: resposta inesperada ({status or data})")
 
-    R.info("Zero Data Retention não é verificável pela API (ligado pelo agente em 30/09/2026, D025)")
+    R.info(
+        "Zero Data Retention não é verificável pela API (ligado pelo agente em 30/09/2026, D025)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -632,19 +647,27 @@ def check_telegram(env: dict[str, str]) -> None:
             continue
         status, data = tg(token, "getMe")
         if status != 200 or not isinstance(data, dict) or not data.get("ok"):
-            R.fail(f"token {name} recusado pelo Telegram ({status})", "gere outro com /token no @BotFather")
+            R.fail(
+                f"token {name} recusado pelo Telegram ({status})",
+                "gere outro com /token no @BotFather",
+            )
             continue
         me = data["result"]
         ids[name] = me["id"]
         got = me.get("username", "")
         if username and got.lower() != username.lstrip("@").lower():
-            R.fail(f"token {name} é do bot @{got}, mas TELEGRAM_BOT_USERNAME_{name.upper()} diz @{username}")
+            R.fail(
+                f"token {name} é do bot @{got}, mas TELEGRAM_BOT_USERNAME_{name.upper()} diz @{username}"
+            )
         else:
             R.ok(f"token {name} válido: @{got}")
             if not username:
                 R.missing(f"TELEGRAM_BOT_USERNAME_{name.upper()} em branco (use: {got})")
         if me.get("can_join_groups"):
-            R.fail(f"@{got} ainda pode ser adicionado a grupos", "@BotFather → /setjoingroups → Disable")
+            R.fail(
+                f"@{got} ainda pode ser adicionado a grupos",
+                "@BotFather → /setjoingroups → Disable",
+            )
         else:
             R.ok(f"@{got} não entra em grupos")
     if len(ids) == 2 and ids["prod"] == ids["dev"]:
@@ -663,12 +686,18 @@ def check_telegram(env: dict[str, str]) -> None:
 
     admin = env.get("ADMIN_TELEGRAM_ID", "")
     if not admin:
-        R.missing("ADMIN_TELEGRAM_ID em branco", "python scripts/check_setup.py --descobrir-admin-id")
+        R.missing(
+            "ADMIN_TELEGRAM_ID em branco", "python scripts/check_setup.py --descobrir-admin-id"
+        )
     elif not admin.isdigit():
         R.fail("ADMIN_TELEGRAM_ID deve ser só números")
     elif bots["dev"][0] and "dev" in ids:
         status, data = tg(bots["dev"][0], "getChat", {"chat_id": admin})
-        if status == 200 and isinstance(data, dict) and data.get("result", {}).get("type") == "private":
+        if (
+            status == 200
+            and isinstance(data, dict)
+            and data.get("result", {}).get("type") == "private"
+        ):
             R.ok("ADMIN_TELEGRAM_ID confere: é uma conversa privada com o bot de dev")
         else:
             R.warn(
@@ -696,11 +725,15 @@ def discover_admin_id(env: dict[str, str]) -> int:
     senders = {}
     for upd in data.get("result", []):
         msg = upd.get("message") or {}
-        if msg.get("chat", {}).get("type") == "private" and msg.get("text", "").startswith("/start"):
+        if msg.get("chat", {}).get("type") == "private" and msg.get("text", "").startswith(
+            "/start"
+        ):
             sender = msg.get("from", {})
             senders[sender.get("id")] = sender.get("first_name", "")
     if not senders:
-        print("Nenhum /start encontrado. Abra o bot de dev no Telegram, toque em Iniciar e rode de novo.")
+        print(
+            "Nenhum /start encontrado. Abra o bot de dev no Telegram, toque em Iniciar e rode de novo."
+        )
         return 1
     print("Quem mandou /start ao bot de dev:")
     for uid, first_name in senders.items():
@@ -787,9 +820,9 @@ def check_brand_and_data(env: dict[str, str]) -> None:
         if size is None:
             R.fail("logo-original.png não é um PNG válido")
         elif min(size) < 640:
-            R.warn(f"logo com {size[0]}×{size[1]}; o ícone do bot pede pelo menos 640×640")
+            R.warn(f"logo com {size[0]}x{size[1]}; o ícone do bot pede pelo menos 640x640")
         else:
-            R.ok(f"logo encontrada ({size[0]}×{size[1]})")
+            R.ok(f"logo encontrada ({size[0]}x{size[1]})")
 
     data_dir = ROOT / "tests" / "eval" / "data"
     ignored = run(["git", "check-ignore", "-q", "tests/eval/data/mensagens.txt"])
@@ -890,11 +923,13 @@ def main() -> int:
     for key in selected:
         try:
             PHASES[key](env)
-        except Exception as exc:  # noqa: BLE001 — um erro numa fase não pode vazar segredo nem parar as outras
+        except Exception as exc:  # um erro numa fase não pode vazar segredo nem parar as outras
             R.fail(f"erro inesperado: {type(exc).__name__}: {first_line(str(exc))}")
 
     c = R.counts
-    print(f"\nResumo: {c['ok']} ok · {c['falha']} falha(s) · {c['aviso']} aviso(s) · {c['falta']} pendente(s)")
+    print(
+        f"\nResumo: {c['ok']} ok · {c['falha']} falha(s) · {c['aviso']} aviso(s) · {c['falta']} pendente(s)"
+    )
     if c["falha"]:
         return 1
     return 2 if c["falta"] else 0
