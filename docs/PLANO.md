@@ -455,6 +455,8 @@ Modelo de ameaças mínimo: bot público no Telegram, dados financeiros pessoais
 
 Conta antiga (mais de 12 meses): só os benefícios **Always Free**, que atendem o projeto.
 
+> **Atualizado em 30/09/2026 (D021):** a conta antiga foi suspensa. O projeto usa uma **conta nova**, criada em 30/09/2026, no **plano gratuito**, com US$ 100 de créditos (mais até US$ 100 por atividades) válidos até 30/09/2027. O Always Free abaixo continua valendo. O **upgrade para o plano pago** tem de acontecer antes de 30/03/2027, com orçamentos e kill-switch já ativos.
+
 | Serviço | Franquia permanente | Uso previsto (10 pessoas) |
 |---|---|---|
 | Lambda | 1 milhão de requisições + 400 mil GB-s/mês | ~2% |

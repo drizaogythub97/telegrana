@@ -76,3 +76,9 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 
 ## D020 · 2026-09-29 · Validação visual em iPhone é manual
 - O Adriano usa Android 11+ (adb por Wi-Fi confirmado como caminho). Há iPhone na família: antes de cada liberação à família (a partir da S8), o agente gera um checklist visual para conferência manual no iPhone.
+
+## D021 · 2026-09-30 · Conta AWS nova, no plano gratuito com créditos
+- **Fato**: a conta antiga do Adriano foi suspensa; em 30/09/2026 ele criou uma conta nova, no **Free account plan**, com US$ 100 de créditos (validade 30/09/2027) e mais até US$ 100 por 5 atividades de US$ 20 (prazo de 6 meses).
+- **Regras da conta nova** (verificadas em 30/09/2026, aws.amazon.com/free/free-tier-faqs): o plano gratuito termina em 6 meses (30/03/2027) ou quando os créditos acabarem, o que vier primeiro; se não houver upgrade para o plano pago, a conta é fechada (90 dias de carência). Os créditos restantes continuam valendo depois do upgrade, até expirar. O Always Free (Lambda, EventBridge Scheduler etc.) vale nos dois planos. EC2 do free tier para contas novas: `t3.micro`, `t3.small`, `t4g.micro`, `t4g.small`, `c7i-flex.large`, `m7i-flex.large`.
+- **Decisão**: desenvolver no plano gratuito (a AWS não consegue cobrar o cartão) e fazer o upgrade para o plano pago **depois** de orçamentos e kill-switch prontos e **antes** de 30/03/2027. Fazer as 5 atividades de crédito como `adriano-dev` (Budgets e Lambda com os recursos reais do projeto; EC2, RDS e Bedrock descartáveis, apagados na hora).
+- **Muda no plano**: a seção 9 deixa de falar em "conta antiga"; a auditoria da S0.2 vira conferência de conta vazia; o upgrade de plano entra como tarefa com prazo.
