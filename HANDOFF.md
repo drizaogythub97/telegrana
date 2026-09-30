@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 29/09/2026 · Fase: **S0 em andamento**. Guias entregues; aguardando o Adriano executar as micro-fases S0.1 a S0.7.
+> Atualizado em 30/09/2026 · Fase: **S0 em andamento**. **S0.1 concluída** (check verde); aguardando o Adriano executar S0.2 a S0.7.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.**
 
 ## Leia nesta ordem
@@ -23,10 +23,16 @@
 - `scripts/check_setup.py`: valida cada fase **só com leituras**, mascara qualquer segredo conhecido na saída e tem o modo `--descobrir-admin-id`. Testado com valores falsos: nenhum vazamento. `scripts/requirements-check.txt` traz `psycopg[binary]` 3.3.6 e `certifi` travados com hash; já estão instalados no Python do usuário.
 - Identidade git **deste repositório**: `Adriano Cardoso <225630126+drizaogythub97@users.noreply.github.com>`. O e-mail global da máquina é pessoal e não pode aparecer nos commits.
 
+**S0.1 concluída em 30/09/2026** (com autorização do Adriano, via Chrome + `gh`)
+
+- Repositório `drizaogythub97/telegrana` (público) com remoto `origin` e `main` enviada.
+- Ligados pelo agente: Private vulnerability reporting, Dependabot malware alerts e "Require approval for all external contributors" no Actions. O Adriano já tinha ligado Secret Protection, Push protection, Dependabot alerts/security updates e o GITHUB_TOKEN só leitura.
+- Ruleset `protege-main` (id 24246219) na branch padrão: bloqueia exclusão e force-push e exige PR. **O papel admin tem bypass "always"**, então o agente (logado como o dono) ainda consegue dar push direto. Ao criar o CI na S1, acrescentar os *required status checks* ao ruleset.
+- `check_setup s0.1`: 11/11 OK. `GITHUB_REPO` preenchido no `.env.local`.
+
 **Não feito (depende do Adriano)**
 
 - Nenhuma conta ou recurso criado em nenhum serviço (regra desta sessão: só depois da micro-fase concluída e do `check_setup` verde).
-- **Sem remoto**: o commit da S0 está só no local. O push acontece depois da S0.1.
 
 ## Próximo passo exato
 
@@ -34,7 +40,7 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
 
 1. Rode `python scripts/check_setup.py s0.X` (ele lê o `.env.local`; nunca abra nem imprima esse arquivo).
 2. Se estiver verde, execute a ação do agente correspondente:
-   - **S0.1** → `git remote add origin https://github.com/<GITHUB_REPO>.git` → `gh auth setup-git` → `git push -u origin main` → criar um ruleset na `main` pela API (PR obrigatório, checks obrigatórios quando existirem, sem force-push e sem apagar a branch; o admin pode contornar enquanto não houver CI) → confirmar `check_setup s0.1` 100% verde.
+   - **S0.1** → ✅ feita em 30/09/2026 (ver acima).
    - **S0.2** → confirmar Organizations pelo check → **auditoria somente leitura em todas as regiões** (EC2, EBS, snapshots, EIP, NAT, RDS, S3, Lambda, CloudFormation, CloudWatch Logs, ECR, custos do mês pelo Cost Explorer) → **mostrar a lista ao Adriano antes de apagar qualquer coisa** → depois, por IaC (SAM/CloudFormation em `deploy/`): orçamentos *zero spend* e US$ 1/mês (real e previsto), provedor OIDC do GitHub com papel de deploy restrito a `repo:<GITHUB_REPO>:ref:refs/heads/main` e ao environment, e kill-switch (orçamento com ação → SNS → Lambda que zera a concorrência reservada e avisa no Telegram).
    - **S0.3 a S0.5** → só validar. A criação de papéis no banco, do bot de teste etc. é da S1.
    - **S0.6** → pedir autorização e fazer uma captura de teste só da conversa com o bot de dev.
@@ -74,7 +80,7 @@ adb connect IP:PORTA ; adb devices
 
 ## Pendências do Adriano
 
-- Executar os guias S0.1 → S0.7 (ordem e tempos em `docs/manual/README.md`).
+- Executar os guias S0.2 → S0.7 (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
 - Dizer se a logo pode ficar pública no repositório (está em `assets/brand/logo-original.png`, ainda não commitada).
@@ -85,3 +91,7 @@ adb connect IP:PORTA ; adb devices
 1. A logo pode ir para o repositório público? Até a resposta, ela fica **fora do commit**.
 2. CloudTrail: só o Event history (grátis) ou trilha com S3 (centavos)? Decidir na S0.2.
 3. Avaliação da IA no CI sem publicar os dados: decidir na S2 (proposta em D016).
+
+## Gotcha novo (30/09/2026)
+
+- Chrome/GitHub: depois de clicar em **Enable**, a página de Advanced Security não atualiza sozinha. Confirme pela API (`gh api repos/<repo>/private-vulnerability-reporting`) antes de clicar de novo, senão o segundo clique desliga. O layout também muda, então tire um screenshot novo antes de cada clique.
