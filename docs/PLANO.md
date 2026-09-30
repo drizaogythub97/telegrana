@@ -229,6 +229,7 @@ Nota registrada: a LGPD não se aplica ao tratamento feito por pessoa física pa
 - Tipos: **gasto** e **ganho** (e **transferência** entre formas de pagamento da mesma pessoa, ex.: pagar fatura, se necessário para a lógica de cartão).
 - Campos: valor (centavos), tipo, categoria, forma de pagamento, data de competência (quando aconteceu), data de caixa (quando o dinheiro saiu/entrou de fato), descrição, origem (texto/áudio/fixo/fatura), texto original ou transcrição, status (`realizado`, `previsto`), id do update de origem.
 - Uma mensagem pode gerar vários lançamentos ("paguei 40 de uber e 25 de almoço").
+- *(30/09/2026, D028)* A finalidade dita na mensagem define a categoria ("dei 80 pra esposa ir no mercado" = Mercado). Guardar na poupança/investir é **transferência**, não gasto. Sem finalidade identificável, o bot **pergunta** com botões de categoria.
 - Todo lançamento gera um **recibo** com botões:
 
 ```
@@ -547,7 +548,7 @@ Cada sprint fecha com o **protocolo de encerramento** (CLAUDE.md).
 
 | Sprint | Entrega | Critério de pronto |
 |---|---|---|
-| **S0** | Guias manuais (S0.1–S0.7) e validação automática de cada entrega | Todas as credenciais validadas; conta AWS auditada; orçamentos e kill-switch criados |
+| **S0** ✅ *(encerrada em 30/09/2026; PRs #1–#16)* | Guias manuais (S0.1–S0.7) e validação automática de cada entrega | Todas as credenciais validadas; conta AWS auditada; orçamentos e kill-switch criados |
 | **S1 — Fundação** | Repo, estrutura, SAM, Lambdas `bot`/`rotinas`/`kill-switch`, Function URL, webhook com secret, deduplicação, esquema inicial com RLS e papéis, migrações, CI/CD com OIDC, logs, segredos no SSM, recortes da logo, `/start` com link de convite, pedido de acesso com "como você conhece o Adriano?" e aprovação do admin, termos e política (rascunho revisado pelo Adriano e publicado no Telegraph), cadastro mínimo (nome, telefone via botão, maioridade) como máquina de estados, código de recuperação, recuperação por telefone, `/entrar`, recuperação manual pelo admin, `/meus_dados`, `/corrigir_nome`, `/termos`, `/apagar_conta` | E2E no servidor de testes cobrindo: entrar pelo link, link revogado, pedir acesso, aprovar, recusar, recusar termos, sem maioridade, contato de outra pessoa rejeitado, recuperação por telefone, por código e manual, bloqueio por tentativas; suíte de isolamento verde |
 | **S2 — Lançamentos por texto** | Extração com gpt-oss-20b, normalização de valores e datas, múltiplos lançamentos por mensagem, recibo com botões, correção por reply, categorias, avaliação de IA no CI | Eval ≥ 95% valor/tipo/data e ≥ 90% categoria |
 | **S3 — Áudio** | Download, Whisper com vocabulário, mesmo fluxo do texto, transcrição resumida no recibo | Eval de áudio no mesmo patamar |
