@@ -391,25 +391,41 @@ def check_neon_api(env: dict[str, str]) -> None:
         R.missing("NEON_API_KEY em branco", "guia S0.3, passo 5 (chave Project-scoped)")
         return
     auth = {"Authorization": f"Bearer {key}", "Accept": "application/json"}
-    status, data = http_json(f"{NEON_API}/projects", auth)
-    if status in (401, 403):
-        R.fail(f"NEON_API_KEY recusada ({status})")
+    # Chave pessoal consegue listar as chaves pessoais do usuário; a Project-scoped, não.
+    status, data = http_json(f"{NEON_API}/api_keys", auth)
+    if status == 200:
+        R.fail(
+            "NEON_API_KEY é uma chave PESSOAL (acessa todos os projetos e pode apagá-los)",
+            "crie uma Project-scoped em Organization settings → API keys e revogue a pessoal",
+        )
+        return
+    # Chave Project-scoped não lista projetos: o id vem do .env.local (não é segredo).
+    project_id = env.get("NEON_PROJECT_ID", "")
+    if not project_id:
+        R.missing("NEON_PROJECT_ID em branco", "Neon → projeto → Settings → General → Project ID")
+        return
+    status, data = http_json(f"{NEON_API}/projects/{urllib.parse.quote(project_id)}", auth)
+    if status == 401:
+        R.fail("NEON_API_KEY recusada (401)")
+        return
+    if status in (403, 404):
+        R.fail(f"a chave não acessa o projeto {project_id} ({status}): escopo ou id errado")
         return
     if status != 200 or not isinstance(data, dict):
         R.fail(f"API do Neon: resposta inesperada ({status or data})")
         return
-    projects = [p for p in data.get("projects", []) if p.get("name") == "telegrana"]
-    if len(data.get("projects", [])) > 1:
-        R.warn("a chave enxerga mais de um projeto: prefira uma chave Project-scoped")
-    if not projects:
-        R.fail("a chave não enxerga o projeto 'telegrana'")
-        return
-    project = projects[0]
-    R.ok(f"NEON_API_KEY válida; projeto 'telegrana' em {project.get('region_id')} (Postgres {project.get('pg_version')})")
+    project = data.get("project", {})
+    R.ok(
+        f"NEON_API_KEY válida e restrita ao projeto '{project.get('name')}' "
+        f"({project.get('region_id')}, Postgres {project.get('pg_version')})"
+    )
     if project.get("region_id") != "aws-us-east-1":
         R.fail("o projeto não está em aws-us-east-1")
+    listing, _ = http_json(f"{NEON_API}/projects", auth)
+    if listing == 200:
+        R.warn("a chave consegue listar outros projetos: prefira uma chave Project-scoped")
 
-    status, data = http_json(f"{NEON_API}/projects/{project['id']}/branches", auth)
+    status, data = http_json(f"{NEON_API}/projects/{urllib.parse.quote(project_id)}/branches", auth)
     if status != 200 or not isinstance(data, dict):
         R.fail(f"não consegui listar as branches ({status})")
         return

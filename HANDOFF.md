@@ -41,6 +41,12 @@
 - Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
 - Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
+**S0.3 concluída em 30/09/2026**
+
+- Neon: projeto `telegrana` (id em `NEON_PROJECT_ID` no `.env.local`), `aws-us-east-1`, Postgres 18; branches `production` e `dev` **sem expiração**. `check_setup s0.3`: 7/7 OK (TLS `verify-full` + papel dono com CREATEROLE/neon_superuser nas duas branches).
+- Acesso de gestão: `NEON_API_KEY` **Project-scoped** (D024; não consegue apagar o projeto nem listar outros). Essa chave **não lista projetos**: use `GET /api/v2/projects/{NEON_PROJECT_ID}`. A primeira tentativa do Adriano gerou uma chave pessoal, que foi revogada; o check agora recusa chave pessoal.
+- Não usar o "Agent prompt" nem o "Onboard your agent" do Neon (D024).
+
 **Conta AWS nova (30/09/2026, D021)**
 
 - A conta antiga foi suspensa. A nova foi criada em 30/09/2026, está no **plano gratuito** e tem US$ 100 de créditos (validade 30/09/2027); as 5 atividades de US$ 20 valem até 30/03/2027. **Não fazer upgrade de plano** antes de orçamentos e kill-switch prontos; o upgrade é obrigatório antes de 30/03/2027. A auditoria da S0.2 vira só uma conferência (conta vazia).
@@ -60,7 +66,8 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
 2. Se estiver verde, execute a ação do agente correspondente:
    - **S0.1** → ✅ feita em 30/09/2026 (ver acima).
    - **S0.2** → ✅ feita em 30/09/2026 (conferência, orçamentos, kill-switch e OIDC). Falta: as 4 tarefas de crédito restantes (guia S0.2, seção 7) e a confirmação dos e-mails do SNS.
-   - **S0.3 a S0.5** → só validar. A criação de papéis no banco, do bot de teste etc. é da S1.
+   - **S0.3** → ✅ feita em 30/09/2026.
+   - **S0.4 e S0.5** → só validar. A criação de papéis no banco, do bot de teste etc. é da S1.
    - **S0.6** → pedir autorização e fazer uma captura de teste só da conversa com o bot de dev.
    - **S0.7** → só validar (necessária na S2/S3). Registrar no plano a revisão das categorias que o Adriano mandar pelo chat.
 3. Com tudo verde, auditoria feita e orçamentos/OIDC/kill-switch criados: fechar a S0 pelo protocolo e começar a **S1**.
@@ -98,7 +105,7 @@ adb connect IP:PORTA ; adb devices
 
 ## Pendências do Adriano
 
-- Executar os guias S0.3 → S0.7 (ordem e tempos em `docs/manual/README.md`).
+- Executar os guias S0.4 → S0.7 (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
