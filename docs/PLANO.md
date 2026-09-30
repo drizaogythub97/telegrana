@@ -474,8 +474,8 @@ Conta antiga (mais de 12 meses): só os benefícios **Always Free**, que atendem
 
 1. **Auditoria inicial** da conta em todas as regiões: recursos esquecidos de cursos (EC2, EBS, snapshots, IP elástico, NAT Gateway, RDS, S3). Listar ao Adriano antes de apagar qualquer coisa.
 2. **Orçamentos**: "zero spend" (alerta ao primeiro centavo) e um orçamento de US$ 1/mês com alertas real e previsto.
-3. **Kill-switch**: orçamento com ação → SNS → Lambda que zera a concorrência reservada das Lambdas do projeto e avisa o admin no Telegram. Atenção: o Budgets atualiza poucas vezes ao dia; é cinto de segurança, não bloqueio instantâneo.
-4. **Tetos técnicos**: concorrência reservada baixa nas Lambdas (ex.: 5), memória e timeout mínimos necessários, `max_connections` do webhook baixo.
+3. **Kill-switch**: orçamento com ação → SNS → Lambda que zera a concorrência reservada das Lambdas do projeto e avisa o admin no Telegram. *(Criado em 30/09/2026, stack `telegrana-bootstrap`: notificação do orçamento → SNS → Lambda; aviso por e-mail até a S1 — D023.)* Atenção: o Budgets atualiza poucas vezes ao dia; é cinto de segurança, não bloqueio instantâneo.
+4. **Tetos técnicos**: concorrência reservada baixa nas Lambdas (ex.: 5), memória e timeout mínimos necessários, `max_connections` do webhook baixo. *(30/09/2026: a conta nova tem limite total de 5 execuções simultâneas, que já serve de teto; não dá para reservar concorrência por função. Webhook com `max_connections` ≤ 3 — D023.)*
 5. **Nada de serviços pagos no caminho**: sem API Gateway, sem NAT, sem VPC, sem Secrets Manager, sem KMS gerenciado pelo cliente, sem S3 obrigatório (se o SAM precisar de bucket de artefatos, usar ciclo de vida curto; custo de centavos, registrar).
 6. Neon Free e Groq Free não têm cartão: no pior caso, param de responder, não cobram.
 

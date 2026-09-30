@@ -91,3 +91,12 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Riscos aceitos**: banimento do número (chip dedicado; o Telegram continua principal; nenhum dado se perde); depois de 09/2027, custo de US$ 7 a 10/mês ou desligamento.
 - **Revisa**: D001 (o problema do "processo sempre ligado" se resolve com a EC2 paga pelos créditos) e D014 (o estudo vira sprint).
 - **Descartado**: Baileys (Node: mais memória, árvore npm grande, caso lotusbail); neonize (camada Python sobre o whatsmeow, menos madura); API oficial (cobrança e cartão na Meta); gateway na máquina do Adriano (o sistema precisa rodar 100% online).
+
+## D023 · 2026-09-30 · Base da conta AWS: orçamentos, kill-switch e OIDC (stack `telegrana-bootstrap`)
+- **Autorizado pelo Adriano em 30/09/2026.** CloudFormation puro em `deploy/bootstrap.yaml`: o código do kill-switch vai embutido no template, então não precisa de bucket S3 nem de artefato.
+- **Orçamentos com `IncludeCredit: false`**: o consumo pago com créditos aparece nos alertas. Sem isso, o plano gratuito sempre daria US$ 0 e nada alertaria. `telegrana-gasto-zero` (alerta a US$ 0,01) e `telegrana-teto-mensal` (US$ 1: 80% real e 100% previsto por e-mail; 100% real → SNS → kill-switch).
+- **Kill-switch por notificação SNS**, não por *Budgets Action*: zero custo e sem gastar a cota de ações grátis. Zera a concorrência das Lambdas `telegrana-*`; relatório por e-mail num tópico separado (`telegrana-avisos`), para não criar laço. O aviso pelo Telegram entra na S1.
+- **Limite da conta nova: 5 execuções simultâneas de Lambda** (`get-account-settings`, 30/09/2026). Não dá para reservar concorrência por função (o plano previa "concorrência reservada 5"); o limite da conta já é o teto técnico. Zerar funciona (testado). Webhook do Telegram com `max_connections` ≤ 3, para sobrar folga para `rotinas`/kill-switch. Pedir aumento de cota só se for necessário.
+- **Papel OIDC `telegrana-github-deploy`** com confiança restrita a `repo:drizaogythub97/telegrana:ref:refs/heads/main` e **nenhuma permissão** até a S1 (menor privilégio: as permissões nascem junto com o template SAM).
+- **Na S9**: subir o teto mensal para o custo planejado da EC2 (pago com créditos) e acrescentar a parada da EC2 ao kill-switch.
+- **Descartado**: Budgets Actions (limite de 2 grátis; não param Lambda diretamente); SAM para a base (exigiria bucket S3 de artefatos).
