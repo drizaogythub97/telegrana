@@ -41,6 +41,12 @@
 - Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
 - Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
+**S0.5 concluída em 30/09/2026**
+
+- Bots: produção **@TelegranaAppBot** e dev **@TelegranaAppDevBot** (o `@TelegranaBot` estava ocupado). Os dois estão fora de grupos (`/setjoingroups` Disable). `ADMIN_TELEGRAM_ID` gravado. App de testes "Telegrana Testes" (`telegranatestes`, Desktop) criado pelo agente no my.telegram.org, depois de o Adriano fazer o login. `check_setup s0.5`: 6/6 OK.
+- Gotcha: o primeiro `/start` (14:02) sumiu da fila do bot de dev antes de qualquer leitura nossa (0 pendentes, sem webhook, sem outro consumidor no teste de conflito). O segundo chegou normalmente. Causa desconhecida; se voltar a acontecer, suspeitar de vazamento do token e fazer `/revoke`.
+- Técnica para passar segredo da tela ao `.env.local` sem expô-lo: JS na página copia para a área de transferência dentro de um listener de clique **real** (sem clique real, dá "Document is not focused"); o PowerShell grava com regex e depois limpa a área de transferência. No my.telegram.org, sobrescrever `window.alert` antes de enviar o formulário (o erro conhecido vem num `alert()`, que trava a extensão).
+
 **S0.4 concluída em 30/09/2026**
 
 - O agente configurou o Groq pelo Chrome (D025): Global ZDR ligado, allowlist de 3 modelos, projetos `telegrana-prod` e `telegrana-dev` (dev com teto). Chaves criadas pelo Adriano, cada uma no seu projeto. `check_setup s0.4`: 4/4 OK (prod = 1000 req/dia, dev = 400). Allowlist testada: modelo fora da lista → 403 "blocked at the organization level".
@@ -73,7 +79,7 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
    - **S0.2** → ✅ feita em 30/09/2026 (conferência, orçamentos, kill-switch e OIDC). Falta: as 4 tarefas de crédito restantes (guia S0.2, seção 7).
    - **S0.3** → ✅ feita em 30/09/2026.
    - **S0.4** → ✅ feita em 30/09/2026.
-   - **S0.5** → só validar. A criação de papéis no banco, do bot de teste etc. é da S1.
+   - **S0.5** → ✅ feita em 30/09/2026. A criação de papéis no banco, do bot de teste etc. é da S1.
    - **S0.6** → pedir autorização e fazer uma captura de teste só da conversa com o bot de dev.
    - **S0.7** → só validar (necessária na S2/S3). Registrar no plano a revisão das categorias que o Adriano mandar pelo chat.
 3. Com tudo verde, auditoria feita e orçamentos/OIDC/kill-switch criados: fechar a S0 pelo protocolo e começar a **S1**.
@@ -111,7 +117,7 @@ adb connect IP:PORTA ; adb devices
 
 ## Pendências do Adriano
 
-- Executar os guias S0.5 → S0.7 (ordem e tempos em `docs/manual/README.md`).
+- Executar os guias S0.6 → S0.7 (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
