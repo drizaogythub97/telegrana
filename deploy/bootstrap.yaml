@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Telegrana — base da conta (S0.2): orçamentos, alertas, kill-switch e OIDC do GitHub.
+  Tudo dentro do Always Free (sem KMS de cliente, sem S3, sem ações de orçamento pagas).
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: E-mail que recebe os alertas de custo (passado no deploy; não fica no repositório).
+    AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    NoEcho: true
+  GitHubRepo:
+    Type: String
+    Default: drizaogythub97/telegrana
+    Description: Repositório autorizado a assumir o papel de deploy (dono/nome).
+  MonthlyLimitUsd:
+    Type: Number
+    Default: 1
+    Description: Teto mensal (USD) que dispara o kill-switch. Custos pagos com créditos contam.
+
+Resources:
+  # -------------------------------------------------------------------
+  # Alertas
+  # -------------------------------------------------------------------
+  # Tópico que o orçamento aciona quando o teto estoura: e-mail + kill-switch.
+  # Sem criptografia SSE: o Budgets não publica em tópico com a chave gerenciada aws/sns
+  # e KMS de cliente está fora do plano. O conteúdo é só o aviso de custo.
+  BudgetTripTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: telegrana-orcamento-estourado
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  BudgetTripTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref BudgetTripTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BudgetsPublica
+            Effect: Allow
+            Principal: {Service: budgets.amazonaws.com}
+            Action: sns:Publish
+            Resource: !Ref BudgetTripTopic
+            Condition:
+              StringEquals: {"aws:SourceAccount": !Ref AWS::AccountId}
+              ArnLike: {"aws:SourceArn": !Sub "arn:aws:budgets::${AWS::AccountId}:*"}
+
+  # Tópico separado para o relatório do kill-switch (evita laço: ele não aciona o kill-switch).
+  NoticeTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: telegrana-avisos
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  # -------------------------------------------------------------------
+  # Orçamentos (sem ações pagas; custos cobertos por créditos CONTAM)
+  # -------------------------------------------------------------------
+  ZeroSpendBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: telegrana-gasto-zero
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: {Amount: 1, Unit: USD}
+        CostTypes:
+          IncludeCredit: false
+          IncludeRefund: false
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 0.01
+            ThresholdType: ABSOLUTE_VALUE
+          Subscribers:
+            - {SubscriptionType: EMAIL, Address: !Ref AlertEmail}
+
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: telegrana-teto-mensal
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: {Amount: !Ref MonthlyLimitUsd, Unit: USD}
+        CostTypes:
+          IncludeCredit: false
+          IncludeRefund: false
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - {SubscriptionType: EMAIL, Address: !Ref AlertEmail}
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - {SubscriptionType: EMAIL, Address: !Ref AlertEmail}
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - {SubscriptionType: SNS, Address: !Ref BudgetTripTopic}
+    DependsOn: BudgetTripTopicPolicy
+
+  # -------------------------------------------------------------------
+  # Kill-switch: zera a concorrência das Lambdas "telegrana-*" (menos ela mesma)
+  # -------------------------------------------------------------------
+  KillSwitchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/telegrana-kill-switch
+      RetentionInDays: 7
+
+  KillSwitchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: telegrana-kill-switch
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: kill-switch
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Listar
+                Effect: Allow
+                Action: lambda:ListFunctions
+                Resource: "*"
+              - Sid: Estrangular
+                Effect: Allow
+                Action: [lambda:PutFunctionConcurrency, lambda:GetFunctionConcurrency]
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:telegrana-*"
+              - Sid: Avisar
+                Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref NoticeTopic
+              - Sid: Logs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt KillSwitchLogGroup.Arn
+
+  KillSwitchFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: KillSwitchLogGroup
+    Properties:
+      FunctionName: telegrana-kill-switch
+      Description: Zera a concorrência das Lambdas do Telegrana quando o orçamento estoura.
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 30
+      Role: !GetAtt KillSwitchRole.Arn
+      Environment:
+        Variables:
+          NOTICE_TOPIC_ARN: !Ref NoticeTopic
+          PREFIX: telegrana-
+      Code:
+        ZipFile: |
+          # Kill-switch do Telegrana. Evento SNS do orçamento -> concorrência 0 nas Lambdas
+          # "telegrana-*" (exceto esta). {"dry_run": true} só lista, sem alterar nada.
+          import json, os
+          import boto3
+
+          lam = boto3.client("lambda")
+          sns = boto3.client("sns")
+
+          def handler(event, context):
+              dry_run = bool(isinstance(event, dict) and event.get("dry_run"))
+              prefix = os.environ["PREFIX"]
+              targets = []
+              for page in lam.get_paginator("list_functions").paginate():
+                  for fn in page["Functions"]:
+                      name = fn["FunctionName"]
+                      if name.startswith(prefix) and name != context.function_name:
+                          targets.append(name)
+              done, failed = [], []
+              for name in targets:
+                  if dry_run:
+                      continue
+                  try:
+                      lam.put_function_concurrency(FunctionName=name, ReservedConcurrentExecutions=0)
+                      done.append(name)
+                  except Exception as exc:  # segue para as outras; o relatório mostra a falha
+                      failed.append(f"{name}: {type(exc).__name__}")
+              report = {"dry_run": dry_run, "alvos": targets, "zeradas": done, "falhas": failed}
+              print(json.dumps(report))
+              if not dry_run:
+                  sns.publish(
+                      TopicArn=os.environ["NOTICE_TOPIC_ARN"],
+                      Subject="Telegrana: kill-switch acionado",
+                      Message=(
+                          "O orçamento mensal estourou e o kill-switch parou as Lambdas do Telegrana.\n"
+                          f"Zeradas: {', '.join(done) or 'nenhuma'}\n"
+                          f"Falhas: {', '.join(failed) or 'nenhuma'}\n"
+                          "Para religar, veja docs/manual (operação) ou peça ao agente."
+                      ),
+                  )
+              return report
+
+  KillSwitchSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BudgetTripTopic
+      Protocol: lambda
+      Endpoint: !GetAtt KillSwitchFunction.Arn
+
+  KillSwitchInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref KillSwitchFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BudgetTripTopic
+      SourceAccount: !Ref AWS::AccountId
+
+  # -------------------------------------------------------------------
+  # OIDC do GitHub (deploy sem chaves). Permissões do papel entram na S1.
+  # -------------------------------------------------------------------
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: telegrana-github-deploy
+      Description: Assumido pelo GitHub Actions só na branch main do repositório do Telegrana.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Federated: !Ref GitHubOidcProvider}
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepo}:ref:refs/heads/main"
+
+Outputs:
+  GitHubDeployRoleArn:
+    Description: Papel para o aws-actions/configure-aws-credentials (sem permissões até a S1).
+    Value: !GetAtt GitHubDeployRole.Arn
+  KillSwitchFunctionName:
+    Value: !Ref KillSwitchFunction
+  BudgetTripTopicArn:
+    Value: !Ref BudgetTripTopic

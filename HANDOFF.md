@@ -36,7 +36,10 @@
 
 - `check_setup s0.2`: 9/9 OK (AWS CLI 2.37.6, `adriano-dev` com MFA via `aws login`, `us-east-1`, MFA na root, nenhuma chave de acesso, sem Organizations, SAM CLI 1.166.2). Caminhos longos ativos no Windows.
 - Conferência somente leitura: conta **vazia** nas 17 regiões (EC2, EBS, EIP, Lambda, S3); 0 orçamentos. `aws freetier get-account-plan-state`: FREE, ACTIVE, US$ 100, expira em 2027-03-30.
-- **Pendente**: autorização explícita do Adriano (passo 12) para o agente criar, por IaC, os orçamentos, o OIDC do GitHub e o kill-switch. O kill-switch avisa por e-mail (SNS) até existir o bot da S0.5; o aviso pelo Telegram entra na S1.
+- **Base da conta criada em 30/09/2026 (autorizada; D023)**: stack `telegrana-bootstrap` (`deploy/bootstrap.yaml`, instruções em `deploy/README.md`). Contém os orçamentos `telegrana-gasto-zero` e `telegrana-teto-mensal` (US$ 1, créditos contam), os tópicos SNS `telegrana-orcamento-estourado` e `telegrana-avisos`, a Lambda `telegrana-kill-switch` (testada em simulação: 0 alvos; zerar concorrência funciona nesta conta) e o OIDC do GitHub + papel `telegrana-github-deploy` (só `main`, **sem permissões até a S1**).
+- ⚠️ **O Adriano precisa confirmar 2 e-mails** "AWS Notification - Subscription Confirmation" (um por tópico); até lá, as inscrições ficam `PendingConfirmation`. Conferir com `aws sns list-subscriptions --profile telegrana`.
+- Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
+- Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
 **Conta AWS nova (30/09/2026, D021)**
 
@@ -56,7 +59,7 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
 1. Rode `python scripts/check_setup.py s0.X` (ele lê o `.env.local`; nunca abra nem imprima esse arquivo).
 2. Se estiver verde, execute a ação do agente correspondente:
    - **S0.1** → ✅ feita em 30/09/2026 (ver acima).
-   - **S0.2** → confirmar Organizations pelo check → **auditoria somente leitura em todas as regiões** (EC2, EBS, snapshots, EIP, NAT, RDS, S3, Lambda, CloudFormation, CloudWatch Logs, ECR, custos do mês pelo Cost Explorer) → **mostrar a lista ao Adriano antes de apagar qualquer coisa** → depois, por IaC (SAM/CloudFormation em `deploy/`): orçamentos *zero spend* e US$ 1/mês (real e previsto), provedor OIDC do GitHub com papel de deploy restrito a `repo:<GITHUB_REPO>:ref:refs/heads/main` e ao environment, e kill-switch (orçamento com ação → SNS → Lambda que zera a concorrência reservada e avisa no Telegram).
+   - **S0.2** → ✅ feita em 30/09/2026 (conferência, orçamentos, kill-switch e OIDC). Falta: as 4 tarefas de crédito restantes (guia S0.2, seção 7) e a confirmação dos e-mails do SNS.
    - **S0.3 a S0.5** → só validar. A criação de papéis no banco, do bot de teste etc. é da S1.
    - **S0.6** → pedir autorização e fazer uma captura de teste só da conversa com o bot de dev.
    - **S0.7** → só validar (necessária na S2/S3). Registrar no plano a revisão das categorias que o Adriano mandar pelo chat.
