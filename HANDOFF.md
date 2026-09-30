@@ -41,6 +41,11 @@
 - Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
 - Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
+**S0.7 (dados de avaliação) em 30/09/2026 — D027**
+
+- `tests/eval/data/` (fora do Git): 11 áudios reais do Adriano, `audios.txt` (rascunho do Whisper, **aguardando a conferência dele**; dúvida no 07: "52 mil" ou "52 reais"?) e `mensagens.txt` com 61 frases humanizadas escritas pelo agente. `check_setup s0.7`: 4 OK + 1 pendente (11 de 15 áudios; não bloqueia).
+- ⚠️ O Adriano colocou os áudios em `tests/audios testes/`, pasta **não ignorada**; o agente moveu para `tests/eval/data/audios/`. Sempre conferir o `git status` antes de commitar.
+
 **S0.6 concluída em 30/09/2026**
 
 - Celular do Adriano: **Samsung Galaxy A54 (SM-A546E), Android 16**, pareado por Wi-Fi; Telegram instalado. `check_setup s0.6`: 3/3 OK.

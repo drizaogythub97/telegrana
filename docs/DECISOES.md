@@ -119,3 +119,10 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - As 5 atividades de crédito foram concluídas no dia da criação da conta, com autorização do Adriano. Saldo: **US$ 200, válido até 30/09/2027** (API `freetier`). Todos os recursos descartáveis foram apagados na hora.
 - Aprendizado: **recursos criados por API/IaC contam** para as atividades (Budgets e Lambda via CloudFormation). O Bedrock contou pela tentativa no playground, mesmo com o bloqueio "Operation not allowed" de conta nova.
 - Efeito no plano (seção 15.4): o WhatsApp da S9 tem folga para rodar com créditos até 09/2027.
+
+## D027 · 2026-09-30 · Composição do conjunto de avaliação da IA
+- **Áudio**: 11 gravações reais do Adriano (`tests/eval/data/audios/01–11.ogg`, originalmente notas de voz do WhatsApp). `audios.txt` começou como rascunho do Whisper e **precisa da conferência do Adriano**. A meta segue 15–20; a voz da esposa (com o consentimento dela) é opcional e bem-vinda.
+- **Texto**: por escolha do Adriano, as 61 frases foram **escritas pelo agente** imitando a escrita real no Telegram: abreviações (hj, qnt, pfv, vdd), gírias (conto, pila), erros de digitação, falta de acento, emojis, várias despesas numa mensagem, datas relativas, parcelamentos, frases incompletas, correções, perguntas de relatório e 2 tentativas de prompt injection.
+- **Casos de borda revelados pelos áudios**: "Bot" transcrito como "Bote"; "guardar na poupança" (movimentação, não gasto); "dar dinheiro para a esposa ir ao mercado" (gasto ou transferência familiar?). Decidir o tratamento na S2.
+- **Risco aceito**: frases sintéticas tendem a ser mais "comportadas" que as reais. Mitigação: na S8, as mensagens reais do uso do Adriano (com consentimento, anonimizadas) entram no conjunto.
+- Tudo fica em `tests/eval/data/` (fora do Git, D016).
