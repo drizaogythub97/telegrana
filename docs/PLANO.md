@@ -37,7 +37,7 @@ Um assistente financeiro no Telegram para o Adriano e a família. A pessoa fala 
 | 15 | Cadastro | Nome completo, telefone verificado pelo botão do Telegram (guardado só como HMAC) e declaração de maioridade. Sem e-mail e sem data de nascimento na V1 |
 | 16 | Recuperação | Automática pelo mesmo telefone; código de recuperação para número novo; aprovação manual do admin como último recurso |
 | 17 | Termos | Termos de Uso e Política de Privacidade versionados, publicados no Telegraph, aceite obrigatório antes de qualquer coleta |
-| 18 | WhatsApp | Depois da V1 no Telegram: estudo de viabilidade e investimento na AWS |
+| 18 | WhatsApp | **Aprovado em 30/09/2026 (D022):** canal não oficial (whatsmeow) numa EC2 pequena, paga com os créditos da AWS, como **S9**, logo depois da V1. O Telegram continua sendo o canal principal (seção 15) |
 
 ---
 
@@ -209,6 +209,11 @@ Conteúdo mínimo obrigatório dos documentos:
 - **Mudanças nos termos**: novo aceite obrigatório.
 
 Nota registrada: a LGPD não se aplica ao tratamento feito por pessoa física para fins exclusivamente particulares e não econômicos (art. 4º, I), o que provavelmente cobre o uso familiar. Os termos são adotados mesmo assim como boa prática. **Se o bot sair do círculo familiar ou virar público/portfólio, os textos devem ser revisados por um advogado antes.**
+
+### 3.6-B Identidades por canal (atualizado 30/09/2026, D022)
+
+- Desde a S1, a identidade do usuário fica numa tabela `user_channels (user_id, channel, external_id)`: por exemplo, `telegram` + `from.id` e `whatsapp` + JID/LID. A unicidade é por `(channel, external_id)`. **Nenhuma coluna `telegram_id` fixa em `users`.**
+- O núcleo declara as **capacidades do canal** (botões inline, HTML ou Markdown, pedido de contato, `protect_content`), e a formatação se adapta a elas. Assim, o WhatsApp entra na S9 sem reescrever regras de negócio.
 
 ### 3.7 Preparado para contas compartilhadas (não implementar na V1)
 
@@ -551,6 +556,7 @@ Cada sprint fecha com o **protocolo de encerramento** (CLAUDE.md).
 | **S6 — Relatórios em texto** | `ReportSpec`, consultas por linguagem natural, `/resumo`, visões realizado/compromissos/compra, resumo semanal e fechamento mensal | Testes de consultas; números conferidos contra SQL de referência |
 | **S7 — Exportação** | XLSX e PDF com identidade visual, `/exportar` completo | Arquivos abertos e conferidos no celular via adb |
 | **S8 — Endurecimento e entrada da família** | Revisão de segurança completa (checklist da seção 8), teste do kill-switch, limites de uso, backup (ver abaixo), documentação de operação | Adriano usa sozinho por 2 semanas; depois gera o link para a família |
+| **S9 — WhatsApp** (D022) | Gateway whatsmeow na EC2, fila de saída, vínculo de conta WhatsApp↔Telegrana, formatação e menus numerados do WhatsApp, áudio, arquivos, monitoramento, nova versão dos termos | E2E com número de teste; família usando os dois canais; kill-switch parando a EC2 |
 
 **Backup (S8)**: o Neon Free só restaura as últimas 6 horas. Proposta: export lógico semanal cifrado (chave pública; a privada fica só com o Adriano, offline) enviado ao chat do admin, mais o XLSX mensal de cada usuário. O agente avalia e registra a solução final.
 
@@ -563,9 +569,82 @@ Cada sprint fecha com o **protocolo de encerramento** (CLAUDE.md).
 - Leitura de cupom fiscal (QR code da NFC-e).
 - Metas de economia.
 - Painel web (somente leitura) com login pelo Telegram.
-- **Canal WhatsApp** (decidido: estudar depois da V1): avaliar viabilidade e o investimento na AWS para um gateway sempre ligado fora da Lambda; o núcleo já é agnóstico de canal.
+- ~~Canal WhatsApp~~ → virou a sprint **S9** (seção 15, D022).
 - Recuperação por e-mail (só se houver necessidade; exigiria coleta de e-mail com finalidade, envio via SES e nova versão da política).
 - Contas para menores de idade vinculadas a um responsável.
+
+---
+
+## 15. Canal WhatsApp — S9 (aprovado em 30/09/2026, D022)
+
+**Por que não oficial:** a partir de 01/10/2026, a API oficial (Cloud API) cobra respostas acima de 1.000 por mês por número e exige cartão na Meta, o que viola a regra de custo. Os termos de 15/01/2026 também restringem bots cuja função principal é IA.
+
+**Por que whatsmeow (Go):** conversa direto com os servidores do WhatsApp, sem navegador; é um binário único, com uns 30 a 60 MB de RAM; as dependências ficam travadas pelo `go.sum`; é mantido pelo autor das pontes mautrix. O Baileys (Node) foi descartado porque usa mais memória, tem uma árvore npm grande e já teve uma cópia maliciosa (lotusbail, 2025/2026).
+
+### 15.1 Arquitetura
+
+```
+Família (WhatsApp) <-> servidores do WhatsApp <-> [EC2 t4g.micro: gateway whatsmeow]
+                                                    | entrada: lambda:Invoke (IAM, sem URL pública)
+                                                    v
+                                      Lambda "bot" (mesmo núcleo do Telegram) -- Neon, Groq
+                                                    | saída assíncrona (lembretes, resumos)
+                                      Lambda "rotinas" --> fila SQS "wa-saida" --> gateway (long polling) --> WhatsApp
+```
+
+- **Gateway** (Go, serviço `systemd` com reinício automático):
+  - recebe as mensagens, já decifradas no próprio gateway;
+  - converte para o formato neutro do núcleo (texto, áudio, resposta de menu, *reply*);
+  - chama a Lambda `bot` pelo SDK, com o papel IAM da instância;
+  - envia ao WhatsApp o que o núcleo devolver.
+
+  Não guarda mensagens, e os logs não têm conteúdo.
+- **Sessão do WhatsApp**: SQLite no disco da EC2 (EBS cifrado). Não fica no Neon: as escritas constantes manteriam o banco acordado e gastariam a cota de CU-hora. Se a sessão se perder, basta parear de novo pelo QR.
+- **Fila de saída**: SQS, no Always Free (1 milhão de requisições por mês). O *long polling* de 20 s gasta cerca de 130 mil por mês.
+- **Rede**:
+  - *security group* **sem nenhuma porta de entrada**;
+  - administração só pelo SSM Session Manager (sem SSH e sem chave);
+  - IMDSv2 obrigatório;
+  - atualizações de segurança automáticas.
+- **Papel IAM da instância**: só `lambda:InvokeFunction` na Lambda `bot`, `sqs:ReceiveMessage`/`DeleteMessage` na fila `wa-saida` e o necessário para o SSM.
+- **Monitoramento sem custo**: a cada 5 minutos, o gateway registra no banco um sinal de vida (via Lambda). A `rotinas` avisa o admin **no Telegram** se esse sinal sumir por mais de 10 minutos, ou se o número for desconectado ou banido.
+- **Kill-switch**: a ação do orçamento também **para a EC2**, com a ação nativa do AWS Budgets.
+
+### 15.2 Experiência no WhatsApp
+
+- **Mesmas funções do Telegram**: lançamentos por texto e áudio, recibos, correção por *reply*, fixos, cartões, lembretes, relatórios e arquivos (PDF e XLSX vão como documento).
+- **Sem botões**: o WhatsApp não oficial não os exibe de forma confiável. As ações viram **menus numerados** ("responda 1 para ✏️ Corrigir, 2 para 🗑️ Apagar") ou *reply* em linguagem natural.
+- **Formatação** no padrão do WhatsApp (`*negrito*`, `_itálico_`, bloco monoespaçado), com os mesmos emojis.
+- **Vínculo de conta**:
+  - no Telegram, `/whatsapp` gera um código de uso único, válido por 10 minutos;
+  - a pessoa manda o código ao número do bot no WhatsApp;
+  - a partir daí, as duas identidades apontam para a mesma conta.
+- **Cadastro direto pelo WhatsApp**, sem Telegram: usa o mesmo fluxo de convite, termos e cadastro por texto, pelo link `wa.me/<número>?text=<token>`. O telefone vem do próprio WhatsApp quando estiver disponível, e é guardado só como HMAC.
+- Grupos, status e chamadas são ignorados; chamadas recebidas são recusadas automaticamente.
+
+### 15.3 Número do bot e riscos aceitos
+
+- **Chip dedicado** (pré-pago, só para o bot). **Nunca** o número pessoal de ninguém.
+- O aparelho principal do número precisa se conectar pelo menos a cada 14 dias, senão o WhatsApp desconecta os dispositivos vinculados. O número do bot fica no **WhatsApp Business** do celular do Adriano (segundo chip ou eSIM) ou num aparelho antigo ligado no Wi-Fi.
+- **Risco aceito**: o uso não oficial viola os termos do WhatsApp, e em 2026 os banimentos passaram a acontecer sem aviso. Mitigações:
+  - só responde a quem já tem conta;
+  - nunca inicia conversa com desconhecidos;
+  - lembretes só para quem ativou;
+  - limites de envio;
+  - volume baixo, de uso familiar.
+
+  **Se o número for banido, nada se perde**: os dados estão no núcleo, o Telegram continua funcionando e basta trocar o chip.
+- Termos e política ganham uma nova versão (WhatsApp/Meta como operador), com novo aceite.
+
+### 15.4 Custos (estimativa de 30/09/2026, a confirmar na S9)
+
+| Período | Custo estimado | Quem paga |
+|---|---|---|
+| Até 30/03/2027 | EC2 `t4g.micro` no free tier + IPv4 público: cerca de US$ 3,65/mês | créditos |
+| De 31/03 a 30/09/2027 | cerca de US$ 10/mês (EC2 + IPv4 + 8 GB de disco) | créditos |
+| Depois de 30/09/2027 | US$ 7 a 10/mês (R$ 40 a 60) | cartão do Adriano **ou** desligar (decidir em 08/2027) |
+
+Os créditos (US$ 100 + até US$ 100) cobrem o WhatsApp com folga até 09/2027. O resto do sistema continua no Always Free.
 
 ---
 
