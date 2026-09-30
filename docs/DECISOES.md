@@ -114,3 +114,8 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Motivo**: a cota diária é da organização; uma rodada de avaliação (~90 mil tokens) poderia esgotar a cota e parar o bot da família. O teto do dev garante pelo menos 120 mil tokens/dia e 600 req/dia para produção.
 - **Verificação**: o `check_setup` identifica o projeto de cada chave pelo cabeçalho `x-ratelimit-limit-requests` (RPD) de uma chamada mínima.
 - O Default Project fica sem chaves.
+
+## D026 · 2026-09-30 · Créditos da AWS completos (US$ 200)
+- As 5 atividades de crédito foram concluídas no dia da criação da conta, com autorização do Adriano. Saldo: **US$ 200, válido até 30/09/2027** (API `freetier`). Todos os recursos descartáveis foram apagados na hora.
+- Aprendizado: **recursos criados por API/IaC contam** para as atividades (Budgets e Lambda via CloudFormation). O Bedrock contou pela tentativa no playground, mesmo com o bloqueio "Operation not allowed" de conta nova.
+- Efeito no plano (seção 15.4): o WhatsApp da S9 tem folga para rodar com créditos até 09/2027.

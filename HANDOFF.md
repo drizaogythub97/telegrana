@@ -70,7 +70,7 @@
 - A conta antiga foi suspensa. A nova foi criada em 30/09/2026, está no **plano gratuito** e tem US$ 100 de créditos (validade 30/09/2027); as 5 atividades de US$ 20 valem até 30/03/2027. **Não fazer upgrade de plano** antes de orçamentos e kill-switch prontos; o upgrade é obrigatório antes de 30/03/2027. A auditoria da S0.2 vira só uma conferência (conta vazia).
 - **WhatsApp aprovado como S9 (D022)**: whatsmeow numa EC2 `t4g.micro`, sem portas de entrada, paga com os créditos; desenho na seção 15 do plano. **Impacto já na S1**: tabela `user_channels` e formatador guiado pelas capacidades de cada canal.
 - ⏰ **Prazo duro: upgrade para o plano pago antes de 30/03/2027**, senão a conta é fechada. Provavelmente foi o que aconteceu com a conta antiga (plano gratuito sem uso por 6 meses). Avisar o Adriano a partir de 01/2027.
-- O Adriano autorizou o agente a conduzir as 5 tarefas de crédito **depois** que a S0.2 estiver verde (guia S0.2, seção 7).
+- ✅ **5 de 5 tarefas de crédito concluídas em 30/09/2026 → US$ 200 de créditos** (válidos até 30/09/2027). O Budgets e a Lambda contaram pelos recursos criados por IaC; EC2 (`t4g.micro` sem IP público, encerrada) e RDS (`db.t4g.micro` privado, sem backup, apagado) foram feitos pelo CLI; o Bedrock contou pela tentativa no playground, apesar do erro "Operation not allowed" (bloqueio de conta nova; não usamos Bedrock). Conferência final: 0 instâncias, volumes, IPs, snapshots e segredos. Consultar com `aws freetier list-account-activities` e `aws freetier get-account-plan-state`.
 
 **Não feito (depende do Adriano)**
 
@@ -83,7 +83,7 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
 1. Rode `python scripts/check_setup.py s0.X` (ele lê o `.env.local`; nunca abra nem imprima esse arquivo).
 2. Se estiver verde, execute a ação do agente correspondente:
    - **S0.1** → ✅ feita em 30/09/2026 (ver acima).
-   - **S0.2** → ✅ feita em 30/09/2026 (conferência, orçamentos, kill-switch e OIDC). Falta: as 4 tarefas de crédito restantes (guia S0.2, seção 7).
+   - **S0.2** → ✅ feita em 30/09/2026 (conferência, orçamentos, kill-switch, OIDC e as 5 tarefas de crédito).
    - **S0.3** → ✅ feita em 30/09/2026.
    - **S0.4** → ✅ feita em 30/09/2026.
    - **S0.5** → ✅ feita em 30/09/2026. A criação de papéis no banco, do bot de teste etc. é da S1.
