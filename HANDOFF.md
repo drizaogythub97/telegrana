@@ -41,6 +41,11 @@
 - Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
 - Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
+**S0.4 em andamento (30/09/2026)**
+
+- O agente configurou o Groq pelo Chrome (D025): Global ZDR ligado, allowlist de 3 modelos, projetos `telegrana-prod` e `telegrana-dev` (dev com teto). Falta o Adriano criar as 2 chaves, cada uma no seu projeto; o `check_setup s0.4` confere o projeto pelo limite diário (1000 = prod, 400 = dev).
+- Gotcha: o console do Groq cria a chave no **projeto selecionado no topo**. O botão "Create New Project" às vezes só responde a `click()` via JavaScript.
+
 **S0.3 concluída em 30/09/2026**
 
 - Neon: projeto `telegrana` (id em `NEON_PROJECT_ID` no `.env.local`), `aws-us-east-1`, Postgres 18; branches `production` e `dev` **sem expiração**. `check_setup s0.3`: 7/7 OK (TLS `verify-full` + papel dono com CREATEROLE/neon_superuser nas duas branches).

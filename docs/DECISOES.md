@@ -105,3 +105,12 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Decisão**: o agente recebe uma chave **Project-scoped** (`NEON_API_KEY`, nome `telegrana-agente`) e gerencia o Neon (branches, senhas, computação) por chamadas diretas à API v2, em scripts versionados. Dentro do banco, o acesso é pelas strings do papel dono.
 - **Motivo**: o Adriano quer o mínimo de passos manuais. A chave Project-scoped tem papel de editor, mas **não apaga o projeto** nem gerencia acessos.
 - **Descartado**: o *Agent prompt* do Neon (CLI global via npm + MCP + skills + `neon.ts`). Ele puxaria dados reais da família para o contexto do agente (risco de privacidade e de prompt injection por texto livre salvo no banco), acrescentaria dependências fora da stack Python e deixaria o acesso preso à configuração do agente, em vez de scripts auditáveis.
+
+## D025 · 2026-09-30 · Groq: ZDR global, modelos restritos e projetos prod/dev com teto no dev
+- **Aplicado pelo agente, via Chrome, com autorização do Adriano** (30/09/2026):
+  - **Global ZDR ligado**. Desde 15/10/2025, o padrão do Groq é guardar entradas e saídas por até 30 dias; o ZDR estava desligado.
+  - **Allowlist de modelos na organização**: só `openai/gpt-oss-20b`, `openai/gpt-oss-120b` e `whisper-large-v3` (menor privilégio: uma chave vazada não usa outros modelos). Para usar outro modelo (ex.: `llama-prompt-guard-2` na S2), é preciso liberá-lo antes.
+  - **Projetos** `telegrana-prod` (limites da organização) e `telegrana-dev` (teto: 400 req/dia e 80 mil tokens/dia em cada gpt-oss; Whisper com 800 req/dia e 10.800 s/dia).
+- **Motivo**: a cota diária é da organização; uma rodada de avaliação (~90 mil tokens) poderia esgotar a cota e parar o bot da família. O teto do dev garante pelo menos 120 mil tokens/dia e 600 req/dia para produção.
+- **Verificação**: o `check_setup` identifica o projeto de cada chave pelo cabeçalho `x-ratelimit-limit-requests` (RPD) de uma chamada mínima.
+- O Default Project fica sem chaves.
