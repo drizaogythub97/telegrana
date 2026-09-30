@@ -730,9 +730,14 @@ def check_android(env: dict[str, str]) -> None:
     if not devices:
         R.missing("nenhum aparelho conectado", "adb connect IP:PORTA (guia S0.6, passo 5)")
         return
-    if len(devices) > 1:
+    # O mesmo celular pode aparecer duas vezes (conexão manual + reconexão via mDNS).
+    by_hw: dict[str, str] = {}
+    for dev in devices:
+        res = run(["adb", "-s", dev, "shell", "getprop", "ro.serialno"])
+        by_hw.setdefault(res[1] if res and res[0] == 0 and res[1] else dev, dev)
+    if len(by_hw) > 1:
         R.warn("mais de um aparelho conectado; usando o primeiro (defina ADB_DEVICE)")
-    serial = devices[0]
+    serial = next(iter(by_hw.values()))
     if ":" in serial or "_adb-tls-connect" in serial:
         R.ok("aparelho conectado por Wi-Fi")
     else:
