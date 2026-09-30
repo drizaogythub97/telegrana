@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/logo-original.png" alt="Logo do Telegrana" width="180">
+</p>
+
 # Telegrana
 
 Bot de Telegram com IA para as finanças pessoais de uma família: registra gastos e ganhos por texto e áudio, cuida de contas fixas, cartão de crédito com parcelamento e fatura, envia lembretes e gera relatórios em mensagem, XLSX e PDF.
