@@ -35,7 +35,9 @@
 **Conta AWS nova (30/09/2026, D021)**
 
 - A conta antiga foi suspensa. A nova foi criada em 30/09/2026, está no **plano gratuito** e tem US$ 100 de créditos (validade 30/09/2027); as 5 atividades de US$ 20 valem até 30/03/2027. **Não fazer upgrade de plano** antes de orçamentos e kill-switch prontos; o upgrade é obrigatório antes de 30/03/2027. A auditoria da S0.2 vira só uma conferência (conta vazia).
-- Proposta de WhatsApp não oficial financiado pelos créditos: **aguardando a decisão do Adriano** (ver "Perguntas em aberto").
+- **WhatsApp aprovado como S9 (D022)**: whatsmeow numa EC2 `t4g.micro`, sem portas de entrada, paga com os créditos; desenho na seção 15 do plano. **Impacto já na S1**: tabela `user_channels` e formatador guiado pelas capacidades de cada canal.
+- ⏰ **Prazo duro: upgrade para o plano pago antes de 30/03/2027**, senão a conta é fechada. Provavelmente foi o que aconteceu com a conta antiga (plano gratuito sem uso por 6 meses). Avisar o Adriano a partir de 01/2027.
+- O Adriano autorizou o agente a conduzir as 5 tarefas de crédito **depois** que a S0.2 estiver verde (guia S0.2, seção 7).
 
 **Não feito (depende do Adriano)**
 
@@ -94,7 +96,6 @@ adb connect IP:PORTA ; adb devices
 
 ## Perguntas em aberto
 
-0. **WhatsApp (proposta de 30/09/2026)**: gateway não oficial (whatsmeow em Go, ou Baileys) numa EC2 `t4g.nano/micro` sem porta de entrada, pago pelos créditos até 09/2027, com chip dedicado e o Telegram continuando como canal principal. Se aprovado, revisar D001/D014 e criar a sprint S9.
 
 1. CloudTrail: só o Event history (grátis) ou trilha com S3 (centavos)? Decidir na S0.2.
 2. Avaliação da IA no CI sem publicar os dados: decidir na S2 (proposta em D016).
