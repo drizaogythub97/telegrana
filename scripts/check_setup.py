@@ -44,6 +44,7 @@ SECRET_KEYS = (
     "TELEGRAM_BOT_TOKEN_PROD",
     "TELEGRAM_BOT_TOKEN_DEV",
     "TELEGRAM_API_HASH",
+    "NEON_API_KEY",
 )
 
 GROQ_REQUIRED_MODELS = ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "whisper-large-v3")
@@ -380,9 +381,56 @@ def check_aws(env: dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 
 
+NEON_API = "https://console.neon.tech/api/v2"
+
+
+def check_neon_api(env: dict[str, str]) -> None:
+    """Chave de API do projeto (gestão: branches, senhas). Só leitura aqui."""
+    key = env.get("NEON_API_KEY", "")
+    if not key:
+        R.missing("NEON_API_KEY em branco", "guia S0.3, passo 5 (chave Project-scoped)")
+        return
+    auth = {"Authorization": f"Bearer {key}", "Accept": "application/json"}
+    status, data = http_json(f"{NEON_API}/projects", auth)
+    if status in (401, 403):
+        R.fail(f"NEON_API_KEY recusada ({status})")
+        return
+    if status != 200 or not isinstance(data, dict):
+        R.fail(f"API do Neon: resposta inesperada ({status or data})")
+        return
+    projects = [p for p in data.get("projects", []) if p.get("name") == "telegrana"]
+    if len(data.get("projects", [])) > 1:
+        R.warn("a chave enxerga mais de um projeto: prefira uma chave Project-scoped")
+    if not projects:
+        R.fail("a chave não enxerga o projeto 'telegrana'")
+        return
+    project = projects[0]
+    R.ok(f"NEON_API_KEY válida; projeto 'telegrana' em {project.get('region_id')} (Postgres {project.get('pg_version')})")
+    if project.get("region_id") != "aws-us-east-1":
+        R.fail("o projeto não está em aws-us-east-1")
+
+    status, data = http_json(f"{NEON_API}/projects/{project['id']}/branches", auth)
+    if status != 200 or not isinstance(data, dict):
+        R.fail(f"não consegui listar as branches ({status})")
+        return
+    branches = {b.get("name"): b for b in data.get("branches", [])}
+    for name in ("production", "dev"):
+        branch = branches.get(name)
+        if branch is None:
+            R.fail(f"branch '{name}' não existe no projeto")
+        elif branch.get("expires_at"):
+            R.fail(
+                f"branch '{name}' tem expiração automática ({branch['expires_at']})",
+                "Branches → dev → desligue a expiração (senão ela será apagada)",
+            )
+        else:
+            R.ok(f"branch '{name}' existe e não expira")
+
+
 def check_neon(env: dict[str, str]) -> None:
     R.section("S0.3 · Neon Postgres")
-    urls = {"production": env.get("NEON_OWNER_URL_PROD", ""), "dev": env.get("NEON_OWNER_URL_DEV", "")}
+    check_neon_api(env)
+    urls ={"production": env.get("NEON_OWNER_URL_PROD", ""), "dev": env.get("NEON_OWNER_URL_DEV", "")}
     hosts: dict[str, str] = {}
 
     for branch, url in urls.items():
