@@ -41,6 +41,13 @@
 - Limite da conta: **5 Lambdas simultâneas no total**. Webhook com `max_connections` ≤ 3.
 - Tarefa de crédito "AWS Budgets" (US$ 20): conferir no widget "Explore a AWS" se o orçamento criado por IaC foi reconhecido. Se não foi, fazer pelo console.
 
+**S0.6 concluída em 30/09/2026**
+
+- Celular do Adriano: **Samsung Galaxy A54 (SM-A546E), Android 16**, pareado por Wi-Fi; Telegram instalado. `check_setup s0.6`: 3/3 OK.
+- Rede: a casa tem **dois roteadores**. O PC fica no modem (`192.168.15.x`, cabo, perfil de rede "Public"); o celular precisa estar no Wi-Fi do **modem**, não no roteador `192.168.0.x`.
+- Reconectar em sessões futuras: `adb mdns services` mostra `_adb-tls-connect._tcp` com IP:porta (a porta muda cada vez que a depuração é religada; o registro do mDNS pode ficar desatualizado, então confira o IP do celular) → `adb connect IP:PORTA`. O pareamento já está salvo.
+- Samsung: se o adb recusar comandos, desativar o "Bloqueador automático".
+
 **S0.5 concluída em 30/09/2026**
 
 - Bots: produção **@TelegranaAppBot** e dev **@TelegranaAppDevBot** (o `@TelegranaBot` estava ocupado). Os dois estão fora de grupos (`/setjoingroups` Disable). `ADMIN_TELEGRAM_ID` gravado. App de testes "Telegrana Testes" (`telegranatestes`, Desktop) criado pelo agente no my.telegram.org, depois de o Adriano fazer o login. `check_setup s0.5`: 6/6 OK.
@@ -80,7 +87,7 @@ Retome quando o Adriano disser "S0.X concluída". Para cada fase:
    - **S0.3** → ✅ feita em 30/09/2026.
    - **S0.4** → ✅ feita em 30/09/2026.
    - **S0.5** → ✅ feita em 30/09/2026. A criação de papéis no banco, do bot de teste etc. é da S1.
-   - **S0.6** → pedir autorização e fazer uma captura de teste só da conversa com o bot de dev.
+   - **S0.6** → ✅ feita em 30/09/2026. A captura de teste da conversa com o bot de dev fica para quando houver resposta do bot (S1), com autorização.
    - **S0.7** → só validar (necessária na S2/S3). Registrar no plano a revisão das categorias que o Adriano mandar pelo chat.
 3. Com tudo verde, auditoria feita e orçamentos/OIDC/kill-switch criados: fechar a S0 pelo protocolo e começar a **S1**.
 
@@ -117,7 +124,7 @@ adb connect IP:PORTA ; adb devices
 
 ## Pendências do Adriano
 
-- Executar os guias S0.6 → S0.7 (ordem e tempos em `docs/manual/README.md`).
+- Executar o guia S0.7 (mensagens e áudios; necessário só na S2) (ordem e tempos em `docs/manual/README.md`).
 - S0.2: dizer se havia chaves na root e cobrança no mês; autorizar auditoria, orçamentos, OIDC e kill-switch.
 - S0.7: revisar as categorias padrão (pelo chat) e pedir o consentimento da esposa para os dados de avaliação.
 - S1 (previsto): aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
