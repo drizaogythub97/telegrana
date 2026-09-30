@@ -20,7 +20,7 @@ Um assistente financeiro no Telegram para o Adriano e a família. A pessoa fala 
 
 | # | Tema | Decisão |
 |---|---|---|
-| 1 | Canal | Telegram (bot único `@TelegranaBot` ou variação disponível) |
+| 1 | Canal | Telegram: **@TelegranaAppBot** (produção) e **@TelegranaAppDevBot** (dev), criados em 30/09/2026 (`@TelegranaBot` estava ocupado) |
 | 2 | Nome | **Telegrana** (só o T maiúsculo) |
 | 3 | IA | **Groq**: Whisper large-v3 para áudio; `gpt-oss-20b` para extração de lançamentos, `gpt-oss-120b` para relatórios/consultas. Comparado com Grok (xAI) e API do Claude: descartados por custo, cartão e, no caso do Grok, uso de dados para treino |
 | 4 | Computação | AWS Lambda com Function URL, na conta AWS antiga do Adriano (Always Free) |
