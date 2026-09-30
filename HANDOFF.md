@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 30/09/2026 · S0 encerrada · **S1.1 encerrada** · Próxima: **S1.2 — Banco**.
+> Atualizado em 30/09/2026 · S0 encerrada · S1.1 e **S1.2 encerradas** · Próxima: **S1.3 — Infra e webhook**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -13,7 +13,14 @@
 
 ## Estado atual
 
-A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI) concluída** no PR #17 (`a69e6e7`). Ainda não existe código de funcionalidade.
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** concluída no PR #19. Ainda não existe código de bot.
+
+### S1.2 — o que existe (D030)
+
+- `src/telegrana/infra/db.py` (`connect` com TLS `verify-full` fora de localhost; `account_context` para o RLS), `bootstrap.py` (papéis), `migrate.py` (executor: `python -m telegrana.infra.migrate` com `TELEGRANA_MIGRATOR_URL`), `migrations/0001_fundacao.sql`.
+- Esquema `telegrana`: **isoladas** (RLS forçado) `accounts`, `users`, `account_members`, `user_channels`, `terms_acceptances`; **globais** (por GRANT) `invite_links`, `access_requests`, `processed_updates`, `audit_log` (app: só INSERT), `schema_migrations`. Funções definer `resolve_identity` e `start_onboarding`.
+- Testes: `tests/conftest.py` (fixture `banco`: cria banco descartável, papéis e migrações), `tests/isolation/test_isolamento.py` (isolamento cruzado + meta-testes), `tests/integration/test_migrate.py`. **51 testes**, localmente contra a branch `testes` do Neon e no CI contra o Postgres 18 do container.
+- Neon: branch **`testes`** criada pelo agente (sem expiração; dono em `TELEGRANA_TEST_DATABASE_URL`); branch **`dev`** com papéis e migração 0001 (`NEON_APP_URL_DEV`, `NEON_MIGRATOR_URL_DEV`, rotacionáveis com `uv run python scripts/db_bootstrap.py dev`). **Produção: nada criado** (fica para a S1.3, pelo pipeline, com senhas no SSM).
 
 ### S1.1 — o que existe (D029)
 
@@ -64,16 +71,18 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #15 | `811908d` | conjunto de avaliação (D027) |
 | #16 | `7c67819` | encerramento da S0 (D028) |
 | #17 | `a69e6e7` | **S1.1**: esqueleto, ferramentas de qualidade e CI (D029) |
-| #18 | (este) | encerramento da S1.1 |
+| #18 | `ef38785` | encerramento da S1.1 |
+| #19 | (este) | **S1.2**: banco com RLS forçado e suíte de isolamento (D030) |
 
-## Ponto de partida exato da próxima sessão (S1.2 — Banco)
+## Ponto de partida exato da próxima sessão (S1.3 — Infra e webhook)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
 2. `python scripts/check_setup.py`. Se a AWS acusar sessão expirada, pedir ao Adriano: `aws login --profile telegrana`. No PowerShell do agente, recarregar o PATH antes de chamar `aws`/`sam` (ver Gotchas).
-3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.2**; a S1.1 está feita:
+3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.3**; S1.1 e S1.2 estão feitas:
    - ~~**S1.1 — Esqueleto e CI**~~ ✅ PR #17: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
-   - **S1.2 — Banco**: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
-   - **S1.3 — Infra e webhook**: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
+   - ~~**S1.2 — Banco**~~ ✅ PR #19: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
+   - **S1.3 — Infra e webhook** (próxima). Além do que está abaixo: bootstrap de papéis e migrações da **produção** pelo pipeline (senhas geradas e gravadas no SSM; `TELEGRANA_MIGRATOR_URL` lido do SSM no job de deploy); a Lambda usa `telegrana_app`. Confirmar antes que a sessão `aws login` do Adriano esteja ativa.
+   - Itens originais da S1.3: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
    - **S1.4 — Entrada e cadastro**: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
    - **S1.5 — E2E e marca**: bot no **servidor de testes** do Telegram (Telethon, contas `99966XYYYY`) cobrindo os cenários do critério de pronto da S1; recortes da logo (prévias para o Adriano); primeira captura no celular via adb (com autorização).
 4. Antes de cada escolha técnica nova (runtime da Lambda: conferir se já existe `python3.14`; biblioteca de migração; versão do SAM), **pesquisar a documentação oficial** e registrar em DECISOES.md.
@@ -116,6 +125,8 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - Recursos criados por API/IaC contam para as atividades de crédito (D026). API útil: `aws freetier get-account-plan-state` / `list-account-activities`.
 
 **Neon**
+- Papéis criados por SQL recebem senha longa (`token_urlsafe(32)`). O executor de migrações roda arquivos com várias instruções: passe **bytes** ao `execute` (protocolo simples); `str` não literal dá erro de tipo no mypy.
+- Os testes criam e apagam bancos `telegrana_t_*` na branch `testes`. Se um teste for interrompido, pode sobrar um banco: `DROP DATABASE ... WITH (FORCE)` com o dono da branch.
 - A branch principal se chama `production`. Toda branch nova vem com **expiração de 1 dia** por padrão (desligar sempre).
 - A chave Project-scoped **não lista projetos**: use `GET /api/v2/projects/{NEON_PROJECT_ID}`. Chave pessoal é recusada pelo check (a primeira tentativa do Adriano gerou uma, que foi revogada).
 - Papéis criados por SQL não recebem `neon_superuser` (bom para `app`/`migrator`). `BYPASSRLS` só via `neon_superuser`. A senha de papel criado por SQL exige 60 bits de entropia.
