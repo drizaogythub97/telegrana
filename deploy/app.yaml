@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Telegrana — aplicação (S1.3): Lambda bot (webhook do Telegram pela Function URL) e
+  Lambda rotinas (EventBridge Scheduler 09:00/20:00 America/Sao_Paulo). Uma stack por
+  ambiente: telegrana-dev e telegrana-prod.
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, prod]
+  AdminTelegramId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /telegrana/admin_telegram_id
+  LambdaBoundaryArn:
+    Type: String
+    Description: Limite de permissões obrigatório (saída LambdaBoundaryArn da stack telegrana-bootstrap).
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Architectures: [arm64]
+    CodeUri: ../.build/lambda
+    MemorySize: 256
+    Timeout: 30
+    PermissionsBoundary: !Ref LambdaBoundaryArn
+    Environment:
+      Variables:
+        TELEGRANA_ENV: !Ref Env
+        ADMIN_TELEGRAM_ID: !Ref AdminTelegramId
+    LoggingConfig:
+      LogFormat: JSON
+      ApplicationLogLevel: INFO
+      SystemLogLevel: WARN
+
+Resources:
+  # -------------------------------------------------------------------
+  # Bot (webhook)
+  # -------------------------------------------------------------------
+  BotLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/telegrana-${Env}-bot"
+      RetentionInDays: 7
+
+  BotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "telegrana-${Env}-bot"
+      Description: Webhook do Telegram (valida segredo, deduplica, só chat privado).
+      Handler: telegrana.entrypoints.bot.handler
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+        LogGroup: !Ref BotLogGroup
+      # AuthType NONE: o Telegram não assina com IAM; a autenticação é o segredo do
+      # cabeçalho X-Telegram-Bot-Api-Secret-Token (PLANO 8.1). O SAM cria as permissões
+      # InvokeFunctionUrl + InvokeFunction (com InvokedViaFunctionUrl).
+      FunctionUrlConfig:
+        AuthType: NONE
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: Segredos
+              Effect: Allow
+              Action: ssm:GetParameters
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/${Env}/*"
+            - Sid: DecifrarSsm
+              Effect: Allow
+              Action: kms:Decrypt
+              Resource: "*"
+              Condition:
+                StringEquals:
+                  "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  # -------------------------------------------------------------------
+  # Rotinas (agendadas)
+  # -------------------------------------------------------------------
+  RotinasLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/telegrana-${Env}-rotinas"
+      RetentionInDays: 7
+
+  RotinasFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "telegrana-${Env}-rotinas"
+      Description: Limpezas de retenção; lembretes e resumos a partir da S4.
+      Handler: telegrana.entrypoints.rotinas.handler
+      Timeout: 60
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+        LogGroup: !Ref RotinasLogGroup
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: Segredos
+              Effect: Allow
+              Action: ssm:GetParameters
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/${Env}/*"
+            - Sid: DecifrarSsm
+              Effect: Allow
+              Action: kms:Decrypt
+              Resource: "*"
+              Condition:
+                StringEquals:
+                  "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "telegrana-${Env}-agenda"
+      PermissionsBoundary: !Ref LambdaBoundaryArn
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: scheduler.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoca-rotinas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt RotinasFunction.Arn
+
+  RotinasSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub "telegrana-${Env}-rotinas"
+      Description: Rotinas às 09:00 e 20:00, horário de Brasília (o próprio Scheduler trata o fuso).
+      ScheduleExpression: "cron(0 9,20 * * ? *)"
+      ScheduleExpressionTimezone: America/Sao_Paulo
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt RotinasFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+
+Outputs:
+  BotFunctionUrl:
+    Description: Endereço do webhook (registrado no Telegram pelo deploy).
+    Value: !GetAtt BotFunctionUrl.FunctionUrl

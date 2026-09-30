@@ -1,5 +1,29 @@
 # deploy/ — infraestrutura como código
 
+## `app.yaml` — aplicação (S1.3, D031)
+
+Stacks `telegrana-dev` e `telegrana-prod`: Lambdas `telegrana-<env>-bot` (webhook, Function URL) e `telegrana-<env>-rotinas` (agenda às 09:00 e 20:00, horário de Brasília).
+
+**Deploy normal: pelo CI.** Merge na `main` publica o dev. Para publicar a produção:
+
+```powershell
+gh workflow run CI --ref main -f prod=true
+```
+
+**Deploy manual (emergência), desta máquina:**
+
+```powershell
+uv run python scripts/build_lambda.py
+uv run python scripts/deploy_tasks.py migrar --env dev
+sam deploy --template-file deploy/app.yaml --stack-name telegrana-dev --s3-bucket <ArtifactBucketName> --s3-prefix dev `
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides Env=dev LambdaBoundaryArn=<LambdaBoundaryArn> `
+  --no-confirm-changeset --profile telegrana-sdk
+uv run python scripts/deploy_tasks.py webhook --env dev
+uv run python scripts/deploy_tasks.py webhook-info --env dev
+```
+
+**Segredos:** `uv run python scripts/ssm_setup.py` (grava/rotaciona no SSM; veja `--help`).
+
 ## `bootstrap.yaml` — base da conta (S0.2)
 
 Stack CloudFormation `telegrana-bootstrap`, criada em 30/09/2026 (D023). Contém:
@@ -11,7 +35,9 @@ Stack CloudFormation `telegrana-bootstrap`, criada em 30/09/2026 (D023). Contém
 | SNS `telegrana-orcamento-estourado` | recebe o estouro do orçamento → e-mail + Lambda do kill-switch |
 | SNS `telegrana-avisos` | relatório do kill-switch por e-mail (tópico separado para não criar laço) |
 | Lambda `telegrana-kill-switch` | zera a concorrência de todas as Lambdas `telegrana-*`, menos ela mesma |
-| OIDC `token.actions.githubusercontent.com` + papel `telegrana-github-deploy` | deploy pelo GitHub Actions sem chaves, só a partir da `main`; **sem permissões até a S1** |
+| OIDC `token.actions.githubusercontent.com` + papel `telegrana-github-deploy` | deploy pelo GitHub Actions sem chaves (ambientes `dev`/`prod`, só `main`), com permissões mínimas (D031) |
+| Política `telegrana-limite-lambdas` | limite de permissões obrigatório de todo papel criado pelo deploy |
+| Bucket `telegrana-artefatos-<conta>` | artefatos do deploy, apagados em 7 dias |
 
 O e-mail dos alertas é um parâmetro do deploy e **não fica no repositório**.
 

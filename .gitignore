@@ -47,6 +47,7 @@ build/
 
 # AWS SAM
 .aws-sam/
+.build/
 
 # Node (ferramentas eventuais)
 node_modules/

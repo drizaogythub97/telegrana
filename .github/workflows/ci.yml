@@ -1,4 +1,5 @@
-# CI do Telegrana. Roda em todo PR e em push na main.
+# CI/CD do Telegrana. PR: qualidade, testes, segredos. Push na main: + deploy em dev.
+# Execução manual (workflow_dispatch) com prod=true: + deploy em prod depois do dev.
 # Actions fixadas por hash de commit (a tag fica no comentário); o Dependabot atualiza.
 name: CI
 
@@ -6,13 +7,19 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      prod:
+        description: "Também publicar em produção (depois do dev)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   UV_VERSION: "0.12.20"
@@ -94,3 +101,70 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -------------------------------------------------------------------
+  # Deploy (D031): OIDC → papel telegrana-github-deploy (sem chaves fixas).
+  # Ordem: pacote → migrações (compatíveis com a versão anterior) → stack → webhook.
+  # -------------------------------------------------------------------
+  deploy-dev:
+    name: deploy-dev
+    needs: [qualidade, testes, segredos]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: dev
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps: &passos-deploy
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Instalar dependências (lock com hashes)
+        run: uv sync --locked
+      - name: Credenciais AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: telegrana-${{ github.job }}-${{ github.run_id }}
+      - name: Pacote das Lambdas (linux arm64)
+        run: uv run python scripts/build_lambda.py
+      - name: Migrações do banco
+        run: uv run python scripts/deploy_tasks.py migrar --env "$AMBIENTE"
+        env:
+          AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
+      - name: Publicar a stack
+        env:
+          AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
+          BUCKET: ${{ vars.ARTIFACT_BUCKET }}
+          BOUNDARY: ${{ vars.LAMBDA_BOUNDARY_ARN }}
+        run: |
+          aws cloudformation package --template-file deploy/app.yaml             --s3-bucket "$BUCKET" --s3-prefix "$AMBIENTE" --output-template-file .build/app.yaml
+          aws cloudformation deploy --template-file .build/app.yaml --stack-name "telegrana-$AMBIENTE"             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND             --parameter-overrides "Env=$AMBIENTE" "LambdaBoundaryArn=$BOUNDARY"             --no-fail-on-empty-changeset
+      - name: Registrar o webhook no Telegram
+        run: uv run python scripts/deploy_tasks.py webhook --env "$AMBIENTE"
+        env:
+          AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
+
+  deploy-prod:
+    name: deploy-prod
+    needs: [deploy-dev]
+    if: github.event_name == 'workflow_dispatch' && inputs.prod
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: prod
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps: *passos-deploy
