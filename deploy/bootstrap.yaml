@@ -10,10 +10,13 @@ Parameters:
     Description: E-mail que recebe os alertas de custo (passado no deploy; não fica no repositório).
     AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
     NoEcho: true
-  GitHubRepo:
+  GitHubSubPrefix:
     Type: String
-    Default: drizaogythub97/telegrana
-    Description: Repositório autorizado a assumir o papel de deploy (dono/nome).
+    Default: "repo:drizaogythub97@225630126/telegrana@1397881731"
+    Description: >-
+      Prefixo do claim sub do OIDC no formato IMUTÁVEL do GitHub (dono@id/repo@id). Um
+      repositório recriado com o mesmo nome não herda o acesso. Conferir com
+      gh api repos/<dono>/<repo>/actions/oidc/customization/sub.
   MonthlyLimitUsd:
     Type: Number
     Default: 1
@@ -280,8 +283,8 @@ Resources:
               StringEquals:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
                 "token.actions.githubusercontent.com:sub":
-                  - !Sub "repo:${GitHubRepo}:environment:dev"
-                  - !Sub "repo:${GitHubRepo}:environment:prod"
+                  - !Sub "${GitHubSubPrefix}:environment:dev"
+                  - !Sub "${GitHubSubPrefix}:environment:prod"
       Policies:
         - PolicyName: deploy-telegrana
           PolicyDocument:
