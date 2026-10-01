@@ -75,27 +75,43 @@ def _cliente(api_id: int, api_hash: str) -> TelegramClient:
 def _entra(cliente: TelegramClient, telefone: str, nome: str, sobrenome: str) -> bool:
     """Entra (ou cria a conta). O código é o DC repetido; o tamanho vem do próprio servidor
     (já foi 5, já foi 6: a documentação avisa que muda). False = número inutilizável."""
-    enviado = cliente.send_code_request(telefone)
+    try:
+        enviado = cliente.send_code_request(telefone)
+    except errors.RPCError as exc:
+        print(f"    {telefone}: pedido de código recusado ({type(exc).__name__})")
+        return False
     tamanho = getattr(enviado.type, "length", 0) or 5
+    proximo = type(enviado.next_type).__name__ if enviado.next_type else "-"
+    # Diagnóstico (nada secreto): em que DC caiu e que tipo de código o servidor mandou.
+    print(
+        f"    {telefone}: DC {cliente.session.dc_id} ({cliente.session.server_address}),"
+        f" código {type(enviado.type).__name__} com {tamanho} dígitos, próximo {proximo}"
+    )
     tentativas = [str(DC) * tamanho] + [str(DC) * n for n in (5, 6) if n != tamanho]
     for codigo in tentativas:
         try:
             cliente.sign_in(telefone, code=codigo, phone_code_hash=enviado.phone_code_hash)
             return True
         except errors.PhoneCodeInvalidError:
+            print(f"      {len(codigo)} dígitos: código inválido")
             continue
         except errors.PhoneNumberUnoccupiedError:
+            print("      número novo: criando a conta")
             cliente.sign_up(
                 codigo, nome, sobrenome, phone=telefone, phone_code_hash=enviado.phone_code_hash
             )
             return True
         except errors.SessionPasswordNeededError:
-            return False  # número já usado por outra pessoa, com senha
+            print("      número de outra pessoa (com senha): tentando outro")
+            return False
+        except errors.RPCError as exc:  # por último: qualquer outra recusa do servidor
+            print(f"      {len(codigo)} dígitos: {type(exc).__name__}")
+            return False
     return False
 
 
 def _conta(api_id: int, api_hash: str, nome: str, sobrenome: str) -> TelegramClient:
-    for _ in range(5):
+    for _ in range(2):
         telefone = f"99966{DC}{secrets.randbelow(10_000):04d}"
         cliente = _cliente(api_id, api_hash)
         cliente.connect()
