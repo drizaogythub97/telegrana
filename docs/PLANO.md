@@ -492,7 +492,7 @@ Objetivo: depois da S0, o Claude Code desenvolve, testa e publica **sem precisar
 1. **Unitários**: parsing de valores e datas, regras de cartão/fatura/parcelas, lembretes, formatação de mensagens, geração de XLSX/PDF.
 2. **Integração com banco real**: Postgres em container **do CI** (mesma versão do Neon) e branch `dev` do Neon na máquina local; inclui a suíte de isolamento RLS. *(29/09/2026: sem Docker local — D018.)*
 3. **Avaliação de IA** (`tests/eval/`): conjunto real de mensagens e áudios com saída esperada.
-4. **Ponta a ponta no ambiente de testes do Telegram**:
+4. **Ponta a ponta** *(01/10/2026, D034: as contas de teste do servidor de testes do Telegram estão desativadas desde 06/2025; o E2E passou a ser **simulado**: handler real da Lambda + Bot API simulada que recusa o que o Telegram recusaria + Postgres, no CI, travando a produção. O texto abaixo fica como histórico)*:
    - O Telegram tem servidores de teste separados, com números reservados no formato `99966XYYYY` (X = data center 1–3) cujo código de login é o número do DC repetido; sem SMS, sem celular.
    - Com `api_id`/`api_hash` do my.telegram.org, o agente usa um cliente de usuário (ex.: Telethon) no servidor de teste para: criar usuários de teste, conversar com o **@BotFather de teste** para criar o bot de teste, e conversar com o bot enviando textos, áudios (gerados por TTS ou gravados) e cliques em botões, validando cada resposta.
    - A Bot API de teste é acessada pelo caminho `/bot<token>/test/<método>`.
@@ -503,13 +503,14 @@ Objetivo: depois da S0, o Claude Code desenvolve, testa e publica **sem precisar
 
 | Ambiente | Bot | Banco | Uso |
 |---|---|---|---|
-| `test` | bot no servidor de testes do Telegram | Postgres em container do CI / branch `dev` do Neon (local) | E2E automatizado |
+| `test` | Telegram simulado (D034) | Postgres em container do CI / branch `testes` do Neon (local) | E2E automatizado |
 | `dev` | `@TelegranaDevBot` (produção do Telegram, privado) | branch `dev` do Neon | testes manuais e no celular |
 | `prod` | `@TelegranaBot` | branch principal do Neon | família |
 
 ### 10.3 Pipeline
 
-- PR → CI (lint, tipos, segurança, testes, isolamento, eval) → merge em `main` → deploy automático em `dev` → E2E → promoção para `prod` (automática após E2E verde na V1; o Adriano pode pedir aprovação manual).
+- PR → CI (lint, tipos, segurança, testes, isolamento, eval) → merge em `main` → deploy automático em `dev` → E2E → promoção para `prod` (automática após E2E verde na V1; o Adriano pode pedir aprovação manual). *(01/10/2026: ativo desde a S1.5; o pipeline também invoca as Lambdas depois de cada deploy.)*
+- Antes de cada liberação para a família: roteiro no celular do Adriano via adb, no bot de dev, incluindo as telas de quem não tem conta (D034).
 - Migrações versionadas, aplicadas pelo pipeline com o papel migrador, sempre compatíveis com a versão anterior do código (deploy sem janela de indisponibilidade).
 
 ---

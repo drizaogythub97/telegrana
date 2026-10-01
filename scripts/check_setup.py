@@ -48,10 +48,6 @@ SECRET_KEYS = (
     "NEON_APP_URL_DEV",
     "NEON_MIGRATOR_URL_DEV",
     "TELEGRANA_TEST_DATABASE_URL",
-    "E2E_BOT_TOKEN",
-    "E2E_SESSION_ADMIN",
-    "E2E_SESSION_A",
-    "E2E_SESSION_B",
 )
 
 GROQ_REQUIRED_MODELS = ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "whisper-large-v3")
