@@ -38,7 +38,6 @@ from telethon.sync import TelegramClient
 RAIZ = Path(__file__).resolve().parent.parent
 ENV = RAIZ / ".env.local"
 DC, IP, PORTA = 2, "149.154.167.40", 80  # servidor de testes, DC 2 (my.telegram.org)
-CODIGO = str(DC) * 5
 CONTAS = (("ADMIN", "Admin", "Teste"), ("A", "Ana", "Teste"), ("B", "Bruno", "Teste"))
 
 
@@ -73,19 +72,34 @@ def _cliente(api_id: int, api_hash: str) -> TelegramClient:
     return cliente
 
 
+def _entra(cliente: TelegramClient, telefone: str, nome: str, sobrenome: str) -> bool:
+    """Entra (ou cria a conta). O código é o DC repetido; o tamanho vem do próprio servidor
+    (já foi 5, já foi 6: a documentação avisa que muda). False = número inutilizável."""
+    enviado = cliente.send_code_request(telefone)
+    tamanho = getattr(enviado.type, "length", 0) or 5
+    tentativas = [str(DC) * tamanho] + [str(DC) * n for n in (5, 6) if n != tamanho]
+    for codigo in tentativas:
+        try:
+            cliente.sign_in(telefone, code=codigo, phone_code_hash=enviado.phone_code_hash)
+            return True
+        except errors.PhoneCodeInvalidError:
+            continue
+        except errors.PhoneNumberUnoccupiedError:
+            cliente.sign_up(
+                codigo, nome, sobrenome, phone=telefone, phone_code_hash=enviado.phone_code_hash
+            )
+            return True
+        except errors.SessionPasswordNeededError:
+            return False  # número já usado por outra pessoa, com senha
+    return False
+
+
 def _conta(api_id: int, api_hash: str, nome: str, sobrenome: str) -> TelegramClient:
     for _ in range(5):
         telefone = f"99966{DC}{secrets.randbelow(10_000):04d}"
         cliente = _cliente(api_id, api_hash)
-        try:
-            cliente.start(
-                phone=telefone,
-                code_callback=lambda: CODIGO,
-                first_name=nome,
-                last_name=sobrenome,
-            )
-        except errors.SessionPasswordNeededError:
-            # Número já usado por outra pessoa, com senha: tenta outro.
+        cliente.connect()
+        if not _entra(cliente, telefone, nome, sobrenome):
             cliente.disconnect()
             continue
         eu = cliente.get_me()
@@ -95,7 +109,7 @@ def _conta(api_id: int, api_hash: str, nome: str, sobrenome: str) -> TelegramCli
             cliente(UpdateProfileRequest(first_name=nome, last_name=sobrenome))
         print(f"  conta {nome}: ok (id {eu.id})")
         return cliente
-    raise SystemExit("não consegui um número de teste livre; rode de novo")
+    raise SystemExit("não consegui entrar com nenhum número de teste; rode de novo")
 
 
 def _cria_bot(admin: TelegramClient) -> tuple[str, str]:
