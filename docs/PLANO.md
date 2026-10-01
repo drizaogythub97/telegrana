@@ -189,6 +189,7 @@ Resumo exibido no bot (modelo):
 🔐 Cada conta é isolada: ninguém vê seus dados, nem outros usuários.
 🤖 Suas mensagens passam por uma IA só para entender o que você disse; ela não guarda nem aprende com elas.
 🌎 Os dados ficam em servidores nos EUA (AWS, Neon, Groq).
+⚠️ Se você descrever algo sensível (ex.: saúde, religião), isso só serve para organizar suas finanças.
 💬 A conversa com bots do Telegram não tem criptografia de ponta a ponta.
 📊 O Telegrana organiza, não é consultoria financeira.
 🗑️ Você pode exportar ou apagar tudo quando quiser.
@@ -197,7 +198,7 @@ Resumo exibido no bot (modelo):
 Conteúdo mínimo obrigatório dos documentos:
 
 - **Controlador**: Adriano, pessoa física; canal de contato.
-- **Dados coletados e finalidade** (tabela da seção 3.4), base legal (consentimento e execução do serviço pedido pelo usuário).
+- **Dados coletados e finalidade** (tabela da seção 3.4), base legal (consentimento e execução do serviço pedido pelo usuário). *(01/10/2026, D032: base principal passou a ser a execução do serviço, art. 7º, V; legítimo interesse só para registros de segurança; consentimento destacado só para dado sensível que a pessoa mesma enviar; transferência internacional pelo art. 33, IX.)*
 - **Operadores e transferência internacional**: Telegram, AWS, Neon, Groq; servidores nos EUA.
 - **IA**: uso só para interpretação; Groq sem treino e com retenção zero ativada.
 - **Segurança adotada** em linguagem simples e **limites** (Telegram sem criptografia ponta a ponta em bots).
