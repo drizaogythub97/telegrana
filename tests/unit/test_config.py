@@ -8,7 +8,12 @@ VALORES = {
     "/telegrana/dev/telegram/bot_token": "123:token-secreto",
     "/telegrana/dev/telegram/webhook_secret": "segredo-webhook",
     "/telegrana/dev/neon/app_url": "postgresql://telegrana_app:senha@host/neondb",
+    "/telegrana/dev/phone/hmac_pepper": "pepper-secreto-pepper-secreto-pepper",
+    "/telegrana/dev/legal/termos": '{"versao": 1, "url": "https://telegra.ph/t", "sha256": "00"}',
+    "/telegrana/dev/legal/privacidade": '{"versao": 1, "url": "https://telegra.ph/p", "sha256": "00"}',
+    "/telegrana/dev/admin/contact": "@admin",
 }
+SEGREDOS = ("123:token-secreto", "segredo-webhook", "senha", "pepper-secreto")
 
 
 def busca(nomes: list[str]) -> dict[str, str]:
@@ -20,7 +25,7 @@ def test_carrega_e_esconde_segredos() -> None:
     assert s.admin_telegram_id == 42
     assert s.telegram_bot_token == "123:token-secreto"
     texto = repr(s)
-    for segredo in VALORES.values():
+    for segredo in SEGREDOS:
         assert segredo not in texto
 
 

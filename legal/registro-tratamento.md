@@ -16,6 +16,7 @@ Documento interno do controlador. Versão simplificada, adequada a um agente de 
 | Lançamentos e transcrições | valores, datas, categorias, descrições, formas de pagamento, cartões, fixos, texto da transcrição | Art. 7º, V; dado sensível incidental: art. 11, I | Enquanto a conta existir | tabelas da conta (RLS forçado) |
 | Interpretação por IA | texto ou áudio da mensagem, categorias e formas de pagamento, data | Art. 7º, V | Nenhuma no provedor (retenção zero); o áudio é descartado após a transcrição | Groq (EUA), em trânsito |
 | Registros de segurança | tipo e data do evento, ator; sem conteúdo financeiro nem dado pessoal em `details` | Art. 7º, IX | Enquanto a conta existir; na exclusão fica só o evento anônimo | `audit_log` |
+| Tentativas de recuperação | id do Telegram, tipo (código ou telefone), número de erros, trava | Art. 7º, IX (segurança) | 1 dia sem novas tentativas | `auth_attempts` |
 | Logs técnicos | metadados de execução, sem dado pessoal | Art. 7º, IX | 7 dias | CloudWatch (AWS, EUA) |
 | Deduplicação de mensagens | número do update do Telegram | Art. 7º, V | 7 dias | `processed_updates` |
 

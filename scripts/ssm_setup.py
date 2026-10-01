@@ -12,6 +12,8 @@ Parâmetros (nunca exibidos):
     /telegrana/<env>/telegram/webhook_secret      SecureString  (gerado; mantido se já existir)
     /telegrana/<env>/neon/app_url                 SecureString  (dev: do .env.local; prod: bootstrap)
     /telegrana/<env>/neon/migrator_url            SecureString
+    /telegrana/<env>/phone/hmac_pepper            SecureString  (gerado uma vez; NUNCA rotacionar:
+                                                  invalidaria a recuperação por telefone)
 
 Produção: os papéis do banco são criados aqui com o dono (NEON_OWNER_URL_PROD, só nesta
 máquina) e as senhas vão direto para o SSM, sem passar pelo .env.local nem pela tela.
@@ -119,6 +121,12 @@ def main() -> int:
             )  # A-Z a-z 0-9 _ - (aceito pelo Telegram)
         else:
             print(f"  mantido: {nome_segredo}")
+
+        nome_pepper = f"{base}/phone/hmac_pepper"
+        if _existe(ssm, nome_pepper):
+            print(f"  mantido: {nome_pepper}")
+        else:
+            _grava(ssm, nome_pepper, secrets.token_urlsafe(32))  # 32 bytes em base64url
 
         if ambiente == "dev":
             for chave, nome in (

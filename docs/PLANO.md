@@ -98,7 +98,7 @@ Dois caminhos de entrada que terminam no **mesmo** fluxo de cadastro (3.3).
 2. Pergunta: **"Como você conhece o Adriano?"** (resposta livre, até 200 caracteres, texto escapado).
 3. O admin recebe: `🙋 Maria Souza (@maria) pediu acesso · "sou prima do Adriano" [✅ Aprovar] [❌ Recusar]`.
 4. **Aprovado** → a pessoa recebe `✅ Seu acesso foi liberado!` + `[Criar minha conta]` → cadastro (3.3). A aprovação vale 7 dias.
-5. **Recusado** → nenhuma resposta à pessoa; novo pedido só depois de 30 dias.
+5. **Recusado** → nenhuma resposta à pessoa; novo pedido só depois que o recusado expira (7 dias do pedido). *(01/10/2026, D033: eram 30 dias, mas a Política promete apagar o pedido em até 7 dias.)*
 6. Pedidos pendentes expiram em 7 dias e são apagados (nome, @ e mensagem).
 
 **Anti-abuso:** 1 pedido pendente por `from.id`; limite global de pedidos por hora; nenhuma chamada de IA, geração de arquivo ou consulta pesada para quem não tem conta.
@@ -124,7 +124,7 @@ Ordem obrigatória — **nenhum dado pessoal é coletado antes do aceite dos ter
    - Nome completo (texto; validação de tamanho e caracteres; confirmação `É isso mesmo? [✅ Sim] [✏️ Corrigir]`).
    - Telefone pelo botão nativo do Telegram `[📱 Compartilhar meu número]` (`request_contact`). O bot aceita **somente** o contato cujo `user_id` é o do próprio remetente (impede enviar o número de outra pessoa).
    - Declaração de maioridade: `[✅ Tenho 18 anos ou mais]`. Sem a declaração, o cadastro é encerrado com mensagem educada (V1 é só para adultos).
-4. **Configuração inicial** (pode pular e fazer depois): categorias padrão (aceitar ou ajustar), formas de pagamento (Pix, débito e dinheiro já vêm), cartões de crédito (nome, dia de fechamento, dia de vencimento).
+4. **Configuração inicial** *(01/10/2026, D033: entra na S2, junto com categorias e formas de pagamento; o cadastro da S1.4 vai da maioridade direto ao código)* (pode pular e fazer depois): categorias padrão (aceitar ou ajustar), formas de pagamento (Pix, débito e dinheiro já vêm), cartões de crédito (nome, dia de fechamento, dia de vencimento).
 5. **Código de recuperação**: gerado e mostrado **uma única vez** com `protect_content`, orientando a guardar nas Mensagens Salvas ou em outro lugar seguro. Guardado como hash Argon2id.
 6. **Pronto**: exemplo de uso ("Tenta me mandar um áudio: 'gastei 30 reais de pão hoje'") + aviso ao admin.
 
