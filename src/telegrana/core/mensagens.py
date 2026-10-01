@@ -25,6 +25,7 @@ class Entrada:
     telefone: str | None = None  # contato compartilhado pelo próprio remetente
     contato_alheio: bool = False  # contato de outra pessoa (recusado)
     pergunta: str | None = None  # id da pergunta do bot que esta mensagem responde
+    contexto: str = ""  # 2ª linha da pergunta respondida (escrita pelo bot; ex.: a categoria)
 
 
 @dataclass(frozen=True, slots=True)

@@ -428,6 +428,7 @@ def _finaliza(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) ->
     with db.account_context(conn, p.account_id) as cur:
         repo.atualiza_pessoa(cur, p.user_id, onboarding_step="done", status="active")
         repo.atualiza_conta(cur, p.account_id, status="active")
+        repo.semeia_padroes(cur, p.account_id)
         if p.invite_link_id is not None:
             repo.usa_convite(cur, p.invite_link_id)
         repo.audita(cur, "account.created", account_id=p.account_id, detalhes={"via": via})
