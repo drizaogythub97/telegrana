@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 01/10/2026 · S0 e **S1 (Fundação) encerradas** · Próxima: **S2 — Lançamentos por texto**.
+> Atualizado em 01/10/2026 · S0 e S1 encerradas · **S2.1 encerrada** · Próxima: **S2.2 — IA de extração e avaliação**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -14,6 +14,14 @@
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S2.1 — o que existe (D036)
+
+- **Banco (migração 0003)**: `categories`, `payment_methods`, `transactions`, `category_rules` — ISOLADAS, RLS forçado, chaves estrangeiras **compostas** (testes provam que lançamento/regra não aponta para categoria de outra conta). Centavos `bigint`; `occurred_on`/`cash_on`; transferência sem categoria e com destino; `deleted_at`.
+- **Padrões**: `telegrana.seed_account_defaults(conta)` (21 categorias com `code` estável + Pix, Débito, Dinheiro, Poupança). Roda ao concluir o cadastro; rodou na migração para as contas existentes (prod: 1 conta, 21 categorias, 4 formas, conferido em 01/10/2026).
+- **`/categorias`** (`core/categorias.py`): criar (emoji + nome em qualquer ordem), renomear, trocar emoji, desativar/reativar; "Outros"/"Outros ganhos" fixas. Perguntas de edição levam a categoria na 2ª linha → `Entrada.contexto` (o adaptador extrai do `reply_to_message` do próprio bot).
+- **Testes**: 217 no `pytest` padrão + 14 cenários de E2E (novo: categorias).
+- **Ainda sem lançamentos**: as tabelas existem, mas nada grava em `transactions` até a S2.3; texto livre continua respondendo "chegam na próxima etapa".
 
 ### S1.5 — o que existe (D034)
 
@@ -107,17 +115,20 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #26 | `a664f35` | encerramento da S1.4 |
 | #27 | `8ee82a7` | **S1.5**: marca, perfil do bot e E2E simulado (D034) |
 | #28 | `15d2719` | encerramento da S1.5 e da S1 |
-| #29 | (este) | posicionamento: assistente individual com IA; pré-requisitos do lançamento (D035) |
+| #29 | `9e3bb0f` | posicionamento: assistente individual com IA; pré-requisitos do lançamento (D035) |
+| #30 | `d4d600f` | **S2.1**: categorias e lançamentos no banco; `/categorias` (D036) |
+| #31 | (este) | encerramento da S2.1 |
 
-## Ponto de partida exato da próxima sessão (S2 — Lançamentos por texto)
+## Ponto de partida exato da próxima sessão (S2.2 — IA de extração e avaliação)
 
-1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
-2. `python scripts/check_setup.py`. AWS expirada → pedir ao Adriano `aws login --profile telegrana`.
-3. Categorias padrão **aprovadas** (PLANO 4.2, D035), com categorias personalizadas por pessoa e a IA fazendo a pergunta de esclarecimento quando a confiança for baixa (botões com as opções; oferecer lembrar a regra). Confirmar com o Adriano só o conjunto de avaliação em `tests/eval/data/` (61 frases + 11 áudios; fora do Git, D016).
-4. Propor a divisão da S2 em micro-fases (como na S1) e pedir o aceite. Escopo do PLANO (linha S2 do roteiro): extração com `openai/gpt-oss-20b` no Groq, normalização de valores e datas, vários lançamentos por mensagem, recibo com botões, correção por *reply*, categorias, **avaliação de IA no CI** (critério: ≥ 95% em valor/tipo/data e ≥ 90% em categoria). Decidir antes a pergunta em aberto 2 (como o CI avalia sem publicar os dados).
-5. Regras que valem desde a primeira linha: a IA devolve estrutura validada (Pydantic), **nunca** SQL, valor calculado ou decisão de acesso; dinheiro em centavos `bigint`; datas em America/Sao_Paulo; **na dúvida o bot pergunta** (D028: sem finalidade identificável, pergunta ao usuário); toda tabela nova entra na suíte de isolamento (ISOLADAS) com RLS forçado e chave composta `(account_id, id)`; dado novo só com finalidade escrita na Política (nova versão + novo aceite se mudar a coleta).
-6. Infra da S2: chaves do Groq no SSM (`/telegrana/<env>/groq/api_key`, a partir de `GROQ_API_KEY_{DEV,PROD}` do `.env.local`, por `ssm_setup.py`) e no `config.PARAMETROS`; o E2E simulado ganha um Groq falso (respostas fixas). A IA real fica na avaliação.
-7. Antes de cada escolha técnica nova, **pesquisar a documentação oficial** e registrar em DECISOES.md.
+1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa. `python scripts/check_setup.py`.
+2. Divisão da S2 aceita (D036): ~~S2.1~~ ✅ PR #30 → **S2.2 (agora)** → S2.3 (lançamentos no bot).
+3. **Bucket do conjunto de avaliação** (D036): acrescentar ao `deploy/bootstrap.yaml` um bucket `telegrana-avaliacao-<conta>` (SSE, bloqueio de acesso público, só TLS, versionado) e um papel OIDC **só de leitura** para o job de avaliação (ambiente GitHub `avaliacao`, restrito à `main` e a PRs do próprio repositório), com `ssm:GetParameter` só na chave do Groq de dev. Atualizar a stack (`aws cloudformation deploy`, como no `deploy/README.md`) e subir `tests/eval/data/` com um script (`scripts/avaliacao_dados.py enviar|baixar`). Nada do conjunto entra no Git nem nos logs.
+4. **Chaves do Groq no SSM**: `/telegrana/<env>/groq/api_key` (SecureString) a partir de `GROQ_API_KEY_{DEV,PROD}` do `.env.local`, em `ssm_setup.py`; entrar em `config.PARAMETROS` só quando a Lambda for usar (S2.3), para não quebrar a subida antes da hora.
+5. **Código** (`src/telegrana/ai/`, ainda vazio): interface `LLMProvider` + cliente Groq (httpx; `response_format` `json_schema` com `strict: true`; `reasoning_effort` baixo para economizar tokens — conferir na doc do Groq); modelos Pydantic `extra="forbid"` da extração (lista de lançamentos: tipo, texto do valor, expressão de data, categoria **por código/nome da lista da conta** ou null + motivo, forma de pagamento, descrição, parcelas, pergunta de esclarecimento opcional). Prompt com a mensagem como **dado** (delimitada), a lista de categorias e formas da conta e a data de hoje; nada de histórico.
+6. **Normalização no código** (`core/`): valores ("50 conto", "R$ 1.234,56", "mil e duzentos", "1,2k", "2 mil", "uns 30 e poucos" → pergunta) e datas relativas ("ontem", "sexta passada", "dia 5") em America/Sao_Paulo; regras por palavra-chave e `category_rules` **antes** da IA. Testes unitários extensos.
+7. **Gabarito**: escrever a saída esperada das 61 frases e das 11 transcrições (no bucket, nunca no Git); mostrar ao Adriano **só os casos ambíguos** para ele decidir. Runner de avaliação com as métricas do PLANO 5.3 (≥ 95% valor/tipo/data, ≥ 90% categoria), saída só agregada; job de CI com filtro de caminhos (`src/telegrana/ai/**`, normalizadores, gabarito) + execução manual. Respeitar o limite de 8 mil tokens/min (espaçar as chamadas).
+8. Encerrar a S2.2 com o protocolo; a IA ainda não responde no bot (isso é a S2.3).
 
 ## Pendências do Adriano
 
