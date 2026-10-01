@@ -24,7 +24,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 import boto3  # noqa: E402
 
 from telegrana.channels.telegram import webhook  # noqa: E402
-from telegrana.channels.telegram.api import TelegramAPI  # noqa: E402
+from telegrana.channels.telegram.api import TelegramAPI, TelegramError  # noqa: E402
 from telegrana.infra import db, migrate  # noqa: E402
 
 REGIAO = "us-east-1"
@@ -109,9 +109,68 @@ def verificar(sessao: Any, env: str) -> None:
         print(f"[{env}] {funcao}: ok")
 
 
+COMANDOS = [
+    ("ajuda", "O que o Telegrana faz e a lista de comandos"),
+    ("meus_dados", "O que está guardado sobre você"),
+    ("corrigir_nome", "Corrigir o seu nome"),
+    ("termos", "Termos de uso e política de privacidade"),
+    ("codigo_novo", "Gerar um novo código de recuperação"),
+    ("entrar", "Recuperar a conta com o código"),
+    ("apagar_conta", "Apagar todos os seus dados"),
+]
+COMANDOS_ADMIN = [
+    ("admin", "Comandos do administrador"),
+    ("link", "Link de convite (/link novo, /link revogar)"),
+    ("usuarios", "Contas: bloquear e desbloquear"),
+]
+DESCRICAO = (
+    "💰 Telegrana: as finanças da família no Telegram.\n\n"
+    "Anote gastos e ganhos por mensagem ou áudio, receba lembretes das contas e veja para "
+    "onde o dinheiro está indo.\n\n🔒 Privado: só entra quem for convidado."
+)
+DESCRICAO_CURTA = "Finanças da família: gastos e ganhos por texto ou áudio, lembretes e relatórios. Só por convite."
+FOTO = RAIZ / "assets" / "brand" / "out" / "icon-640.jpg"
+
+
+def perfil(sessao: Any, env: str, *, foto: bool = False) -> None:
+    """Menu de comandos (o do admin inclui os de admin), descrições e, se pedido, a foto."""
+    api = TelegramAPI(_segredo(sessao, f"/telegrana/{env}/telegram/bot_token"))
+    admin = int(_segredo(sessao, "/telegrana/admin_telegram_id"))
+    prefixo = "[DEV] " if env == "dev" else ""
+
+    def lista(itens: list[tuple[str, str]]) -> list[dict[str, str]]:
+        return [{"command": c, "description": d} for c, d in itens]
+
+    api.call("setMyCommands", commands=lista(COMANDOS), scope={"type": "all_private_chats"})
+    try:
+        api.call(
+            "setMyCommands",
+            commands=lista(COMANDOS + COMANDOS_ADMIN),
+            scope={"type": "chat", "chat_id": admin},
+        )
+    except TelegramError as exc:
+        # O escopo de um chat só existe depois que o admin conversa com o bot.
+        if "chat not found" not in str(exc):
+            raise
+        print(f"[{env}] menu de admin pulado: o admin ainda não conversou com este bot")
+    api.call("setMyDescription", description=prefixo + DESCRICAO)
+    api.call("setMyShortDescription", short_description=(prefixo + DESCRICAO_CURTA)[:120])
+    print(f"[{env}] comandos e descrições atualizados")
+    if foto:
+        api.upload(
+            "setMyProfilePhoto",
+            {"photo": {"type": "static", "photo": "attach://foto"}},
+            {"foto": FOTO.read_bytes()},
+        )
+        print(f"[{env}] foto do bot atualizada")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tarefas de deploy do Telegrana.")
-    parser.add_argument("tarefa", choices=["migrar", "webhook", "webhook-info", "verificar"])
+    parser.add_argument(
+        "tarefa", choices=["migrar", "webhook", "webhook-info", "verificar", "perfil"]
+    )
+    parser.add_argument("--foto", action="store_true", help="perfil: também troca a foto do bot")
     parser.add_argument("--env", choices=["dev", "prod"], required=True)
     args = parser.parse_args()
     sessao = _sessao()
@@ -121,7 +180,10 @@ def main() -> int:
         "webhook-info": info_webhook,
         "verificar": verificar,
     }
-    tarefas[args.tarefa](sessao, args.env)
+    if args.tarefa == "perfil":
+        perfil(sessao, args.env, foto=args.foto)
+    else:
+        tarefas[args.tarefa](sessao, args.env)
     return 0
 
 

@@ -403,6 +403,15 @@ def test_apagar_conta_com_confirmacao_dupla(bot: Bot, conn: db.Connection, banco
     assert anonimo[0] >= 1
 
 
+def test_admin_nao_ve_botao_de_bloquear_a_si_mesmo(bot: Bot) -> None:
+    ctx = replace(CTX, admin_id=novo_id())
+    admin = Bot(bot.conn, ctx)
+    cadastra(admin, ctx.admin_id, novo_telefone(), token="x" * 43, nome="Admin Proprio")
+    r = admin(ctx.admin_id, comando="usuarios")
+    assert "Admin Proprio" in r.saidas[0].texto
+    assert not any("Admin Proprio" in b.rotulo for linha in r.saidas[0].botoes for b in linha)
+
+
 def test_bloqueio_pelo_admin(bot: Bot) -> None:
     de = novo_id()
     cadastra(bot, de, novo_telefone(), nome="Bruna Bloqueada")

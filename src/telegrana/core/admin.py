@@ -25,7 +25,7 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada) -> Resultado:
     if e.comando == "link":
         return _link(conn, ctx, e.argumento.strip().lower())
     if e.comando == "usuarios":
-        return _usuarios(conn)
+        return _usuarios(conn, ctx)
     partes = (e.acao or "").split(":")
     r = Resultado(rotulo=f"admin.{partes[1] if len(partes) > 1 else '?'}")
     if len(partes) == 3 and partes[1] in {"ok", "no"}:
@@ -130,7 +130,7 @@ def _link(conn: db.Connection, ctx: Contexto, argumento: str) -> Resultado:
     return r.diz(t.ADM_LINK_STATUS.format(criado=data_br(criado), usados=usados, maximo=maximo))
 
 
-def _usuarios(conn: db.Connection) -> Resultado:
+def _usuarios(conn: db.Connection, ctx: Contexto) -> Resultado:
     r = Resultado(rotulo="admin.usuarios")
     pessoas = repo.lista_pessoas(conn)
     if not pessoas:
@@ -139,6 +139,7 @@ def _usuarios(conn: db.Connection) -> Resultado:
         f"• {seguro(nome, 60)} — {'🚫 bloqueada' if situacao == 'blocked' else 'ativa'}"
         for _, _, nome, situacao in pessoas
     ]
+    propria = repo.identidade(conn, ctx.canal, ctx.admin_id)
     botoes = tuple(
         (
             Botao(
@@ -147,5 +148,6 @@ def _usuarios(conn: db.Connection) -> Resultado:
             ),
         )
         for conta, _, nome, situacao in pessoas
+        if propria is None or conta != propria.account_id  # o admin não se bloqueia
     )
     return r.diz("👥 **Contas**\n" + "\n".join(linhas), botoes=botoes)
