@@ -153,6 +153,10 @@ jobs:
         run: uv run python scripts/deploy_tasks.py webhook --env "$AMBIENTE"
         env:
           AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
+      - name: Verificar as Lambdas publicadas
+        run: uv run python scripts/deploy_tasks.py verificar --env "$AMBIENTE"
+        env:
+          AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
 
   deploy-prod:
     name: deploy-prod

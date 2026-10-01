@@ -12,6 +12,7 @@ Credenciais AWS: no CI, as do OIDC (variáveis de ambiente); localmente, o perfi
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -81,15 +82,46 @@ def info_webhook(sessao: Any, env: str) -> None:
     )
 
 
+def verificar(sessao: Any, env: str) -> None:
+    """Invoca as Lambdas publicadas: prova que o código importa e a configuração carrega.
+
+    O bot recebe uma requisição sem o segredo e precisa recusar com 401; a rotina roda a
+    limpeza (idempotente). Qualquer erro de import ou de configuração derruba o deploy.
+    """
+    cliente = sessao.client("lambda")
+    evento = {
+        "requestContext": {"http": {"method": "POST"}},
+        "headers": {"Content-Type": "application/json"},
+        "body": '{"update_id": 0}',
+        "isBase64Encoded": False,
+    }
+    for funcao, entrada, confere in (
+        (f"telegrana-{env}-bot", evento, lambda r: r.get("statusCode") == 401),
+        (f"telegrana-{env}-rotinas", {}, lambda r: isinstance(r, dict)),
+    ):
+        resposta = cliente.invoke(FunctionName=funcao, Payload=json.dumps(entrada).encode())
+        corpo = json.loads(resposta["Payload"].read() or b"null")
+        if resposta.get("FunctionError") or not confere(corpo):
+            tipo = corpo.get("errorType") if isinstance(corpo, dict) else None
+            raise SystemExit(
+                f"[{env}] {funcao} falhou na verificação ({tipo or 'resposta inesperada'})"
+            )
+        print(f"[{env}] {funcao}: ok")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tarefas de deploy do Telegrana.")
-    parser.add_argument("tarefa", choices=["migrar", "webhook", "webhook-info"])
+    parser.add_argument("tarefa", choices=["migrar", "webhook", "webhook-info", "verificar"])
     parser.add_argument("--env", choices=["dev", "prod"], required=True)
     args = parser.parse_args()
     sessao = _sessao()
-    {"migrar": migrar, "webhook": registrar_webhook, "webhook-info": info_webhook}[args.tarefa](
-        sessao, args.env
-    )
+    tarefas = {
+        "migrar": migrar,
+        "webhook": registrar_webhook,
+        "webhook-info": info_webhook,
+        "verificar": verificar,
+    }
+    tarefas[args.tarefa](sessao, args.env)
     return 0
 
 
