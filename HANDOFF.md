@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 01/10/2026 · S0 encerrada · S1.1–S1.4 encerradas · Próxima: **S1.5 — E2E no servidor de testes e marca**.
+> Atualizado em 01/10/2026 · S0 e **S1 (Fundação) encerradas** · Próxima: **S2 — Lançamentos por texto**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -13,7 +13,15 @@
 
 ## Estado atual
 
-A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular; o caminho de **um segundo usuário** (convite, pedido de acesso, aprovação) está coberto pelos testes de integração, mas ainda não foi visto num Telegram real: fica para o E2E da S1.5. Os textos legais estão publicados no Telegraph (D032).
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032).
+
+### S1.5 — o que existe (D034)
+
+- **E2E simulado** (`tests/e2e/`, `uv run pytest -m e2e`): updates no formato do Telegram vão ao `bot.handler` real; `tests/e2e/telegram_simulado.py` faz a Bot API e **recusa** o que o Telegram recusaria (HTML inválido, > 4096 caracteres, botões malformados, `callback_data` > 64 bytes, chat inexistente, contato sem o teclado de contato, callback respondido duas vezes). 13 cenários (os 11 do critério da S1 + botão usado some + bloqueio). "Trocar de Telegram" = mesma pessoa com outro id. Fica fora do `pytest` padrão (marcador `e2e`); o CI roda no job `e2e`. **Motivo**: as contas de teste do servidor de testes do Telegram estão desativadas desde 06/2025 (tdlib/td#3370).
+- **Pipeline**: `main` → `qualidade`/`testes`/`segredos` → `deploy-dev` e `e2e` → `deploy-prod` (automático). Cada deploy: build → migrações → stack → webhook → `perfil` (menu e descrições) → `verificar` (invoca as Lambdas).
+- **Marca**: `scripts/marca.py` → `assets/brand/out/` (ícone 640…64 em PNG + `icon-640.jpg` para a foto do bot; `logo-full`, `logo-horizontal`, `logo-mono-white`; `previa.png`). Paleta em `src/telegrana/exports/brand.py`. Aprovada e aplicada nos dois bots (`deploy_tasks.py perfil --env <env> --foto`).
+- **Menu de comandos**: geral para todos; o do admin (com `/admin`, `/link`, `/usuarios`) só aparece no chat dele **depois que ele conversar com o bot**. Em prod, o Adriano ainda não mandou `/start` ao @TelegranaAppBot (o deploy pula esse menu até lá).
+- **Celular**: primeira captura via adb feita (só a conversa com o bot de dev; capturas apagadas depois). Roteiro antes de cada liberação para a família: ver Gotchas > Celular.
 
 ### S1.4 — o que existe (D033)
 
@@ -96,26 +104,25 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #23 | `e3577f7` | Termos de Uso e Política de Privacidade v1 (D032) |
 | #24 | `d6bd378` | **S1.4**: entrada, cadastro, recuperação e comandos (D033) |
 | #25 | `8ae59fc` | fix: `CodeUri` em cada Lambda + verificação pós-deploy |
-| #26 | (este) | encerramento da S1.4 |
+| #26 | `a664f35` | encerramento da S1.4 |
+| #27 | `8ee82a7` | **S1.5**: marca, perfil do bot e E2E simulado (D034) |
+| #28 | (este) | encerramento da S1.5 e da S1 |
 
-## Ponto de partida exato da próxima sessão (S1.5 — E2E e marca)
+## Ponto de partida exato da próxima sessão (S2 — Lançamentos por texto)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
-2. `python scripts/check_setup.py`. Se a AWS acusar sessão expirada, pedir ao Adriano: `aws login --profile telegrana`. No PowerShell do agente, recarregar o PATH antes de chamar `aws`/`sam` (ver Gotchas).
-3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.5**; S1.1–S1.4 estão feitas:
-   - ~~**S1.1 — Esqueleto e CI**~~ ✅ PR #17: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
-   - ~~**S1.2 — Banco**~~ ✅ PR #19: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
-   - ~~**S1.3 — Infra e webhook**~~ ✅ PR #20. Além do que está abaixo: bootstrap de papéis e migrações da **produção** pelo pipeline (senhas geradas e gravadas no SSM; `TELEGRANA_MIGRATOR_URL` lido do SSM no job de deploy); a Lambda usa `telegrana_app`. Confirmar antes que a sessão `aws login` do Adriano esteja ativa.
-   - Itens originais da S1.3: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
-   - ~~**S1.4 — Entrada e cadastro**~~ ✅ PRs #24 e #25. Histórico do que se pediu: O webhook já entrega updates validados e deduplicados em `entrypoints/bot.py::_processa`; o cadastro entra aí, com a lógica no `core/` (agnóstico de canal) e a formatação/teclados em `channels/telegram/`. Usar `resolve_identity`/`start_onboarding` e `db.account_context`. O pepper do HMAC do telefone vai para o SSM (`/telegrana/<env>/phone/hmac_pepper`, gerado por `ssm_setup.py`). Dependência nova provável: `argon2-cffi` (código de recuperação). **Obrigações que os textos legais criaram para o código estão em D032** (tela de aceite com dois destaques, aviso antes do pedido de acesso, limpeza de cadastros incompletos em 7 dias, `audit_log` sem dado pessoal e apagado na exclusão, exportação manual até existir `/exportar`). Itens do plano: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
-   - **S1.5 — E2E e marca** (próxima): bot no **servidor de testes** do Telegram (Telethon, contas `99966XYYYY`) cobrindo os cenários do critério de pronto da S1; recortes da logo (prévias para o Adriano); primeira captura no celular via adb (com autorização). **O agente não cria contas nem digita códigos de login**: preparar um script que o **Adriano roda uma vez** no terminal dele para criar as contas de teste (e o bot de teste no BotFather do servidor de testes) e salvar as sessões em arquivos `*.session` (já no `.gitignore`); daí em diante o E2E roda sozinho. O bot de teste precisa de ambiente próprio (token no SSM, `TelegramAPI(test_server=True)`, webhook próprio). Primeiro cenário a cobrir: **segundo usuário entrando por convite e por pedido de acesso** (ainda não visto num Telegram real).
-4. Antes de cada escolha técnica nova (runtime da Lambda: conferir se já existe `python3.14`; biblioteca de migração; versão do SAM), **pesquisar a documentação oficial** e registrar em DECISOES.md.
+2. `python scripts/check_setup.py`. AWS expirada → pedir ao Adriano `aws login --profile telegrana`.
+3. **Pedir ao Adriano, de uma vez** (a S2 depende disso): revisar a lista de **categorias padrão** (PLANO 4.2); confirmar o conjunto de avaliação em `tests/eval/data/` (61 frases + 11 áudios; fora do Git, D016).
+4. Propor a divisão da S2 em micro-fases (como na S1) e pedir o aceite. Escopo do PLANO (linha S2 do roteiro): extração com `openai/gpt-oss-20b` no Groq, normalização de valores e datas, vários lançamentos por mensagem, recibo com botões, correção por *reply*, categorias, **avaliação de IA no CI** (critério: ≥ 95% em valor/tipo/data e ≥ 90% em categoria). Decidir antes a pergunta em aberto 2 (como o CI avalia sem publicar os dados).
+5. Regras que valem desde a primeira linha: a IA devolve estrutura validada (Pydantic), **nunca** SQL, valor calculado ou decisão de acesso; dinheiro em centavos `bigint`; datas em America/Sao_Paulo; **na dúvida o bot pergunta** (D028: sem finalidade identificável, pergunta ao usuário); toda tabela nova entra na suíte de isolamento (ISOLADAS) com RLS forçado e chave composta `(account_id, id)`; dado novo só com finalidade escrita na Política (nova versão + novo aceite se mudar a coleta).
+6. Infra da S2: chaves do Groq no SSM (`/telegrana/<env>/groq/api_key`, a partir de `GROQ_API_KEY_{DEV,PROD}` do `.env.local`, por `ssm_setup.py`) e no `config.PARAMETROS`; o E2E simulado ganha um Groq falso (respostas fixas). A IA real fica na avaliação.
+7. Antes de cada escolha técnica nova, **pesquisar a documentação oficial** e registrar em DECISOES.md.
 
 ## Pendências do Adriano
 
-- Revisar a lista de **categorias padrão** (PLANO 4.2) e responder pelo chat. Não bloqueia a S1; é necessário antes da S2.
+- Revisar a lista de **categorias padrão** (PLANO 4.2) e responder pelo chat. **Necessário no início da S2.**
 - Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
-- S1.5: rodar uma vez o script de criação das contas do servidor de testes (o agente prepara); aprovar as prévias dos recortes da logo.
+- Mandar `/start` ao **@TelegranaAppBot** (produção) uma vez, para o menu de admin aparecer lá e a conta dele existir em prod.
 - Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
 - ⏰ **Até 30/03/2027: upgrade da conta AWS para o plano pago** (senão a conta é fechada; provavelmente foi o que aconteceu com a conta antiga). O agente deve lembrar a partir de 01/2027 e só fazer com o kill-switch testado.
 
@@ -130,6 +137,19 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - O admin tem bypass no ruleset, mas **não o use**: sempre branch → PR → esperar `qualidade`, `testes` e `segredos` verdes → `gh pr merge --squash`. Leia o CI com `mcp__ccd_pr__get_status` e confirme uma vez com `gh pr checks <n>`, sem ficar consultando em laço.
 - Arquivos gravados pelo Python no Windows saem com CRLF, e o hook `mixed-line-ending` interrompe o commit ao corrigir. Grave com `write_text(..., newline="\n")` ou refaça o `git add` e o commit.
 - O `uv` não está no PATH do Git Bash: use `~/AppData/Roaming/Python/Python314/Scripts/uv.exe`.
+
+**Testes e E2E (S1.5)**
+- **O servidor de testes do Telegram não serve mais**: as contas `99966XYYYY` estão desativadas desde 06/2025 (o pedido de código funciona, mas `22222`/`222222` dão `PHONE_CODE_INVALID`). Não tente de novo sem notícia oficial de que voltou (D034).
+- O E2E fica fora do `pytest` padrão (`addopts -m "not e2e"`): rode `uv run pytest -m e2e`. Usa o banco descartável da sessão: ~3 min contra o Neon (`testes`), ~1 min no CI.
+- Erro de log em nível ERROR durante o E2E derruba o teste no fim (handler `_Erros`): uma exceção engolida pelo `bot.handler` não passa despercebida.
+
+**Celular (adb)**
+- `adb mdns services` acha o celular já pareado (`_adb-tls-connect`); `adb connect IP:PORTA`. A porta muda a cada vez.
+- `am start -d "tg://resolve?domain=..."` **abre a lista de conversas**, não o chat: não leia nada além do necessário; toque na conversa do bot (`input tap`) e só então capture. Apague as capturas do scratchpad depois de conferir.
+- Roteiro antes de liberar para a família: no bot de **dev**, desligar a identidade do Adriano no banco de dev (`update telegrana.user_channels set external_id = '1' || external_id where external_id = '<id>'`, com `NEON_MIGRATOR_URL_DEV`) → ele vê "bot privado" → **ele** toca "Já tenho conta" > "Pelo meu número" (compartilhar o número é dele) → conta recuperada. Capturar as telas.
+
+**Máquina do Adriano (fora do app do Claude)**
+- O app do Claude no Windows é MSIX: o que o agente instala em `AppData` vai para `C:\Users\adria\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\...` e **o PowerShell do Adriano não vê**. O `uv` dele é `& "C:\Users\adria\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Python\Python314\Scripts\uv.exe"`. Ao passar um comando para ele rodar, use esse caminho completo.
 
 **Repositório e privacidade**
 - O nome é **Telegrana**, não "TeleGrana".
