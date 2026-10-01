@@ -18,10 +18,12 @@ dev = [
     "bandit>=1.8",
     "boto3>=1.40",  # já vem no runtime da Lambda; aqui só para scripts e testes (D031)
     "mypy>=1.18",
+    "pillow>=12",
     "pip-audit>=2.9",
     "pre-commit>=4.3",
     "pytest>=8.4",
     "ruff>=0.14",
+    "telethon>=1.45",
 ]
 
 [build-system]
@@ -64,7 +66,7 @@ files = ["src", "scripts"]
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["certifi", "boto3", "boto3.*", "botocore.*"]
+module = ["certifi", "boto3", "boto3.*", "botocore.*", "telethon", "telethon.*"]
 ignore_missing_imports = true
 
 # -------------------------------------------------------------------
@@ -72,10 +74,11 @@ ignore_missing_imports = true
 # -------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers"]
+addopts = ["-ra", "--strict-markers", "-m", "not e2e"]
 markers = [
     "integration: exige Postgres (TELEGRANA_TEST_DATABASE_URL)",
     "isolation: prova que uma conta não acessa dados de outra",
+    "e2e: servidor de testes do Telegram (uv run pytest -m e2e; ver tests/e2e/conftest.py)",
 ]
 
 # -------------------------------------------------------------------

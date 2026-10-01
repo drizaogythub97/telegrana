@@ -1,5 +1,6 @@
-# CI/CD do Telegrana. PR: qualidade, testes, segredos. Push na main: + deploy em dev.
-# Execução manual (workflow_dispatch) com prod=true: + deploy em prod depois do dev.
+# CI/CD do Telegrana. PR: qualidade, testes, segredos. Push na main: + deploy em dev e
+# E2E no servidor de testes do Telegram; com os dois verdes, deploy em prod (PLANO 10.3).
+# Execução manual (workflow_dispatch) com prod=true: refaz o caminho até prod.
 # Actions fixadas por hash de commit (a tag fica no comentário); o Dependabot atualiza.
 name: CI
 
@@ -153,15 +154,66 @@ jobs:
         run: uv run python scripts/deploy_tasks.py webhook --env "$AMBIENTE"
         env:
           AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
+      - name: Menu de comandos e descrições do bot
+        run: uv run python scripts/deploy_tasks.py perfil --env "$AMBIENTE"
+        env:
+          AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
       - name: Verificar as Lambdas publicadas
         run: uv run python scripts/deploy_tasks.py verificar --env "$AMBIENTE"
         env:
           AMBIENTE: ${{ github.job == 'deploy-prod' && 'prod' || 'dev' }}
 
+  e2e:
+    name: e2e
+    needs: [qualidade, testes, segredos]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Segredos das contas de teste ficam no ambiente "e2e" (restrito à main).
+    environment: e2e
+    concurrency:
+      group: e2e
+      cancel-in-progress: false
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: teste-local-ci
+          POSTGRES_DB: telegrana_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TELEGRANA_TEST_DATABASE_URL: postgresql://postgres:teste-local-ci@localhost:5432/telegrana_teste
+      E2E_OBRIGATORIO: "1"  # sem configuração, falha (nunca pula)
+      TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+      TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      E2E_BOT_TOKEN: ${{ secrets.E2E_BOT_TOKEN }}
+      E2E_BOT_USERNAME: ${{ secrets.E2E_BOT_USERNAME }}
+      E2E_SESSION_ADMIN: ${{ secrets.E2E_SESSION_ADMIN }}
+      E2E_SESSION_A: ${{ secrets.E2E_SESSION_A }}
+      E2E_SESSION_B: ${{ secrets.E2E_SESSION_B }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Instalar dependências (lock com hashes)
+        run: uv sync --locked
+      - name: E2E no servidor de testes do Telegram
+        run: uv run pytest -m e2e
+
   deploy-prod:
     name: deploy-prod
-    needs: [deploy-dev]
-    if: github.event_name == 'workflow_dispatch' && inputs.prod
+    needs: [deploy-dev, e2e]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.prod)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: prod

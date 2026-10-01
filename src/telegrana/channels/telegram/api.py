@@ -6,6 +6,7 @@ em `TelegramError` com `from None`.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -38,6 +39,25 @@ class TelegramAPI:
             descricao = str(dados.get("description", ""))[:200] if isinstance(dados, dict) else ""
             raise TelegramError(f"{method}: HTTP {resposta.status_code} {descricao}".strip())
         return dados.get("result")
+
+    def upload(self, method: str, campos: dict[str, Any], arquivos: dict[str, bytes]) -> Any:
+        """multipart/form-data (ex.: setMyProfilePhoto com "attach://<nome>")."""
+        dados = {
+            k: json.dumps(v) if isinstance(v, (dict, list)) else str(v) for k, v in campos.items()
+        }
+        try:
+            resposta = self._client.post(
+                self._prefix + method,
+                data=dados,
+                files={nome: (nome, conteudo) for nome, conteudo in arquivos.items()},
+            )
+            corpo = resposta.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise TelegramError(f"{method}: falha de comunicação ({type(exc).__name__})") from None
+        if not isinstance(corpo, dict) or not corpo.get("ok"):
+            descricao = str(corpo.get("description", ""))[:200] if isinstance(corpo, dict) else ""
+            raise TelegramError(f"{method}: HTTP {resposta.status_code} {descricao}".strip())
+        return corpo.get("result")
 
     def send_message(
         self,
