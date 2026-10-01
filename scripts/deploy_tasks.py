@@ -24,7 +24,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 import boto3  # noqa: E402
 
 from telegrana.channels.telegram import webhook  # noqa: E402
-from telegrana.channels.telegram.api import TelegramAPI  # noqa: E402
+from telegrana.channels.telegram.api import TelegramAPI, TelegramError  # noqa: E402
 from telegrana.infra import db, migrate  # noqa: E402
 
 REGIAO = "us-east-1"
@@ -142,11 +142,17 @@ def perfil(sessao: Any, env: str, *, foto: bool = False) -> None:
         return [{"command": c, "description": d} for c, d in itens]
 
     api.call("setMyCommands", commands=lista(COMANDOS), scope={"type": "all_private_chats"})
-    api.call(
-        "setMyCommands",
-        commands=lista(COMANDOS + COMANDOS_ADMIN),
-        scope={"type": "chat", "chat_id": admin},
-    )
+    try:
+        api.call(
+            "setMyCommands",
+            commands=lista(COMANDOS + COMANDOS_ADMIN),
+            scope={"type": "chat", "chat_id": admin},
+        )
+    except TelegramError as exc:
+        # O escopo de um chat só existe depois que o admin conversa com o bot.
+        if "chat not found" not in str(exc):
+            raise
+        print(f"[{env}] menu de admin pulado: o admin ainda não conversou com este bot")
     api.call("setMyDescription", description=prefixo + DESCRICAO)
     api.call("setMyShortDescription", short_description=(prefixo + DESCRICAO_CURTA)[:120])
     print(f"[{env}] comandos e descrições atualizados")
