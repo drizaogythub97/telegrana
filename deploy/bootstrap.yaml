@@ -444,6 +444,89 @@ Resources:
             Condition:
               Bool: {"aws:SecureTransport": "false"}
 
+  # -------------------------------------------------------------------
+  # Conjunto de avaliação da IA (D016, D036): privado, fora do Git
+  # -------------------------------------------------------------------
+  EvalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "telegrana-avaliacao-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: versoes-antigas
+            Status: Enabled
+            NoncurrentVersionExpiration: {NoncurrentDays: 90}
+            AbortIncompleteMultipartUpload: {DaysAfterInitiation: 1}
+
+  EvalBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref EvalBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SoTls
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt EvalBucket.Arn, !Sub "${EvalBucket.Arn}/*"]
+            Condition:
+              Bool: {"aws:SecureTransport": "false"}
+
+  # Só leitura: o job de avaliação do CI (ambiente "avaliacao" do GitHub). PRs de fork
+  # não recebem token OIDC. Lê o conjunto e a chave do Groq de DEV (teto próprio).
+  GitHubEvalRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: telegrana-github-avaliacao
+      Description: Avaliacao da IA no GitHub Actions (somente leitura do conjunto e da chave de dev).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Federated: !Ref GitHubOidcProvider}
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub "${GitHubSubPrefix}:environment:avaliacao"
+      Policies:
+        - PolicyName: avaliacao-somente-leitura
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListarConjunto
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt EvalBucket.Arn
+              - Sid: LerConjunto
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${EvalBucket.Arn}/*"
+              - Sid: ChaveGroqDev
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/telegrana/dev/groq/api_key"
+              - Sid: DecifrarSsm
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+
 Outputs:
   GitHubDeployRoleArn:
     Description: Papel para o aws-actions/configure-aws-credentials (ambientes dev/prod).
@@ -456,3 +539,8 @@ Outputs:
     Value: !Ref KillSwitchFunction
   BudgetTripTopicArn:
     Value: !Ref BudgetTripTopic
+  EvalBucketName:
+    Value: !Ref EvalBucket
+  GitHubEvalRoleArn:
+    Description: Papel do job de avaliação da IA (ambiente avaliacao).
+    Value: !GetAtt GitHubEvalRole.Arn

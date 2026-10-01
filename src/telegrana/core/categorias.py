@@ -260,3 +260,30 @@ def _resposta(conn: db.Connection, e: Entrada, p: repo.Pessoa, r: Resultado) -> 
             return r.diz(t.CATEGORIA_EMOJI_INVALIDO)
         _atualiza(cur, c.id, "emoji", emoji)
     return r.diz(t.CATEGORIA_RENOMEADA.format(rotulo=f"{emoji} {c.name}"))
+
+
+# Espelho das categorias padrão da migração 0003 (seed_account_defaults). Usado pela
+# avaliação da IA; um teste garante que as duas listas são iguais.
+PADROES: tuple[tuple[str, str, str, str], ...] = (
+    ("expense", "mercado", "Mercado", "🛒"),
+    ("expense", "alimentacao", "Alimentação fora", "🍽️"),
+    ("expense", "moradia", "Moradia", "🏠"),
+    ("expense", "contas_casa", "Contas da casa", "💡"),
+    ("expense", "transporte", "Transporte", "🚗"),
+    ("expense", "combustivel", "Combustível", "⛽"),
+    ("expense", "saude", "Saúde", "💊"),
+    ("expense", "educacao", "Educação", "📚"),
+    ("expense", "lazer", "Lazer", "🎮"),
+    ("expense", "vestuario", "Vestuário", "👕"),
+    ("expense", "assinaturas", "Assinaturas", "📱"),
+    ("expense", "pets", "Pets", "🐾"),
+    ("expense", "filhos", "Filhos", "👶"),
+    ("expense", "presentes", "Presentes", "🎁"),
+    ("expense", "encargos", "Encargos e juros", "💸"),
+    ("expense", "outros", "Outros", "📦"),
+    ("income", "salario", "Salário", "💼"),
+    ("income", "servicos", "Serviços/Freela", "🧾"),
+    ("income", "rendimentos", "Rendimentos", "📈"),
+    ("income", "reembolso", "Reembolso", "↩️"),
+    ("income", "outros_ganhos", "Outros ganhos", "🎉"),
+)

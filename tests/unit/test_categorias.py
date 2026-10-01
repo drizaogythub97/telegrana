@@ -44,3 +44,14 @@ def test_nome_valido(texto: str, esperado: str | None) -> None:
 )
 def test_emoji_valido(texto: str, esperado: str | None) -> None:
     assert categorias.emoji_valido(texto) == esperado
+
+
+def test_padroes_em_python_iguais_aos_da_migracao() -> None:
+    import re
+    from pathlib import Path
+
+    sql = (
+        Path(__file__).resolve().parents[2] / "src/telegrana/infra/migrations/0003_lancamentos.sql"
+    ).read_text(encoding="utf-8")
+    da_migracao = re.findall(r"\('(expense|income)',\s*'(\w+)',\s*'([^']+)',\s*'([^']+)'", sql)
+    assert tuple(da_migracao) == categorias.PADROES
