@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 01/10/2026 · S0 encerrada · S1.1–S1.3 encerradas · **S1.4 (entrada e cadastro) com código pronto, aguardando a validação do Adriano no bot de dev**.
+> Atualizado em 01/10/2026 · S0 encerrada · S1.1–S1.4 encerradas · Próxima: **S1.5 — E2E no servidor de testes e marca**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -13,7 +13,7 @@
 
 ## Estado atual
 
-A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (D033). Os textos legais estão publicados no Telegraph (D032).
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular; o caminho de **um segundo usuário** (convite, pedido de acesso, aprovação) está coberto pelos testes de integração, mas ainda não foi visto num Telegram real: fica para o E2E da S1.5. Os textos legais estão publicados no Telegraph (D032).
 
 ### S1.4 — o que existe (D033)
 
@@ -94,26 +94,29 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #21 | `3cd7733` | fix: OIDC com *sub* imutável do GitHub |
 | #22 | `04f2c7f` | encerramento da S1.3 |
 | #23 | `e3577f7` | Termos de Uso e Política de Privacidade v1 (D032) |
-| #24 | (este) | **S1.4**: entrada, cadastro, recuperação e comandos (D033) |
+| #24 | `d6bd378` | **S1.4**: entrada, cadastro, recuperação e comandos (D033) |
+| #25 | `8ae59fc` | fix: `CodeUri` em cada Lambda + verificação pós-deploy |
+| #26 | (este) | encerramento da S1.4 |
 
-## Ponto de partida exato da próxima sessão (S1.4 — Entrada e cadastro)
+## Ponto de partida exato da próxima sessão (S1.5 — E2E e marca)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
 2. `python scripts/check_setup.py`. Se a AWS acusar sessão expirada, pedir ao Adriano: `aws login --profile telegrana`. No PowerShell do agente, recarregar o PATH antes de chamar `aws`/`sam` (ver Gotchas).
-3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.4**; S1.1–S1.3 estão feitas:
+3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.5**; S1.1–S1.4 estão feitas:
    - ~~**S1.1 — Esqueleto e CI**~~ ✅ PR #17: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
    - ~~**S1.2 — Banco**~~ ✅ PR #19: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
    - ~~**S1.3 — Infra e webhook**~~ ✅ PR #20. Além do que está abaixo: bootstrap de papéis e migrações da **produção** pelo pipeline (senhas geradas e gravadas no SSM; `TELEGRANA_MIGRATOR_URL` lido do SSM no job de deploy); a Lambda usa `telegrana_app`. Confirmar antes que a sessão `aws login` do Adriano esteja ativa.
    - Itens originais da S1.3: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
-   - **S1.4 — Entrada e cadastro** (próxima). O webhook já entrega updates validados e deduplicados em `entrypoints/bot.py::_processa`; o cadastro entra aí, com a lógica no `core/` (agnóstico de canal) e a formatação/teclados em `channels/telegram/`. Usar `resolve_identity`/`start_onboarding` e `db.account_context`. O pepper do HMAC do telefone vai para o SSM (`/telegrana/<env>/phone/hmac_pepper`, gerado por `ssm_setup.py`). Dependência nova provável: `argon2-cffi` (código de recuperação). **Obrigações que os textos legais criaram para o código estão em D032** (tela de aceite com dois destaques, aviso antes do pedido de acesso, limpeza de cadastros incompletos em 7 dias, `audit_log` sem dado pessoal e apagado na exclusão, exportação manual até existir `/exportar`). Itens do plano: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
-   - **S1.5 — E2E e marca**: bot no **servidor de testes** do Telegram (Telethon, contas `99966XYYYY`) cobrindo os cenários do critério de pronto da S1; recortes da logo (prévias para o Adriano); primeira captura no celular via adb (com autorização).
+   - ~~**S1.4 — Entrada e cadastro**~~ ✅ PRs #24 e #25. Histórico do que se pediu: O webhook já entrega updates validados e deduplicados em `entrypoints/bot.py::_processa`; o cadastro entra aí, com a lógica no `core/` (agnóstico de canal) e a formatação/teclados em `channels/telegram/`. Usar `resolve_identity`/`start_onboarding` e `db.account_context`. O pepper do HMAC do telefone vai para o SSM (`/telegrana/<env>/phone/hmac_pepper`, gerado por `ssm_setup.py`). Dependência nova provável: `argon2-cffi` (código de recuperação). **Obrigações que os textos legais criaram para o código estão em D032** (tela de aceite com dois destaques, aviso antes do pedido de acesso, limpeza de cadastros incompletos em 7 dias, `audit_log` sem dado pessoal e apagado na exclusão, exportação manual até existir `/exportar`). Itens do plano: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
+   - **S1.5 — E2E e marca** (próxima): bot no **servidor de testes** do Telegram (Telethon, contas `99966XYYYY`) cobrindo os cenários do critério de pronto da S1; recortes da logo (prévias para o Adriano); primeira captura no celular via adb (com autorização). **O agente não cria contas nem digita códigos de login**: preparar um script que o **Adriano roda uma vez** no terminal dele para criar as contas de teste (e o bot de teste no BotFather do servidor de testes) e salvar as sessões em arquivos `*.session` (já no `.gitignore`); daí em diante o E2E roda sozinho. O bot de teste precisa de ambiente próprio (token no SSM, `TelegramAPI(test_server=True)`, webhook próprio). Primeiro cenário a cobrir: **segundo usuário entrando por convite e por pedido de acesso** (ainda não visto num Telegram real).
 4. Antes de cada escolha técnica nova (runtime da Lambda: conferir se já existe `python3.14`; biblioteca de migração; versão do SAM), **pesquisar a documentação oficial** e registrar em DECISOES.md.
 
 ## Pendências do Adriano
 
 - Revisar a lista de **categorias padrão** (PLANO 4.2) e responder pelo chat. Não bloqueia a S1; é necessário antes da S2.
 - Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
-- S1: aprovar os rascunhos de `legal/termos-v1.md` e `legal/privacidade-v1.md` e as prévias dos recortes da logo.
+- S1.5: rodar uma vez o script de criação das contas do servidor de testes (o agente prepara); aprovar as prévias dos recortes da logo.
+- Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
 - ⏰ **Até 30/03/2027: upgrade da conta AWS para o plano pago** (senão a conta é fechada; provavelmente foi o que aconteceu com a conta antiga). O agente deve lembrar a partir de 01/2027 e só fazer com o kill-switch testado.
 
 ## Perguntas em aberto
@@ -145,6 +148,12 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - `aws login` dura no máximo 12 h. Se o SAM não aceitar essas credenciais, usar o perfil ponte com `credential_process` (guia S0.2).
 - Bedrock nesta conta: "Operation not allowed" (bloqueio de conta nova). Não usamos.
 - Recursos criados por API/IaC contam para as atividades de crédito (D026). API útil: `aws freetier get-account-plan-state` / `list-account-activities`.
+
+**Deploy (S1.4)**
+- O `aws cloudformation package` do CI **não lê os `Globals` do SAM**: `CodeUri` precisa estar em cada função, senão ele empacota a pasta `deploy/` e a Lambda sobe vazia (`Runtime.ImportModuleError`). Foi o que deixou a produção fora do ar entre a S1.3 e o PR #25. O pipeline agora roda `deploy_tasks.py verificar` (bot sem segredo → 401; rotina roda) e falha se a Lambda não importar.
+- A Lambda não sobe sem os parâmetros novos do SSM (pepper, `legal/*`, `admin/contact`). Ambiente novo: `ssm_setup.py` e `publicar_legal.py --contato @...` **antes** do primeiro deploy.
+- Teste rápido sem celular: mandar um update sintético assinado com o segredo do webhook para a Function URL, com `from.id` inexistente (o bot processa e só falha ao responder: "chat not found"). Nunca imprimir o segredo.
+- Os logs do bot registram só rótulos técnicos (`cadastro.nome`, `admin.link.novo`...): para ver o que um teste fez, resuma os eventos `update.processado` do CloudWatch.
 
 **AWS (S1.3)**
 - **OIDC do GitHub**: este repositório emite o *sub* no formato **imutável** (`repo:drizaogythub97@225630126/telegrana@1397881731:environment:<env>`). Uma confiança com `repo:dono/repo` faz a `configure-aws-credentials` ficar tentando **em silêncio**, sem mensagem de erro. Conferir com `gh api repos/<repo>/actions/oidc/customization/sub`.
