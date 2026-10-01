@@ -210,6 +210,11 @@ def tem_codigo(cur: Any) -> datetime | None:
     return row[0] if row else None
 
 
+def semeia_padroes(cur: Any, account_id: uuid.UUID) -> None:
+    """Categorias e formas de pagamento padrão (0003; idempotente)."""
+    cur.execute("select telegrana.seed_account_defaults(%s)", (account_id,))
+
+
 def apaga_conta(cur: Any, account_id: uuid.UUID) -> None:
     cur.execute("select telegrana.erase_account(%s)", (account_id,))
 

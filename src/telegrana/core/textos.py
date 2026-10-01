@@ -9,6 +9,11 @@ PERGUNTAS = {
     "codigo": "🔑 Digite o seu código de recuperação.\nEle tem 20 letras e números, como `ABCD-EFGH-JKMN-PQRS-TVWX`.",
     "rec_nome": "🆘 Qual é o seu nome completo, como está no cadastro?\nO administrador vai conferir com você antes de liberar.",
     "nome": "✏️ Qual é o seu nome completo correto?",
+    # Categorias (a 2ª linha das perguntas de edição diz qual categoria: é o contexto).
+    "cat_nova_gasto": "➕ Nova categoria de gasto: mande o emoji e o nome.\nExemplo: 🏋️ Academia",
+    "cat_nova_ganho": "➕ Nova categoria de ganho: mande o emoji e o nome.\nExemplo: 🏠 Aluguel recebido",
+    "cat_renomear": "✏️ Qual é o novo nome desta categoria?",
+    "cat_emoji": "🎨 Mande o novo emoji desta categoria.",
 }
 
 
@@ -147,6 +152,7 @@ AJUDA = (
     "📋 **Comandos**\n"
     "/meus_dados — o que está guardado sobre você\n"
     "/corrigir_nome — corrigir o seu nome\n"
+    "/categorias — ver, criar e editar suas categorias\n"
     "/termos — termos de uso, privacidade e versão aceita\n"
     "/codigo_novo — gerar um novo código de recuperação\n"
     "/apagar_conta — apagar tudo, definitivamente"
@@ -218,3 +224,20 @@ ADM_AJUDA = (
     "/link revogar — revogar sem gerar outro\n"
     "/usuarios — contas, com bloqueio e desbloqueio"
 )
+
+# ---------------------------------------------------------------------------
+# Categorias
+# ---------------------------------------------------------------------------
+CATEGORIA_CRIADA = "✅ Categoria criada: {rotulo}"
+CATEGORIA_RENOMEADA = "✅ Pronto: {rotulo}"
+CATEGORIA_DESATIVADA = (
+    "🚫 {rotulo} desativada. Ela sai das opções, mas os lançamentos antigos continuam com ela."
+)
+CATEGORIA_REATIVADA = "✅ {rotulo} reativada."
+CATEGORIA_FIXA = "{rotulo} não pode ser desativada: é para onde vai o que não se encaixa em outra."
+CATEGORIA_JA_EXISTE = "Você já tem uma categoria chamada {nome}."
+CATEGORIA_NOME_INVALIDO = (
+    "Esse nome não serve: use até 40 letras, números e espaços, com um emoji antes se quiser."
+)
+CATEGORIA_EMOJI_INVALIDO = "Mande só um emoji (por exemplo 🏋️). Tente de novo em /categorias."
+CATEGORIA_SUMIU = "Não encontrei essa categoria. Veja a lista atual em /categorias."

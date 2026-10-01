@@ -36,6 +36,10 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     ),
     "terms_acceptances": ("id", "account_id = %(conta)s"),
     "recovery_codes": ("selector", "account_id = %(conta)s"),
+    "categories": ("id", "account_id = %(conta)s"),
+    "payment_methods": ("id", "account_id = %(conta)s"),
+    "transactions": ("id", "account_id = %(conta)s"),
+    "category_rules": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -98,6 +102,20 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             "update telegrana.users set status = 'active', onboarding_step = 'done',"
             " phone_hmac = %s where id = %s",
             (hashlib.sha256(external_id.encode()).digest(), conta.user_id),
+        )
+        cur.execute("select telegrana.seed_account_defaults(%s)", (conta.account_id,))
+        cur.execute(
+            "insert into telegrana.transactions (account_id, user_id, kind, amount_cents,"
+            " category_id, payment_method_id, occurred_on, cash_on, source)"
+            " select %s, %s, 'expense', 4590, c.id, p.id, current_date, current_date, 'text'"
+            " from telegrana.categories c, telegrana.payment_methods p"
+            " where c.code = 'mercado' and p.kind = 'pix'",
+            (conta.account_id, conta.user_id),
+        )
+        cur.execute(
+            "insert into telegrana.category_rules (account_id, pattern, category_id)"
+            " select %s, 'drogasil', id from telegrana.categories where code = 'saude'",
+            (conta.account_id,),
         )
     return conta
 
@@ -372,3 +390,63 @@ def test_buscas_de_recuperacao_ignoram_cadastro_inacabado(app: db.Connection) ->
         lista = app.execute("select o_user_id from telegrana.admin_list_users()").fetchall()
     assert achado == []
     assert (row[0],) not in lista
+
+
+# ---------------------------------------------------------------------------
+# Lançamentos (0003)
+# ---------------------------------------------------------------------------
+def _categoria(migrator: db.Connection, conta: uuid.UUID, code: str) -> uuid.UUID:
+    with migrator.transaction():
+        row = migrator.execute(
+            "select id from telegrana.categories where account_id = %s and code = %s",
+            (conta, code),
+        ).fetchone()
+    assert row is not None
+    return row[0]
+
+
+def test_lancamento_nao_aponta_para_categoria_de_outra_conta(
+    app: db.Connection, migrator: db.Connection, cenario: Cenario
+) -> None:
+    categoria_b = _categoria(migrator, cenario.b.account_id, "mercado")
+    with (
+        pytest.raises(errors.ForeignKeyViolation),
+        db.account_context(app, cenario.a.account_id) as cur,
+    ):
+        cur.execute(
+            "insert into telegrana.transactions (account_id, user_id, kind, amount_cents,"
+            " category_id, occurred_on, cash_on, source)"
+            " values (%s, %s, 'expense', 100, %s, current_date, current_date, 'text')",
+            (cenario.a.account_id, cenario.a.user_id, categoria_b),
+        )
+
+
+def test_regra_nao_aponta_para_categoria_de_outra_conta(
+    app: db.Connection, migrator: db.Connection, cenario: Cenario
+) -> None:
+    categoria_b = _categoria(migrator, cenario.b.account_id, "saude")
+    with (
+        pytest.raises(errors.ForeignKeyViolation),
+        db.account_context(app, cenario.a.account_id) as cur,
+    ):
+        cur.execute(
+            "insert into telegrana.category_rules (account_id, pattern, category_id)"
+            " values (%s, 'farmacia', %s)",
+            (cenario.a.account_id, categoria_b),
+        )
+
+
+def test_padroes_nao_sao_semeados_em_outra_conta(app: db.Connection, cenario: Cenario) -> None:
+    with (
+        pytest.raises(errors.InsufficientPrivilege),
+        db.account_context(app, cenario.a.account_id) as cur,
+    ):
+        cur.execute("select telegrana.seed_account_defaults(%s)", (uuid.uuid4(),))
+
+
+def test_padroes_sao_idempotentes(app: db.Connection, cenario: Cenario) -> None:
+    with db.account_context(app, cenario.a.account_id) as cur:
+        antes = cur.execute("select count(*) from telegrana.categories").fetchone()
+        cur.execute("select telegrana.seed_account_defaults(%s)", (cenario.a.account_id,))
+        depois = cur.execute("select count(*) from telegrana.categories").fetchone()
+    assert antes == depois == (21,)

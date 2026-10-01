@@ -73,10 +73,13 @@ def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Orige
             telefone = str(contato.get("phone_number") or "")
         else:
             alheio = True
-    pergunta = None
+    pergunta, contexto = None, ""
     respondida = mensagem.get("reply_to_message")
     if isinstance(respondida, dict) and (respondida.get("from") or {}).get("id") == id_do_bot:
-        pergunta = textos.pergunta_respondida(str(respondida.get("text") or ""))
+        texto_respondido = str(respondida.get("text") or "")
+        pergunta = textos.pergunta_respondida(texto_respondido)
+        linhas = texto_respondido.splitlines()
+        contexto = linhas[1].strip() if pergunta and len(linhas) > 1 else ""
     entrada = Entrada(
         canal=CANAL,
         external_id=str(usuario["id"]),
@@ -88,6 +91,7 @@ def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Orige
         telefone=telefone,
         contato_alheio=alheio,
         pergunta=pergunta,
+        contexto=contexto,
     )
     return entrada, Origem(int(usuario["id"]), mensagem.get("message_id"))
 

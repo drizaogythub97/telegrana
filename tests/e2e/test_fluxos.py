@@ -109,6 +109,29 @@ def test_comandos_da_conta(ana: Pessoa) -> None:
     ana.espera("lançamentos chegam na próxima etapa")
 
 
+def test_categorias(ana: Pessoa) -> None:
+    ana.diz("/categorias")
+    lista = ana.espera("Suas categorias")
+    assert "🛒 Mercado" in lista.texto
+    ana.toca("Nova categoria")
+    ana.espera("Que tipo de categoria?")
+    ana.toca("De gasto")
+    ana.espera("Nova categoria de gasto")
+    ana.responde("🏋️ Academia")
+    ana.espera("Categoria criada: 🏋️ Academia")
+    ana.diz("/categorias")
+    ana.espera("Suas categorias")
+    ana.toca("Editar")
+    ana.espera("Qual categoria você quer editar?")
+    ana.toca("🏋️ Academia")
+    ana.espera("categoria de gasto, ativa")
+    ana.toca("Renomear")
+    pergunta = ana.espera("Qual é o novo nome desta categoria?")
+    assert pergunta.texto.endswith("🏋️ Academia")  # o contexto vai na 2ª linha
+    ana.responde("Crossfit")
+    ana.espera("Pronto: 🏋️ Crossfit")
+
+
 def test_link_revogado_nao_entra(admin: Pessoa, bruno: Pessoa) -> None:
     admin.diz("/link revogar")
     admin.espera("revogado")
