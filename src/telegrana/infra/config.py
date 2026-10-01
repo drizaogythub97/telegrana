@@ -15,6 +15,10 @@ PARAMETROS = {
     "telegram_bot_token": "telegram/bot_token",  # nosec B105 — caminho no SSM, não o valor
     "telegram_webhook_secret": "telegram/webhook_secret",  # nosec B105 — caminho no SSM
     "database_url": "neon/app_url",
+    "phone_hmac_pepper": "phone/hmac_pepper",
+    "legal_termos": "legal/termos",  # JSON {versao, url, sha256} (scripts/publicar_legal.py)
+    "legal_privacidade": "legal/privacidade",
+    "admin_contact": "admin/contact",
 }
 AMBIENTES = frozenset({"dev", "prod"})
 
@@ -32,6 +36,10 @@ class Settings:
     telegram_bot_token: str = field(repr=False)
     telegram_webhook_secret: str = field(repr=False)
     database_url: str = field(repr=False)
+    phone_hmac_pepper: str = field(repr=False)
+    legal_termos: str = ""
+    legal_privacidade: str = ""
+    admin_contact: str = ""
 
 
 def ssm_fetch(nomes: list[str]) -> dict[str, str]:

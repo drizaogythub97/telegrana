@@ -21,9 +21,9 @@ class TelegramFalso:
     def __init__(self) -> None:
         self.chamadas: list[tuple[str, Any]] = []
 
-    def send_message(self, chat_id: int, text: str, **_: Any) -> dict[str, int]:
-        self.chamadas.append(("sendMessage", chat_id))
-        return {"message_id": 1}
+    def call(self, method: str, **params: Any) -> dict[str, Any]:
+        self.chamadas.append((method, params.get("chat_id")))
+        return {"message_id": 1, "username": "bot_teste"}
 
     def leave_chat(self, chat_id: int) -> bool:
         self.chamadas.append(("leaveChat", chat_id))
@@ -39,8 +39,15 @@ def telegram(banco: Banco, monkeypatch: pytest.MonkeyPatch) -> Iterator[Telegram
         telegram_bot_token="123:falso",
         telegram_webhook_secret=SEGREDO,
         database_url=banco.app,
+        phone_hmac_pepper="cGVwcGVyLXBlcHBlci1wZXBwZXItcGVwcGVyLXBlcHBlcg",
+        legal_termos='{"versao": 1, "url": "https://telegra.ph/t", "sha256": "' + "01" * 32 + '"}',
+        legal_privacidade='{"versao": 1, "url": "https://telegra.ph/p", "sha256": "'
+        + "02" * 32
+        + '"}',
+        admin_contact="@admin_teste",
     )
     monkeypatch.setattr(bot, "_settings", settings)
+    monkeypatch.setattr(bot, "_ctx", None)
     monkeypatch.setattr(bot, "_api", falso)
     monkeypatch.setattr(bot, "_conn", None)
     yield falso
@@ -78,13 +85,31 @@ def test_admin_start_responde_uma_unica_vez(telegram: TelegramFalso) -> None:
     _, ev = update(**msg(ADMIN, "/start"))
     assert bot.handler(ev, None)["statusCode"] == 200
     assert bot.handler(ev, None)["statusCode"] == 200  # reenvio do Telegram
-    assert telegram.chamadas == [("sendMessage", ADMIN)]
+    # Boas-vindas + termos, uma vez só.
+    assert telegram.chamadas == [("sendMessage", ADMIN), ("sendMessage", ADMIN)]
 
 
-def test_desconhecido_nao_recebe_resposta_na_s13(telegram: TelegramFalso) -> None:
+def test_desconhecido_ve_a_tela_de_bot_privado(telegram: TelegramFalso) -> None:
     _, ev = update(**msg(777, "/start"))
     assert bot.handler(ev, None)["statusCode"] == 200
-    assert telegram.chamadas == []
+    assert telegram.chamadas == [("sendMessage", 777)]
+
+
+def test_botao_responde_o_callback_e_tira_os_botoes(telegram: TelegramFalso) -> None:
+    _, ev = update(
+        callback_query={
+            "id": "cb",
+            "from": {"id": 778},
+            "message": {"message_id": 3, "chat": {"id": 778, "type": "private"}},
+            "data": "rec:menu",
+        }
+    )
+    bot.handler(ev, None)
+    assert telegram.chamadas == [
+        ("answerCallbackQuery", None),
+        ("editMessageReplyMarkup", 778),
+        ("sendMessage", 778),
+    ]
 
 
 def test_mensagem_em_grupo_faz_o_bot_sair(telegram: TelegramFalso) -> None:
@@ -122,4 +147,5 @@ def test_rotinas_apaga_so_o_que_venceu(banco: Banco) -> None:
         )
     with db.connect(banco.app) as conn:
         resultado = rotinas.limpa(conn)
-    assert resultado == {"updates_apagados": 1, "pedidos_expirados_apagados": 1}
+    assert resultado["updates_apagados"] == 1
+    assert resultado["pedidos_expirados_apagados"] == 1

@@ -6,9 +6,11 @@ readme = "README.md"
 requires-python = ">=3.14,<3.15"
 # Dependências de execução: cada uma justificada em docs/DECISOES.md.
 dependencies = [
+    "argon2-cffi>=25.1",
     "certifi>=2026.7",       # CAs para TLS verify-full com o Neon (D030)
     "httpx>=0.28",           # chamadas à Bot API do Telegram, com timeouts (PLANO 2; D031)
     "psycopg[binary]>=3.3",  # driver Postgres, sem ORM (PLANO 2; D030)
+    "tzdata>=2025.2",
 ]
 
 [dependency-groups]

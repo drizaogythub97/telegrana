@@ -35,10 +35,18 @@ ISOLADAS: dict[str, tuple[str, str]] = {
         "exists (select 1 from telegrana.account_members m where m.user_id = t.user_id and m.account_id = %(conta)s)",
     ),
     "terms_acceptances": ("id", "account_id = %(conta)s"),
+    "recovery_codes": ("selector", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
-    {"schema_migrations", "invite_links", "access_requests", "processed_updates", "audit_log"}
+    {
+        "schema_migrations",
+        "invite_links",
+        "access_requests",
+        "processed_updates",
+        "audit_log",
+        "auth_attempts",
+    }
 )
 
 
@@ -80,6 +88,16 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             "insert into telegrana.terms_acceptances (account_id, user_id, doc, version, content_sha256)"
             " values (%s, %s, 'termos', 1, %s)",
             (conta.account_id, conta.user_id, hashlib.sha256(b"termos v1").digest()),
+        )
+        cur.execute(
+            "insert into telegrana.recovery_codes (account_id, user_id, selector, verifier_hash)"
+            " values (%s, %s, %s, %s)",
+            (conta.account_id, conta.user_id, "ABCD" + external_id[-4:], "$argon2id$" + "x" * 40),
+        )
+        cur.execute(
+            "update telegrana.users set status = 'active', onboarding_step = 'done',"
+            " phone_hmac = %s where id = %s",
+            (hashlib.sha256(external_id.encode()).digest(), conta.user_id),
         )
     return conta
 
@@ -285,8 +303,72 @@ def test_funcoes_security_definer_sao_blindadas(migrator: db.Connection) -> None
             " from pg_proc p join pg_namespace n on n.oid = p.pronamespace"
             " where n.nspname = 'telegrana' and p.prosecdef"
         ).fetchall()
-    assert {f[0] for f in funcoes} == {"resolve_identity", "start_onboarding"}
+    assert {f[0] for f in funcoes} == {
+        "resolve_identity",
+        "start_onboarding",
+        "recovery_lookup",
+        "find_user_by_phone",
+        "relink_identity",
+        "erase_account",
+        "purge_stale_onboarding",
+        "admin_list_users",
+    }
     for nome, config, publico in funcoes:
         assert config, f"{nome}: sem configuração"
         assert any(c.startswith("search_path=") for c in config), f"{nome}: sem search_path fixo"
         assert not publico, f"{nome}: EXECUTE liberado para PUBLIC"
+
+
+# ---------------------------------------------------------------------------
+# Caminhos de recuperação e exclusão (0002)
+# ---------------------------------------------------------------------------
+def test_relink_nao_toma_identidade_de_conta_ativa(app: db.Connection, cenario: Cenario) -> None:
+    with app.transaction():
+        row = app.execute(
+            "select o_result from telegrana.relink_identity('telegram', %s, %s)",
+            (cenario.b.external_id, cenario.a.user_id),
+        ).fetchone()
+        dono_b = app.execute(
+            "select o_user_id from telegrana.resolve_identity('telegram', %s)",
+            (cenario.b.external_id,),
+        ).fetchone()
+    assert row == ("in_use",)
+    assert dono_b == (cenario.b.user_id,)
+
+
+def test_erase_account_so_apaga_a_conta_do_contexto(app: db.Connection, cenario: Cenario) -> None:
+    with (
+        pytest.raises(psycopg.errors.RaiseException),
+        db.account_context(app, cenario.a.account_id) as cur,
+    ):
+        cur.execute("select telegrana.erase_account(%s)", (cenario.b.account_id,))
+    with app.transaction():
+        ainda = app.execute(
+            "select count(*) from telegrana.resolve_identity('telegram', %s)",
+            (cenario.b.external_id,),
+        ).fetchone()
+    assert ainda == (1,)
+
+
+def test_app_nao_executa_a_auxiliar_interna(app: db.Connection, cenario: Cenario) -> None:
+    with pytest.raises(errors.InsufficientPrivilege), app.transaction():
+        app.execute("select telegrana._erase_person(%s)", (cenario.b.user_id,))
+
+
+def test_buscas_de_recuperacao_ignoram_cadastro_inacabado(app: db.Connection) -> None:
+    with app.transaction():
+        row = app.execute(
+            "select o_user_id, o_account_id from telegrana.start_onboarding('telegram', '1000000077')"
+        ).fetchone()
+    assert row is not None
+    with db.account_context(app, row[1]) as cur:
+        cur.execute(
+            "insert into telegrana.recovery_codes (account_id, user_id, selector, verifier_hash)"
+            " values (%s, %s, 'ZZZZ0077', %s)",
+            (row[1], row[0], "$argon2id$" + "y" * 40),
+        )
+    with app.transaction():
+        achado = app.execute("select * from telegrana.recovery_lookup('ZZZZ0077')").fetchall()
+        lista = app.execute("select o_user_id from telegrana.admin_list_users()").fetchall()
+    assert achado == []
+    assert (row[0],) not in lista

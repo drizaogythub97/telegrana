@@ -94,6 +94,7 @@ Se acontecer um incidente que possa trazer risco ou dano relevante a você, **av
 | Seus dados e lançamentos | Enquanto sua conta existir |
 | Registros de segurança da sua conta | Enquanto sua conta existir |
 | Pedidos de acesso e cadastros não concluídos | Até 7 dias |
+| Contagem de tentativas erradas de recuperação de conta (para barrar abusos) | 1 dia |
 | Logs técnicos (sem dados pessoais) | 7 dias |
 
 Quando você apaga a conta, **tudo é apagado**: nome, código do telefone, código de recuperação, aceites, lançamentos e registros de segurança. Fica só um registro **anônimo** de que uma conta foi excluída naquela data. O provedor do banco mantém cópias técnicas de recuperação por até **6 horas**; depois disso, não há mais cópia.
