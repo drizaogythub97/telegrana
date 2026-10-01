@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 30/09/2026 · S0 encerrada · S1.1 e **S1.2 encerradas** · Próxima: **S1.3 — Infra e webhook**.
+> Atualizado em 30/09/2026 · S0 encerrada · S1.1, S1.2 e **S1.3 encerradas** · Próxima: **S1.4 — Entrada e cadastro**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -13,7 +13,17 @@
 
 ## Estado atual
 
-A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** concluída no PR #19. Ainda não existe código de bot.
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **O bot está no ar em dev e prod** e, por enquanto, só responde ao admin (`/start` → "Telegrana no ar").
+
+### S1.3 — o que existe (D031)
+
+- **No ar**: stacks `telegrana-dev` e `telegrana-prod` (`deploy/app.yaml`), com Lambdas `telegrana-<env>-bot` (Function URL; webhook registrado no Telegram, `max_connections` 3) e `telegrana-<env>-rotinas` (agenda `telegrana-<env>-rotinas`, 09:00/20:00 America/Sao_Paulo, limpeza de retenção). Teste real: o Adriano mandou `/start` ao @TelegranaAppDevBot e recebeu a resposta. Produção publicada pela execução manual 36768116069 (01/10/2026, todos os jobs verdes); webhook do @TelegranaAppBot conferido (sem pendências nem erro).
+- **Textos legais**: rascunhos `legal/termos-v1.md` e `legal/privacidade-v1.md` existem **só localmente** (fora do Git) e aguardam revisão jurídica por skill antes de entrar no repositório. Contato do administrador: o @ do Telegram do Adriano (a conta **ainda não tem nome de usuário** configurado; conferido via `getChat` em 01/10/2026).
+- **Código**: `infra/config.py` (SSM, `repr=False`), `infra/logs.py` (silencia HTTP), `channels/telegram/api.py` (Bot API com httpx; erros sem token), `channels/telegram/webhook.py` (validação), `entrypoints/bot.py` e `entrypoints/rotinas.py`. **93 testes.**
+- **SSM**: `/telegrana/admin_telegram_id`, `/telegrana/<env>/telegram/{bot_token,webhook_secret}`, `/telegrana/<env>/neon/{app_url,migrator_url}`. Gravar/rotacionar: `uv run python scripts/ssm_setup.py` (`--rotacionar-webhook`, `--rotacionar-banco-prod`). Os papéis do banco de **produção** foram criados; as senhas existem **só no SSM**. A migração 0001 foi aplicada em prod pelo pipeline.
+- **Base** (`telegrana-bootstrap`): + limite `telegrana-limite-lambdas`, bucket `telegrana-artefatos-<conta>` (7 dias), papel de deploy com permissões mínimas e OIDC nos ambientes `dev`/`prod` do GitHub (restritos à `main`); kill-switch avisando também no Telegram.
+- **Pipeline**: merge na `main` → `deploy-dev` automático. Produção: `gh workflow run CI --ref main -f prod=true` (automático depois do E2E da S1.5). Variáveis do repositório: `AWS_DEPLOY_ROLE_ARN`, `LAMBDA_BOUNDARY_ARN`, `ARTIFACT_BUCKET`. Action nova na lista permitida: `aws-actions/configure-aws-credentials`.
+- **Scripts**: `build_lambda.py` (pacote linux arm64 via uv), `deploy_tasks.py` (`migrar`, `webhook`, `webhook-info`), `ssm_setup.py`, `db_bootstrap.py`.
 
 ### S1.2 — o que existe (D030)
 
@@ -72,18 +82,21 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #16 | `7c67819` | encerramento da S0 (D028) |
 | #17 | `a69e6e7` | **S1.1**: esqueleto, ferramentas de qualidade e CI (D029) |
 | #18 | `ef38785` | encerramento da S1.1 |
-| #19 | (este) | **S1.2**: banco com RLS forçado e suíte de isolamento (D030) |
+| #19 | `d5caa19` | **S1.2**: banco com RLS forçado e suíte de isolamento (D030) |
+| #20 | `07cd4db` | **S1.3**: Lambdas, segredos no SSM e deploy por OIDC (D031) |
+| #21 | `3cd7733` | fix: OIDC com *sub* imutável do GitHub |
+| #22 | (este) | encerramento da S1.3 |
 
-## Ponto de partida exato da próxima sessão (S1.3 — Infra e webhook)
+## Ponto de partida exato da próxima sessão (S1.4 — Entrada e cadastro)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
 2. `python scripts/check_setup.py`. Se a AWS acusar sessão expirada, pedir ao Adriano: `aws login --profile telegrana`. No PowerShell do agente, recarregar o PATH antes de chamar `aws`/`sam` (ver Gotchas).
-3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.3**; S1.1 e S1.2 estão feitas:
+3. Divisão da S1 (aceita em 30/09/2026). **Começar pela S1.4**; S1.1–S1.3 estão feitas:
    - ~~**S1.1 — Esqueleto e CI**~~ ✅ PR #17: `pyproject.toml` com `uv` (lock com hashes), `ruff`, `mypy --strict` no núcleo, `pytest`, `bandit`, `pip-audit`, gitleaks no pre-commit e no CI; workflow do GitHub Actions com Postgres 18 em *service container* (D018); CodeQL; `dependabot.yml`; depois, acrescentar os *required status checks* ao ruleset `protege-main`.
    - ~~**S1.2 — Banco**~~ ✅ PR #19: ferramenta de migração (decidir e registrar: SQL versionado com runner próprio vs. Alembic); papéis `migrator` e `app` (criados por SQL com as strings do dono; senhas no SSM); esquema inicial com `accounts`, `users`, **`user_channels`** (D022; nada de `telegram_id` fixo), `account_members`, `terms_acceptances`, `invite_links`, `access_requests`, `processed_updates`, `recovery_codes`, `audit_log`; **RLS forçado** e chaves compostas; **suíte de isolamento** desde o primeiro teste.
-   - **S1.3 — Infra e webhook** (próxima). Além do que está abaixo: bootstrap de papéis e migrações da **produção** pelo pipeline (senhas geradas e gravadas no SSM; `TELEGRANA_MIGRATOR_URL` lido do SSM no job de deploy); a Lambda usa `telegrana_app`. Confirmar antes que a sessão `aws login` do Adriano esteja ativa.
+   - ~~**S1.3 — Infra e webhook**~~ ✅ PR #20. Além do que está abaixo: bootstrap de papéis e migrações da **produção** pelo pipeline (senhas geradas e gravadas no SSM; `TELEGRANA_MIGRATOR_URL` lido do SSM no job de deploy); a Lambda usa `telegrana_app`. Confirmar antes que a sessão `aws login` do Adriano esteja ativa.
    - Itens originais da S1.3: template SAM com Lambdas `bot` e `rotinas`, Function URL, SSM SecureString, logs com 7 dias; permissões mínimas do papel `telegrana-github-deploy`; bucket de artefatos do SAM (decidir: custo de centavos coberto pelos créditos, com ciclo de vida curto); `setWebhook` com secret token, `allowed_updates` mínimo, **`max_connections` ≤ 3** (D023) e `drop_pending_updates`; kill-switch avisando no Telegram.
-   - **S1.4 — Entrada e cadastro**: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
+   - **S1.4 — Entrada e cadastro** (próxima). O webhook já entrega updates validados e deduplicados em `entrypoints/bot.py::_processa`; o cadastro entra aí, com a lógica no `core/` (agnóstico de canal) e a formatação/teclados em `channels/telegram/`. Usar `resolve_identity`/`start_onboarding` e `db.account_context`. O pepper do HMAC do telefone vai para o SSM (`/telegrana/<env>/phone/hmac_pepper`, gerado por `ssm_setup.py`). Dependência nova provável: `argon2-cffi` (código de recuperação). Itens do plano: `/start` com convite, pedido de acesso, termos (rascunhos em `legal/` para o Adriano aprovar; conta do Telegraph pela API), cadastro mínimo como máquina de estados, código de recuperação (Argon2id), recuperação em 3 níveis, comandos de privacidade e de admin.
    - **S1.5 — E2E e marca**: bot no **servidor de testes** do Telegram (Telethon, contas `99966XYYYY`) cobrindo os cenários do critério de pronto da S1; recortes da logo (prévias para o Adriano); primeira captura no celular via adb (com autorização).
 4. Antes de cada escolha técnica nova (runtime da Lambda: conferir se já existe `python3.14`; biblioteca de migração; versão do SAM), **pesquisar a documentação oficial** e registrar em DECISOES.md.
 
@@ -123,6 +136,13 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - `aws login` dura no máximo 12 h. Se o SAM não aceitar essas credenciais, usar o perfil ponte com `credential_process` (guia S0.2).
 - Bedrock nesta conta: "Operation not allowed" (bloqueio de conta nova). Não usamos.
 - Recursos criados por API/IaC contam para as atividades de crédito (D026). API útil: `aws freetier get-account-plan-state` / `list-account-activities`.
+
+**AWS (S1.3)**
+- **OIDC do GitHub**: este repositório emite o *sub* no formato **imutável** (`repo:drizaogythub97@225630126/telegrana@1397881731:environment:<env>`). Uma confiança com `repo:dono/repo` faz a `configure-aws-credentials` ficar tentando **em silêncio**, sem mensagem de erro. Conferir com `gh api repos/<repo>/actions/oidc/customization/sub`.
+- AWS CLI no Windows: exportar `AWS_CLI_FILE_ENCODING=UTF-8` para ler templates com acento ou emoji (senão dá erro de `charmap`).
+- boto3 no Windows: use o perfil `telegrana-sdk` (o `credential_process` chama `aws.exe` pelo caminho completo). O perfil `telegrana` sozinho exige `awscrt`.
+- O deploy manual daqui usa o `sam deploy`; o CI usa `aws cloudformation package/deploy`. Os dois leem `deploy/app.yaml` com `CodeUri: ../.build/lambda`: rode antes `scripts/build_lambda.py`.
+- A conta tem 5 Lambdas simultâneas: não use concorrência reservada nas funções.
 
 **Neon**
 - Papéis criados por SQL recebem senha longa (`token_urlsafe(32)`). O executor de migrações roda arquivos com várias instruções: passe **bytes** ao `execute` (protocolo simples); `str` não literal dá erro de tipo no mypy.
