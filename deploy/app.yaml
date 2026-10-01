@@ -20,7 +20,8 @@ Globals:
   Function:
     Runtime: python3.14
     Architectures: [arm64]
-    CodeUri: ../.build/lambda
+    # CodeUri fica em cada função, não aqui: o `aws cloudformation package` do CI não
+    # lê os Globals do SAM e, sem CodeUri no recurso, empacota a pasta do template.
     MemorySize: 256
     Timeout: 30
     PermissionsBoundary: !Ref LambdaBoundaryArn
@@ -47,6 +48,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "telegrana-${Env}-bot"
+      CodeUri: ../.build/lambda
       Description: Webhook do Telegram (valida segredo, deduplica, só chat privado).
       Handler: telegrana.entrypoints.bot.handler
       LoggingConfig:
@@ -87,6 +89,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "telegrana-${Env}-rotinas"
+      CodeUri: ../.build/lambda
       Description: Limpezas de retenção; lembretes e resumos a partir da S4.
       Handler: telegrana.entrypoints.rotinas.handler
       Timeout: 60
