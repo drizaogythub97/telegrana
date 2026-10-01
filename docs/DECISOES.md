@@ -198,3 +198,10 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Marca**: `scripts/marca.py` gera `assets/brand/out/` (ícone 640/512/256/128/64 em PNG e o JPG da foto do bot, logo transparente, horizontal e branca vazada; o branco do "$" fica) e `previa.png`; paleta em `telegrana.exports.brand`. Aprovada pelo Adriano em 01/10/2026 e aplicada nos dois bots.
 - **Perfil do bot** pela Bot API (`deploy_tasks.py perfil`, roda em todo deploy): menu de comandos para todos os chats privados e um menu com os comandos de admin só no chat do admin (pulado enquanto o admin não conversar com o bot: "chat not found"); descrição e descrição curta ("[DEV]" no dev); `--foto` usa `setMyProfilePhoto` (Bot API 9.4; só JPG).
 
+## D035 · 2026-10-01 · Posicionamento: assistente individual com IA; lançamento público com pré-requisitos
+- **Decisão (Adriano)**: o Telegrana não é "controle da família", e sim um assistente financeiro **individual**, com a **IA em destaque** (é o que o torna viável e chamativo). Começa em acesso antecipado por convite (família e amigos) e deve ser divulgado depois.
+- **Textos novos (aprovados pelo Adriano)**: boas-vindas, tela de quem chega sem convite ("acesso antecipado") e perfil do bot (descrição e descrição curta). A descrição já cita recursos das próximas sprints; quem entra agora vê "os lançamentos chegam na próxima etapa".
+- **Categorias**: lista padrão do PLANO 4.2 aprovada; categorias personalizadas por pessoa; a IA interpreta o que o código não reconhece e, com baixa confiança, faz ela mesma uma pergunta curta com opções em botões; nunca inventa valor, data ou categoria (complementa D028).
+- **Pré-requisitos do lançamento público** registrados no PLANO, seção 16 (textos legais v2, capacidade e custos, entrada, marca, operação, avaliação da IA). Até lá, os textos legais v1 continuam válidos: o uso por convite segue pessoal e gratuito.
+- **CLAUDE.md** atualizado ("O que é").
+
