@@ -29,8 +29,8 @@ def pergunta_respondida(texto_da_pergunta: str) -> str | None:
 # Entrada
 # ---------------------------------------------------------------------------
 PRIVADO = (
-    "🔒 **O Telegrana é privado.**\n"
-    "É um assistente de finanças da família do Adriano e funciona só por convite."
+    "🔒 **O Telegrana está em acesso antecipado.**\n"
+    "Por enquanto, só entra quem foi convidado. Peça acesso abaixo."
 )
 AVISO_PEDIDO = (
     "Ao pedir acesso, **seu nome e seu @ do Telegram** e a sua resposta vão para o "
@@ -83,8 +83,9 @@ AVISO_CONTA_ANTIGA = (
 # ---------------------------------------------------------------------------
 BOAS_VINDAS = (
     "👋 **Bem-vindo ao Telegrana!**\n"
-    "Eu anoto seus gastos e ganhos por mensagem ou áudio, lembro dos vencimentos e "
-    "mostro para onde o dinheiro está indo."
+    "Sou seu assistente financeiro com **inteligência artificial**: você me conta seus "
+    "gastos e ganhos por mensagem ou áudio, do seu jeito, e eu entendo, organizo e mostro "
+    "para onde o seu dinheiro está indo."
 )
 RESUMO_TERMOS = (
     "📜 **Antes de começar**\n"

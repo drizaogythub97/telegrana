@@ -124,11 +124,17 @@ COMANDOS_ADMIN = [
     ("usuarios", "Contas: bloquear e desbloquear"),
 ]
 DESCRICAO = (
-    "💰 Telegrana: as finanças da família no Telegram.\n\n"
-    "Anote gastos e ganhos por mensagem ou áudio, receba lembretes das contas e veja para "
-    "onde o dinheiro está indo.\n\n🔒 Privado: só entra quem for convidado."
+    "🤖💰 Telegrana: seu assistente financeiro com inteligência artificial.\n\n"
+    'Mande uma mensagem ou um áudio do jeito que você fala ("gastei 45 no mercado", '
+    '"recebi 2 mil do freela") e a IA entende, categoriza e registra, e pergunta quando '
+    "tiver dúvida.\n\n"
+    "📊 Relatórios, lembretes de contas e cartão de crédito, tudo dentro do Telegram.\n"
+    "🔒 Seus dados são só seus. Acesso antecipado por convite."
 )
-DESCRICAO_CURTA = "Finanças da família: gastos e ganhos por texto ou áudio, lembretes e relatórios. Só por convite."
+DESCRICAO_CURTA = (
+    "Seu assistente financeiro com IA: anote gastos e ganhos por texto ou áudio e veja "
+    "para onde vai seu dinheiro."
+)
 FOTO = RAIZ / "assets" / "brand" / "out" / "icon-640.jpg"
 
 

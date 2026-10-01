@@ -13,7 +13,7 @@
 
 ## Estado atual
 
-A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032).
+A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
 
 ### S1.5 — o que existe (D034)
 
@@ -106,13 +106,14 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #25 | `8ae59fc` | fix: `CodeUri` em cada Lambda + verificação pós-deploy |
 | #26 | `a664f35` | encerramento da S1.4 |
 | #27 | `8ee82a7` | **S1.5**: marca, perfil do bot e E2E simulado (D034) |
-| #28 | (este) | encerramento da S1.5 e da S1 |
+| #28 | `15d2719` | encerramento da S1.5 e da S1 |
+| #29 | (este) | posicionamento: assistente individual com IA; pré-requisitos do lançamento (D035) |
 
 ## Ponto de partida exato da próxima sessão (S2 — Lançamentos por texto)
 
 1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa.
 2. `python scripts/check_setup.py`. AWS expirada → pedir ao Adriano `aws login --profile telegrana`.
-3. **Pedir ao Adriano, de uma vez** (a S2 depende disso): revisar a lista de **categorias padrão** (PLANO 4.2); confirmar o conjunto de avaliação em `tests/eval/data/` (61 frases + 11 áudios; fora do Git, D016).
+3. Categorias padrão **aprovadas** (PLANO 4.2, D035), com categorias personalizadas por pessoa e a IA fazendo a pergunta de esclarecimento quando a confiança for baixa (botões com as opções; oferecer lembrar a regra). Confirmar com o Adriano só o conjunto de avaliação em `tests/eval/data/` (61 frases + 11 áudios; fora do Git, D016).
 4. Propor a divisão da S2 em micro-fases (como na S1) e pedir o aceite. Escopo do PLANO (linha S2 do roteiro): extração com `openai/gpt-oss-20b` no Groq, normalização de valores e datas, vários lançamentos por mensagem, recibo com botões, correção por *reply*, categorias, **avaliação de IA no CI** (critério: ≥ 95% em valor/tipo/data e ≥ 90% em categoria). Decidir antes a pergunta em aberto 2 (como o CI avalia sem publicar os dados).
 5. Regras que valem desde a primeira linha: a IA devolve estrutura validada (Pydantic), **nunca** SQL, valor calculado ou decisão de acesso; dinheiro em centavos `bigint`; datas em America/Sao_Paulo; **na dúvida o bot pergunta** (D028: sem finalidade identificável, pergunta ao usuário); toda tabela nova entra na suíte de isolamento (ISOLADAS) com RLS forçado e chave composta `(account_id, id)`; dado novo só com finalidade escrita na Política (nova versão + novo aceite se mudar a coleta).
 6. Infra da S2: chaves do Groq no SSM (`/telegrana/<env>/groq/api_key`, a partir de `GROQ_API_KEY_{DEV,PROD}` do `.env.local`, por `ssm_setup.py`) e no `config.PARAMETROS`; o E2E simulado ganha um Groq falso (respostas fixas). A IA real fica na avaliação.
@@ -120,9 +121,7 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 
 ## Pendências do Adriano
 
-- Revisar a lista de **categorias padrão** (PLANO 4.2) e responder pelo chat. **Necessário no início da S2.**
 - Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
-- Mandar `/start` ao **@TelegranaAppBot** (produção) uma vez, para o menu de admin aparecer lá e a conta dele existir em prod.
 - Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
 - ⏰ **Até 30/03/2027: upgrade da conta AWS para o plano pago** (senão a conta é fechada; provavelmente foi o que aconteceu com a conta antiga). O agente deve lembrar a partir de 01/2027 e só fazer com o kill-switch testado.
 

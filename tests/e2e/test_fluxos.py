@@ -44,7 +44,7 @@ def _codigo(texto: str) -> str:
 
 def test_desconhecido_ve_bot_privado(bruno: Pessoa) -> None:
     bruno.diz("/start")
-    tela = bruno.espera("O Telegrana é privado")
+    tela = bruno.espera("acesso antecipado")
     assert [b["text"] for b in tela.botoes()] == ["🙋 Pedir acesso", "🔄 Já tenho conta"]
 
 
@@ -113,12 +113,12 @@ def test_link_revogado_nao_entra(admin: Pessoa, bruno: Pessoa) -> None:
     admin.diz("/link revogar")
     admin.espera("revogado")
     bruno.diz(f"/start {_estado['token']}")
-    bruno.espera("O Telegrana é privado")
+    bruno.espera("acesso antecipado")
 
 
 def test_pede_acesso_admin_aprova_e_menor_tem_dados_apagados(admin: Pessoa, bruno: Pessoa) -> None:
     bruno.diz("/start")
-    bruno.espera("O Telegrana é privado")
+    bruno.espera("acesso antecipado")
     bruno.toca("Pedir acesso")
     bruno.espera("vão para o administrador")
     bruno.espera("Como você conhece o Adriano?")
@@ -145,7 +145,7 @@ def test_pede_acesso_admin_aprova_e_menor_tem_dados_apagados(admin: Pessoa, brun
 
 def test_pedido_recusado(admin: Pessoa, bruno: Pessoa) -> None:
     bruno.diz("/start")
-    bruno.espera("O Telegrana é privado")
+    bruno.espera("acesso antecipado")
     bruno.toca("Pedir acesso")
     bruno.espera("Como você conhece o Adriano?")
     bruno.responde("De novo")
@@ -155,7 +155,7 @@ def test_pedido_recusado(admin: Pessoa, bruno: Pessoa) -> None:
     admin.espera("Pedido recusado")
     bruno.nada_novo()  # a pessoa recusada não é avisada
     bruno.diz("/start")
-    bruno.espera("O Telegrana é privado")
+    bruno.espera("acesso antecipado")
     bruno.toca("Pedir acesso")
     bruno.espera("Não é possível pedir acesso agora")
 
@@ -163,7 +163,7 @@ def test_pedido_recusado(admin: Pessoa, bruno: Pessoa) -> None:
 def test_recupera_pelo_telefone(mundo: Mundo, admin: Pessoa, ana: Pessoa) -> None:
     nova = mundo.pessoa(900_000_102, "Ana Teste", TELEFONE_ANA)  # recriou o Telegram, mesmo número
     nova.diz("/start")
-    nova.espera("O Telegrana é privado")
+    nova.espera("acesso antecipado")
     nova.toca("Já tenho conta")
     nova.espera("Recuperar minha conta")
     nova.toca("Pelo meu número")
@@ -210,7 +210,7 @@ def test_codigo_errado_trava(mundo: Mundo) -> None:
 def test_recuperacao_manual_pelo_admin(mundo: Mundo, admin: Pessoa, ana: Pessoa) -> None:
     nova = mundo.pessoa(900_000_104, "Ana Teste", "5511900002222")  # perdeu código e número
     nova.diz("/start")
-    nova.espera("O Telegrana é privado")
+    nova.espera("acesso antecipado")
     nova.toca("Já tenho conta")
     nova.espera("Recuperar minha conta")
     nova.toca("Perdi os dois")
@@ -250,4 +250,4 @@ def test_apaga_a_conta(admin: Pessoa, ana: Pessoa) -> None:
     ana.espera("Sua conta foi apagada")
     admin.espera("Uma conta foi apagada")
     ana.diz("/start")
-    ana.espera("O Telegrana é privado")
+    ana.espera("acesso antecipado")

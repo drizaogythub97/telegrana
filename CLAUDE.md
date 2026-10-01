@@ -4,7 +4,7 @@ Regras permanentes do projeto. Leia este arquivo inteiro no início de toda sess
 
 ## O que é
 
-**Telegrana** é um bot de Telegram com IA para as finanças pessoais do Adriano e da família (5 a 10 pessoas no máximo). Registra gastos e ganhos por texto e áudio, cadastra fixos (água, luz, internet, assinaturas, salário), controla cartão de crédito com parcelamento e fatura, envia lembretes e gera relatórios em mensagem, XLSX e PDF.
+**Telegrana** é um assistente financeiro **individual** com IA no Telegram: cada pessoa controla as próprias finanças. Começa em acesso antecipado, por convite (família e amigos do Adriano); a divulgação pública só depois dos pré-requisitos da seção 16 do `docs/PLANO.md` (D035). Registra gastos e ganhos por texto e áudio, cadastra fixos (água, luz, internet, assinaturas, salário), controla cartão de crédito com parcelamento e fatura, envia lembretes e gera relatórios em mensagem, XLSX e PDF.
 
 A fonte da verdade do alinhamento é `docs/PLANO.md`. Decisões novas vão para `docs/DECISOES.md` (numeradas, com data, motivo e alternativa descartada).
 

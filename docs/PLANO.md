@@ -8,9 +8,11 @@
 
 ## 0. Visão
 
-Um assistente financeiro no Telegram para o Adriano e a família. A pessoa fala ou escreve do jeito dela ("uns 50 conto no posto", "caiu o salário, 3200", "tênis 600 em 3x no Nubank") e o Telegrana registra, organiza, lembra dos vencimentos e responde qualquer pergunta sobre o dinheiro, em mensagem clara com emojis, ou em planilha e PDF quando pedido.
+*(01/10/2026, D035: posicionamento revisto. O Telegrana é um assistente financeiro **individual** com **IA** em destaque; começa em acesso antecipado por convite, para família e amigos, e deve ser divulgado depois dos pré-requisitos da seção 16.)*
 
-- Usuários: 5 a 10 pessoas, uso familiar, sem fins comerciais.
+Um assistente financeiro com IA no Telegram, para cada pessoa controlar as próprias finanças. A pessoa fala ou escreve do jeito dela ("uns 50 conto no posto", "caiu o salário, 3200", "tênis 600 em 3x no Nubank") e o Telegrana registra, organiza, lembra dos vencimentos e responde qualquer pergunta sobre o dinheiro, em mensagem clara com emojis, ou em planilha e PDF quando pedido.
+
+- Usuários: acesso antecipado por convite (família e amigos, dezenas de pessoas), gratuito e sem fins comerciais. Lançamento público só depois da seção 16.
 - Cada pessoa tem sua conta, totalmente isolada das outras.
 - Roda 100% online, sem depender do PC do Adriano.
 
@@ -249,6 +251,7 @@ Nota registrada: a LGPD não se aplica ao tratamento feito por pessoa física pa
 - Lista padrão com emoji fixo (ex.: 🛒 Mercado, 🍽️ Alimentação fora, 🏠 Moradia, 💡 Contas da casa, 🚗 Transporte, ⛽ Combustível, 💊 Saúde, 📚 Educação, 🎮 Lazer, 👕 Vestuário, 📱 Assinaturas, 🐾 Pets, 👶 Filhos, 🎁 Presentes, 💸 Encargos e juros, 📦 Outros; ganhos: 💼 Salário, 🧾 Serviços/Freela, 📈 Rendimentos, ↩️ Reembolso, 🎉 Outros ganhos).
 - Cada conta pode criar, renomear, trocar emoji e desativar categorias (`/categorias`). Nunca apagar categoria com lançamentos: desativar.
 - A IA escolhe **dentro da lista da conta**; se não houver encaixe, usa "Outros" e oferece criar uma nova.
+- *(01/10/2026, aprovado pelo Adriano; D035)* A lista padrão acima está aprovada. Cada pessoa cria categorias **personalizadas** (nome + emoji). Quando o código não reconhece o que foi dito (sem palavra-chave conhecida), a IA interpreta pelo contexto, sempre dentro das categorias da conta; se a confiança for baixa, **a própria IA formula uma pergunta curta** com as opções mais prováveis em botões (ex.: "Esses R$ 80 na Drogasil foram 💊 Saúde ou 🛒 Mercado?") e, se nenhuma servir, oferece criar a categoria. Quando a resposta da pessoa deixa clara uma regra (ex.: "Drogasil é sempre Saúde"), o bot oferece lembrar disso para a próxima vez. A IA nunca inventa valor, data nem categoria fora da lista.
 
 ### 4.3 Fixos e recorrentes
 
@@ -657,3 +660,17 @@ Os créditos (US$ 100 + até US$ 100) cobrem o WhatsApp com folga até 09/2027. 
 - O @ `TelegranaBot` pode estar ocupado; qualquer variação serve. (Ordem de alternativas no guia S0.5.)
 - Limites atuais do Groq (modelos e cotas) — verificar e registrar. ✅ **Verificado em 29/09/2026 (D019).**
 - A conta AWS não tem Organizations; se tiver, avaliar SCPs para o kill-switch. ⏳ **Verificado automaticamente pelo `check_setup` após a S0.2.**
+
+---
+
+## 16. Pré-requisitos do lançamento público (registrado em 01/10/2026, D035)
+
+O Telegrana começa em acesso antecipado, por convite, para família e amigos. **Antes de qualquer divulgação pública**, uma sprint própria ("S-Lançamento") precisa resolver:
+
+1. **Textos legais v2**: os Termos e a Política v1 dizem "projeto pessoal e familiar". Com público aberto, o tratamento deixa de ser uso particular: nova versão (revisada com as skills jurídicas), novo aceite pelo bot e revisão do enquadramento como agente de pequeno porte (Res. CD/ANPD 2/2022) e do canal do encarregado.
+2. **Capacidade e custos**: limites do Groq gratuito (por organização), do Neon Free (0,5 GB; 6 h de histórico) e da conta AWS (5 Lambdas simultâneas; créditos até 30/09/2027; upgrade obrigatório até 30/03/2027). Medir o uso real do acesso antecipado e definir o teto de usuários, o plano pago (se houver) e o orçamento, com o kill-switch ajustado.
+3. **Entrada**: a pergunta "Como você conhece o Adriano?" e a aprovação manual não escalam. Avaliar lista de espera, convites pessoais limitados por usuário ou cadastro aberto com limites anti-abuso.
+4. **Marca**: o avião de papel da logo e o nome "Tele…" remetem ao Telegram (marca registrada); risco aceito só para o uso por convite. Revisar logo e nome antes de divulgar.
+5. **Operação**: canal de suporte, monitoramento e alertas de erro, rotina de incidentes (art. 48), backup (S8) e o roteiro no celular antes de cada liberação.
+6. **Desempenho da IA**: avaliação com mensagens de mais pessoas além do conjunto atual (D016), para não depender do jeito de falar de uma família.
+
