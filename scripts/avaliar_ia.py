@@ -45,6 +45,7 @@ from telegrana.core.extracao import ExtracaoIA  # noqa: E402
 from telegrana.core.interpretacao import CategoriaConta, Proposta, normaliza  # noqa: E402
 
 HOJE = date(2026, 10, 1)  # data de referência do gabarito
+CADEIA = "cadeia"  # avalia a cadeia inteira, como o bot usa (D040)
 ESPERA_MAXIMA = 120.0  # espera maior que isso = cota do dia acabou: parar, não insistir
 METAS = {"valor": 0.95, "tipo": 0.95, "data": 0.95, "categoria": 0.90, "intencao": 0.90}
 _TIPO = {"gasto": "expense", "ganho": "income", "transferencia": "transfer"}
@@ -146,16 +147,20 @@ class OuvidoComCache:
         self.modelo = modelo
         self.pasta = pasta
         self.chamadas = 0
+        self._memoria: dict[str, str] = {}  # novas tentativas da IA não retranscrevem
 
     def transcreve(self, dados: bytes) -> str:
+        digital = hashlib.sha256(self.modelo.encode() + VOCABULARIO.encode() + dados).hexdigest()
+        if digital in self._memoria:
+            return self._memoria[digital]
         arquivo = None
         if self.pasta is not None:
-            digital = hashlib.sha256(self.modelo.encode() + VOCABULARIO.encode() + dados)
-            arquivo = self.pasta / f"audio-{digital.hexdigest()}.txt"
+            arquivo = self.pasta / f"audio-{digital}.txt"
             if arquivo.exists():
                 return arquivo.read_text(encoding="utf-8")
         self.chamadas += 1
         texto = self.whisper.transcreve(dados, "ogg", 10).texto
+        self._memoria[digital] = texto
         if arquivo is not None:
             arquivo.parent.mkdir(parents=True, exist_ok=True)
             arquivo.write_text(texto, encoding="utf-8")
@@ -222,14 +227,20 @@ def main() -> int:
     )
     parser.add_argument("--resultado", type=Path, help="grava o placar em JSON (sem frases)")
     parser.add_argument(
-        "--modelo", choices=sorted(PARAMETROS), default=MODELOS[0], help="modelo do Groq"
+        "--modelo",
+        choices=[CADEIA, *sorted(PARAMETROS)],
+        default=MODELOS[0],
+        help="modelo do Groq, ou 'cadeia': o mesmo caminho do bot (sem cache; usado no CI)",
     )
     parser.add_argument(
         "--sem-cache", action="store_true", help="sempre chama a IA (não lê nem grava o cache)"
     )
     parser.add_argument("--audio", action="store_true", help="avalia os áudios (Whisper + IA)")
     parser.add_argument(
-        "--modelo-audio", choices=MODELOS_AUDIO, default=MODELOS_AUDIO[0], help="modelo do Whisper"
+        "--modelo-audio",
+        choices=[CADEIA, *MODELOS_AUDIO],
+        default=MODELOS_AUDIO[0],
+        help="modelo do Whisper, ou 'cadeia'",
     )
     parser.add_argument(
         "--continuar",
@@ -265,12 +276,16 @@ def main() -> int:
         casos = [c for c in casos if c["id"] not in feitos]
 
     categorias = [CategoriaConta(code, nome, emoji, tipo) for tipo, code, nome, emoji in PADROES]
-    pasta_cache = None if args.sem_cache or args.baixar else args.dados / "cache"
-    groq = ComCache(Groq(_chave(args), modelos=(args.modelo,)), pasta_cache)
+    # Cadeia: quem responde varia com a cota do dia, então não há cache por modelo.
+    em_cadeia = CADEIA in {args.modelo, args.modelo_audio}
+    pasta_cache = None if args.sem_cache or args.baixar or em_cadeia else args.dados / "cache"
+    modelos = MODELOS if args.modelo == CADEIA else (args.modelo,)
+    groq = ComCache(Groq(_chave(args), modelos=modelos), pasta_cache)
     print(f"Modelo: {args.modelo}; cache: {'sim' if pasta_cache else 'não'}")
     ouvido = None
     if args.audio:
-        whisper = Whisper(_chave(args), modelos=(args.modelo_audio,))
+        modelos_audio = MODELOS_AUDIO if args.modelo_audio == CADEIA else (args.modelo_audio,)
+        whisper = Whisper(_chave(args), modelos=modelos_audio)
         ouvido = OuvidoComCache(whisper, args.modelo_audio, pasta_cache)
         print(f"Áudio: {len(audios)} arquivos; Whisper {args.modelo_audio}")
     erros_palavra: list[float] = []
