@@ -62,6 +62,26 @@ class ExtracaoIA(BaseModel):
     pergunta: str | None = Field(max_length=200)
 
 
+class CorrecaoIA(BaseModel):
+    """Correção de UM lançamento existente (D042): só o que a pessoa quer mudar.
+
+    A IA copia os trechos; o código valida (valor presente na frase, categoria da conta,
+    regras aprendidas) e aplica.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    entendeu: bool
+    valor_texto: str | None = Field(max_length=60)
+    data_texto: str | None = Field(max_length=60)
+    categoria: str | None = Field(max_length=40)
+    termo_categoria: str | None = Field(max_length=40)
+    categorias_sugeridas: list[str] = Field(max_length=3)
+    nova_categoria_sugerida: str | None = Field(max_length=40)
+    forma_pagamento: Forma | None
+    descricao: str | None = Field(max_length=80)
+
+
 # ---------------------------------------------------------------------------
 # JSON Schema para a saída estrita do provedor (Groq `strict: true`)
 # Escrito à mão: todo campo obrigatório, `additionalProperties: false` em todo objeto,
@@ -108,5 +128,21 @@ def esquema_json() -> dict[str, Any]:
             "correcao_campo": _enum_ou_nulo(CampoCorrecao),
             "correcao_texto": _texto_ou_nulo(),
             "pergunta": _texto_ou_nulo(),
+        }
+    )
+
+
+def esquema_correcao() -> dict[str, Any]:
+    return _objeto(
+        {
+            "entendeu": {"type": "boolean"},
+            "valor_texto": _texto_ou_nulo(),
+            "data_texto": _texto_ou_nulo(),
+            "categoria": _texto_ou_nulo(),
+            "termo_categoria": _texto_ou_nulo(),
+            "categorias_sugeridas": {"type": "array", "items": {"type": "string"}},
+            "nova_categoria_sugerida": _texto_ou_nulo(),
+            "forma_pagamento": _enum_ou_nulo(Forma),
+            "descricao": _texto_ou_nulo(),
         }
     )

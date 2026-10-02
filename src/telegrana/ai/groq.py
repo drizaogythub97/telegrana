@@ -15,14 +15,14 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 from pydantic import ValidationError
 
 from telegrana.ai.cadeia import Cadeia, ErroIA, erro_http
-from telegrana.ai.prompt import CategoriaPrompt, mensagens
-from telegrana.core.extracao import ExtracaoIA, esquema_json
+from telegrana.ai.prompt import CategoriaPrompt, mensagens, mensagens_correcao
+from telegrana.core.extracao import CorrecaoIA, ExtracaoIA, esquema_correcao, esquema_json
 
 __all__ = ["MODELOS", "PARAMETROS", "ErroIA", "Groq", "Uso"]
 
@@ -38,6 +38,7 @@ PARAMETROS: dict[str, dict[str, Any]] = {
 # 02/10/2026); o 20b fica por último até completar uma rodada com o código atual.
 MODELOS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 MODELO = MODELOS[0]
+Saida = TypeVar("Saida", ExtracaoIA, CorrecaoIA)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,33 +71,59 @@ class Groq:
     def corpo(
         self, texto: str, categorias: list[CategoriaPrompt], hoje: date, modelo: str = ""
     ) -> dict[str, Any]:
+        return self._corpo(modelo, mensagens(texto, categorias, hoje), "extracao", esquema_json())
+
+    def corpo_correcao(
+        self,
+        texto: str,
+        atual: str,
+        categorias: list[CategoriaPrompt],
+        hoje: date,
+        modelo: str = "",
+    ) -> dict[str, Any]:
+        msgs = mensagens_correcao(texto, atual, categorias, hoje)
+        return self._corpo(modelo, msgs, "correcao", esquema_correcao())
+
+    def _corpo(
+        self, modelo: str, msgs: list[dict[str, str]], nome: str, esquema: dict[str, Any]
+    ) -> dict[str, Any]:
         modelo = modelo or self._modelos[0]
         return {
             "model": modelo,
-            "messages": mensagens(texto, categorias, hoje),
+            "messages": msgs,
             "temperature": 0,
             **PARAMETROS[modelo],
             "max_completion_tokens": 2000,
             "response_format": {
                 "type": "json_schema",
-                "json_schema": {"name": "extracao", "strict": True, "schema": esquema_json()},
+                "json_schema": {"name": nome, "strict": True, "schema": esquema},
             },
         }
 
     def extrai(self, texto: str, categorias: list[CategoriaPrompt], hoje: date) -> ExtracaoIA:
         self.ultimo_uso = None
         extracao, _modelo = self._cadeia.executa(
-            lambda modelo: self._chama(modelo, texto, categorias, hoje)
+            lambda modelo: self._chama(
+                modelo, self.corpo(texto, categorias, hoje, modelo), ExtracaoIA
+            )
         )
         return extracao
 
-    def _chama(
-        self, modelo: str, texto: str, categorias: list[CategoriaPrompt], hoje: date
-    ) -> ExtracaoIA:
-        try:
-            resposta = self._client.post(
-                URL, headers=self._headers, json=self.corpo(texto, categorias, hoje, modelo)
+    def corrige(
+        self, texto: str, atual: str, categorias: list[CategoriaPrompt], hoje: date
+    ) -> CorrecaoIA:
+        """Correção de um lançamento existente (D042): devolve só o que a pessoa quer mudar."""
+        self.ultimo_uso = None
+        correcao, _modelo = self._cadeia.executa(
+            lambda modelo: self._chama(
+                modelo, self.corpo_correcao(texto, atual, categorias, hoje, modelo), CorrecaoIA
             )
+        )
+        return correcao
+
+    def _chama(self, modelo: str, corpo: dict[str, Any], tipo: type[Saida]) -> Saida:
+        try:
+            resposta = self._client.post(URL, headers=self._headers, json=corpo)
         except httpx.HTTPError as exc:
             raise ErroIA(f"falha de comunicação ({type(exc).__name__})") from None
         if resposta.status_code >= 400:
@@ -112,6 +139,6 @@ class Groq:
                 modelo,
             )
             conteudo = dados["choices"][0]["message"]["content"]
-            return ExtracaoIA.model_validate(json.loads(conteudo))
+            return tipo.model_validate(json.loads(conteudo))
         except (ValueError, KeyError, IndexError, TypeError, ValidationError) as exc:
             raise ErroIA(f"resposta inválida ({type(exc).__name__})") from None

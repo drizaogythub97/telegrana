@@ -20,8 +20,18 @@ from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.contexto import Contexto, agora
-from telegrana.core.entendimento import ErroExtracao, entende
-from telegrana.core.interpretacao import AMBIGUOS, Proposta, normaliza
+from telegrana.core.entendimento import ErroExtracao, entende, para_prompt
+from telegrana.core.extracao import CorrecaoIA
+from telegrana.core.interpretacao import (
+    AMBIGUOS,
+    GENERICAS,
+    Proposta,
+    Regra,
+    _ambiguo,
+    _chave,
+    _regra_que_casa,
+    normaliza,
+)
 from telegrana.core.mensagens import ADMIN, Botao, Entrada, ErroCanal, Resultado, Saida, seguro
 from telegrana.core.repositorio import Pessoa
 from telegrana.infra import db
@@ -53,7 +63,7 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
     if e.pergunta in PERGUNTAS:
         r = _resposta(conn, e, p)
     elif e.resposta_a:
-        r = _corrige_pelo_recibo(conn, e, p)
+        r = _corrige_pelo_recibo(conn, ctx, e, p)
     elif not e.texto.strip():
         return Resultado(rotulo="lancamento.sem_texto").diz(t.SO_TEXTO_OU_AUDIO)
     else:
@@ -134,22 +144,20 @@ def _mensagem(
         r.rotulo = "lancamento.ia_limite" if exc.limite else "lancamento.ia_falhou"
         return r.diz(t.SOBRECARREGADO if exc.limite else t.IA_FALHOU)
     if entendido.usou_ia:
-        modelo = (entendido.modelo or MODELO).rsplit("/", 1)[-1][:40]
-        pct = repo.registra_uso(
-            conn, hoje, modelo, entendido.tokens, LIMITE_DIARIO_TOKENS, ALERTA_COTA
-        )
-        if pct is not None:
-            r.diz(t.ADM_COTA_IA.format(pct=pct, modelo=modelo), destino=ADMIN)
+        _conta_uso(conn, hoje, entendido.modelo, entendido.tokens, r)
     interp = entendido.interpretacao
     r.rotulo = f"lancamento.{interp.intencao}" + (".ia" if entendido.usou_ia else ".atalho")
+    if interp.intencao == "correcao":
+        with db.account_context(conn, p.account_id) as cur:
+            ultimo = repo.ultimo(cur, p.user_id)
+        # A frase inteira vai para a correção (o resumo da extração perde contexto).
+        return _corrige(conn, ctx, p, ultimo.id if ultimo else None, e.texto, r)
     with db.account_context(conn, p.account_id) as cur:
         if interp.intencao == "lancamentos" and interp.propostas:
             formas = repo.formas(cur)
             for prop in interp.propostas:
                 _processa(cur, p, _dados(prop, e.texto, origem), cats, formas, hoje, r)
             return r
-        if interp.intencao == "correcao":
-            return _corrige_ultimo(cur, p, interp.correcao_texto or e.texto, cats, hoje, r)
         if interp.intencao == "apagar_ultimo":
             ultimo = repo.ultimo(cur, p.user_id)
             if ultimo is None:
@@ -161,6 +169,15 @@ def _mensagem(
         "conversa": t.OI,
     }.get(interp.intencao, t.NAO_ENTENDI)
     return r.diz(mensagem)
+
+
+def _conta_uso(
+    conn: db.Connection, hoje: date, modelo: str | None, tokens: int, r: Resultado
+) -> None:
+    nome = (modelo or MODELO).rsplit("/", 1)[-1][:40]
+    pct = repo.registra_uso(conn, hoje, nome, tokens, LIMITE_DIARIO_TOKENS, ALERTA_COTA)
+    if pct is not None:
+        r.diz(t.ADM_COTA_IA.format(pct=pct, modelo=nome), destino=ADMIN)
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +420,8 @@ def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
                 return r.diz(t.CATEGORIA_SUMIU)
             repo.atualiza(cur, tx.id, "category_id", cat.id)
             return _recibo_atualizado(cur, tx.id, cats, hoje, r)
+        if acao == "tx:nc" and len(partes) == 4:
+            return _cria_categoria_do_recibo(cur, p, tx, partes[3], hoje, r)
         if acao == "tx:del":
             return _apaga(cur, tx, cats, hoje, r)
         if acao == "tx:un":
@@ -539,25 +558,182 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
 # ---------------------------------------------------------------------------
 # Correções
 # ---------------------------------------------------------------------------
-def _corrige_pelo_recibo(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
+def _corrige_pelo_recibo(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultado:
     r = Resultado(rotulo="lancamento.correcao.recibo", conta=p.account_id)
-    hoje = agora().date()
     with db.account_context(conn, p.account_id) as cur:
         tx_id = repo.lancamento_do_recibo(cur, e.canal, e.resposta_a or "")
-        tx = repo.lancamento(cur, tx_id) if tx_id else None
+    return _corrige(conn, ctx, p, tx_id, e.texto, r)
+
+
+def _corrige(
+    conn: db.Connection,
+    ctx: Contexto,
+    p: Pessoa,
+    tx_id: uuid.UUID | None,
+    texto: str,
+    r: Resultado,
+) -> Resultado:
+    """A IA interpreta a correção (D042); o código valida e aplica. Sem IA: só o código."""
+    hoje = agora().date()
+    if tx_id is None:
+        return r.diz(t.NADA_PARA_CORRIGIR)
+    with db.account_context(conn, p.account_id) as cur:
+        tx = repo.lancamento(cur, tx_id)  # RLS: lançamento de outra conta não aparece
         if tx is None:
             return r.diz(t.NADA_PARA_CORRIGIR)
         cats = repo.categorias(cur)
-        return _aplica_correcao(cur, tx, e.texto, cats, hoje, r)
+        regras = repo.regras(cur, cats)
+        atual = _descreve(cur, tx, cats)
+    correcao: CorrecaoIA | None = None
+    corrige = getattr(ctx.extrator, "corrige", None)
+    if corrige is not None:  # chamada à IA fora da transação do banco
+        try:
+            correcao = corrige(
+                texto, atual, para_prompt([c.para_ia() for c in cats if c.ativa]), hoje
+            )
+        except ErroExtracao as exc:
+            r.rotulo += ".ia_limite" if exc.limite else ".ia_falhou"  # segue pelo código
+        uso = getattr(ctx.extrator, "ultimo_uso", None)
+        if uso is not None:
+            tokens = max(0, uso.tokens_entrada - uso.tokens_em_cache) + uso.tokens_saida
+            _conta_uso(conn, hoje, getattr(uso, "modelo", None), tokens, r)
+    with db.account_context(conn, p.account_id) as cur:
+        if correcao is not None:
+            r.rotulo += ".ia"
+            return _aplica_correcao_ia(cur, tx, correcao, texto, cats, regras, hoje, r)
+        return _aplica_correcao(cur, tx, texto, cats, regras, hoje, r)
 
 
-def _corrige_ultimo(
-    cur: Any, p: Pessoa, texto: str, cats: list[repo.Categoria], hoje: date, r: Resultado
+def _descreve(cur: Any, tx: repo.Lancamento, cats: list[repo.Categoria]) -> str:
+    """Resumo do lançamento para a IA, escrito pelo código (a descrição vai como dado)."""
+    cat = next((c for c in cats if c.id == tx.categoria_id), None)
+    forma = repo.forma_por_id(cur, tx.forma_id)
+    partes = [
+        cat.nome if cat else "sem categoria",
+        valores.em_reais(tx.centavos),
+        forma.nome if forma else "forma não informada",
+        f"{tx.data:%d/%m/%Y}",
+    ]
+    if tx.descricao:
+        partes.append(f"descrição: {tx.descricao[:80]}")
+    return " · ".join(partes)
+
+
+def _aplica_correcao_ia(
+    cur: Any,
+    tx: repo.Lancamento,
+    c: CorrecaoIA,
+    texto: str,
+    cats: list[repo.Categoria],
+    regras: list[Regra],
+    hoje: date,
+    r: Resultado,
 ) -> Resultado:
-    tx = repo.ultimo(cur, p.user_id)
-    if tx is None:
-        return r.diz(t.NADA_PARA_CORRIGIR)
-    return _aplica_correcao(cur, tx, texto, cats, hoje, r)
+    if not c.entendeu:
+        return r.diz(t.CORRECAO_NAO_ENTENDI)
+    mudou = False
+    frase = normaliza(texto)
+    # Valor e data: só o que estiver escrito na frase (a IA copia; o código converte).
+    if c.valor_texto and normaliza(c.valor_texto) in frase:
+        valor = valores.interpreta(c.valor_texto)
+        if valor.centavos and valor.centavos != tx.centavos:
+            repo.atualiza(cur, tx.id, "amount_cents", valor.centavos)
+            mudou = True
+    if c.data_texto and normaliza(c.data_texto) in frase:
+        quando = datas.resolve(c.data_texto, hoje)
+        if quando.dia is not None and quando.dia != tx.data:
+            repo.atualiza(cur, tx.id, "cash_on", quando.dia)
+            mudou = True
+    if c.forma_pagamento and tx.tipo != "transfer":
+        destino = repo.formas(cur).get(repo.FORMAS[c.forma_pagamento])
+        if destino is not None and destino.id != tx.forma_id:
+            repo.atualiza(cur, tx.id, "payment_method_id", destino.id)
+            mudou = True
+    if c.descricao:
+        descricao = seguro(c.descricao, 80)
+        if descricao and descricao != tx.descricao:
+            repo.atualiza(cur, tx.id, "description", descricao)
+            mudou = True
+    pergunta = None
+    if tx.tipo != "transfer":
+        escolhida, pergunta = _categoria_da_correcao(c, tx, cats, regras)
+        if escolhida is not None and escolhida.id != tx.categoria_id:
+            repo.atualiza(cur, tx.id, "category_id", escolhida.id)
+            mudou = True
+    if mudou:
+        _recibo_atualizado(cur, tx.id, cats, hoje, r)
+    if pergunta is not None:
+        r.saidas.append(pergunta)
+    if not mudou and pergunta is None:
+        return r.diz(t.CORRECAO_IGUAL)
+    return r
+
+
+def _categoria_da_correcao(
+    c: CorrecaoIA, tx: repo.Lancamento, cats: list[repo.Categoria], regras: list[Regra]
+) -> tuple[repo.Categoria | None, Saida | None]:
+    """Regra da pessoa > ambíguo (pergunta) > categoria da IA > sugestões (pergunta)."""
+    validas = {x.chave: x for x in cats if x.ativa and x.tipo == tx.tipo}
+    para_ia = {k: x.para_ia() for k, x in validas.items()}  # aceita código ou nome
+    termo = normaliza(c.termo_categoria or "")
+    if termo:
+        regra = _regra_que_casa(termo, regras)
+        if regra is not None and regra.chave in validas:
+            return validas[regra.chave], None
+    ambiguo = _ambiguo(termo) if termo else None
+    chave = _chave(c.categoria, para_ia)
+    if chave is not None and chave not in GENERICAS and ambiguo is None:
+        return validas[chave], None
+    opcoes = ambiguo[0] if ambiguo else tuple(c.categorias_sugeridas)
+    nova = ambiguo[1] if ambiguo else c.nova_categoria_sugerida
+    sugestoes = [
+        validas[k]
+        for k in dict.fromkeys(_chave(o, para_ia) for o in opcoes)
+        if k is not None and validas[k].id != tx.categoria_id  # "não foi no mercado"
+    ]
+    if chave in GENERICAS and validas[chave] not in sugestoes:
+        sugestoes.append(validas[chave])
+    if not sugestoes and not nova:
+        return None, None  # a correção não fala de categoria
+    return None, _pergunta_categoria_tx(tx, sugestoes, nova)
+
+
+_NOME_CATEGORIA = re.compile(r"[^\W\d_][\w ]{1,23}")
+
+
+def _pergunta_categoria_tx(
+    tx: repo.Lancamento, sugestoes: list[repo.Categoria], nova: str | None
+) -> Saida:
+    i = seg.curto(tx.id)
+    botoes = [Botao(c.rotulo, f"tx:sc:{i}:{seg.curto(c.id)}") for c in sugestoes]
+    linhas: list[tuple[Botao, ...]] = [tuple(botoes[k : k + 2]) for k in range(0, len(botoes), 2)]
+    extras = []
+    nome = " ".join((nova or "").split())[:24]
+    acao = f"tx:nc:{i}:{nome}"
+    if nome and _NOME_CATEGORIA.fullmatch(nome) and len(acao.encode()) <= 64:
+        extras.append(Botao(f"➕ Criar «{seguro(nome, 24)}»", acao))
+    extras.append(Botao("🔎 Outra", f"tx:cat:{i}"))
+    linhas.append(tuple(extras))
+    return Saida(
+        t.PERGUNTA_CATEGORIA_CORRECAO.format(resumo=valores.em_reais(tx.centavos)),
+        botoes=tuple(linhas),
+    )
+
+
+def _cria_categoria_do_recibo(
+    cur: Any, p: Pessoa, tx: repo.Lancamento, nome: str, hoje: date, r: Resultado
+) -> Resultado:
+    nome = " ".join(nome.split())
+    if tx.tipo == "transfer" or not _NOME_CATEGORIA.fullmatch(nome):
+        return r.diz(t.CATEGORIA_SUMIU)
+    emoji = EMOJI_NOVA.get(normaliza(nome), "🏷️")
+    novo_id = repo.cria_categoria(cur, p.account_id, tx.tipo, nome, emoji)
+    cats = repo.categorias(cur)
+    cat = next((c for c in cats if c.id == novo_id and c.tipo == tx.tipo), None)
+    if cat is None:  # já existia com o mesmo nome, mas de outro tipo
+        return r.diz(t.CATEGORIA_SUMIU)
+    repo.atualiza(cur, tx.id, "category_id", cat.id)
+    return _recibo_atualizado(cur, tx.id, cats, hoje, r)
 
 
 def _aplica_correcao(
@@ -565,9 +741,11 @@ def _aplica_correcao(
     tx: repo.Lancamento,
     texto: str,
     cats: list[repo.Categoria],
+    regras: list[Regra],
     hoje: date,
     r: Resultado,
 ) -> Resultado:
+    """Reserva sem IA: só o código lê a correção (valor, data, forma, categoria)."""
     mudou = False
     expressao = datas.expressao_em(texto)
     sem_data = texto
@@ -589,17 +767,18 @@ def _aplica_correcao(
             repo.atualiza(cur, tx.id, "amount_cents", valor.centavos)
             mudou = True
     if tx.tipo != "transfer":
-        alvo = f" {normaliza(texto)} "
-        cat = next(
-            (c for c in cats if c.ativa and c.tipo == tx.tipo and f" {normaliza(c.nome)} " in alvo),
-            None,
-        )
+        validas = {c.chave: c for c in cats if c.ativa and c.tipo == tx.tipo}
+        regra = _regra_que_casa(texto, regras)  # o que a pessoa ensinou vale primeiro
+        cat = validas.get(regra.chave) if regra else None
+        if cat is None:
+            alvo = f" {normaliza(texto)} "
+            cat = next((c for c in validas.values() if f" {normaliza(c.nome)} " in alvo), None)
         if cat is None:
             chave = next(
                 (atalho.PALAVRAS[x] for x in normaliza(texto).split() if x in atalho.PALAVRAS),
                 None,
             )
-            cat = next((c for c in cats if c.code == chave and c.tipo == tx.tipo), None)
+            cat = next((c for c in validas.values() if c.code == chave), None)
         if cat is not None and cat.id != tx.categoria_id:
             repo.atualiza(cur, tx.id, "category_id", cat.id)
             mudou = True

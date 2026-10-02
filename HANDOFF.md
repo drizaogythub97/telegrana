@@ -8,7 +8,7 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D041. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D042. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
@@ -21,6 +21,9 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - **Avaliação dos áudios** (`scripts/avaliar_ia.py --audio [--modelo-audio ...]`; cache das transcrições): **whisper-large-v3: 100%** em intenção, valor, tipo, data e categoria nos 11 áudios reais; WER médio 14,9% (pior 25%), sem efeito no resultado. O workflow do CI ganhou o passo de áudio.
 - **`whisper-large-v3-turbo` liberado** na allowlist pelo agente (Chrome, autorizado pelo Adriano em 02/10/2026) e avaliado: **100%**, WER 14,3%. A cadeia de áudio tem os dois modelos.
 - **Testes**: unitários (Whisper, download, adaptador) + `tests/integration/test_audio.py` (10, Postgres real, transcritor falso: recibo, limites antes de baixar, falhas, eco, pergunta e correção por áudio, medidor) + E2E 18 (novo: áudio com "digitando…", recibo, correção, eco, recusa > 2 min; a Bot API simulada ganhou `getFile`, download e `sendChatAction`).
+
+- **S3.2 — correções pela IA** (D042; branch `feat/s3.2-correcao-ia`): o roteiro de voz do Adriano mostrou que o leitor de correções por código não entendia "foi na padaria, não foi no mercado". Agora a correção vai à IA (`Groq.corrige` → `CorrecaoIA`, prompt `REGRAS_CORRECAO` com o resumo do lançamento) e o código aplica: valor/data só se estiverem na frase, regra aprendida primeiro, ambíguo vira pergunta sem a categoria negada + "➕ Criar «…»" (`tx:nc`) + "🔎 Outra". Sem IA: o leitor por código (agora com as regras aprendidas). `tests/integration/test_correcao.py` (9). Não há ainda conjunto de avaliação de correções: juntar frases reais do Adriano quando aparecerem.
+- **Roteiro de voz (02/10/2026, Adriano)**: gasto por áudio ✅, correção de valor por áudio ✅, correção de categoria por áudio ❌ → corrigida na S3.2. Os outros itens do roteiro (pão com pergunta de categoria, valor por extenso, responder pergunta de valor com áudio, "oi") ainda não foram gravados.
 
 ### S2 — encerrada em 02/10/2026 (D036–D040; PRs #30, #33, #34)
 
