@@ -57,6 +57,7 @@ class Groq:
         modelos: tuple[str, ...] = MODELOS,
         client: httpx.Client | None = None,
         relogio: Any = time.monotonic,
+        dorme: Any = time.sleep,
     ) -> None:
         desconhecidos = [m for m in modelos if m not in PARAMETROS]
         if not modelos or desconhecidos:
@@ -65,7 +66,7 @@ class Groq:
         self._modelos = modelos
         # 15 s: folga dentro da Lambda de 30 s mesmo se o primeiro modelo falhar.
         self._client = client or httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0))
-        self._cadeia = Cadeia(modelos, relogio)
+        self._cadeia = Cadeia(modelos, relogio, dorme)
         self.ultimo_uso: Uso | None = None
 
     def corpo(

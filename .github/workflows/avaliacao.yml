@@ -1,5 +1,6 @@
-# Avaliação da IA (PLANO 5.3; D036). Roda só quando muda algo que afeta a extração, e
-# sob demanda. O conjunto vem do bucket privado pelo OIDC (papel só de leitura); a chave é
+# Avaliação da IA (PLANO 5.3; D036). Roda nos PRs que mudam algo que afeta a extração, e
+# sob demanda (não repete no merge). Ritmo de 1 chamada a cada 20 s: usa ~metade do limite
+# por minuto de cada modelo, que é dividido com o bot em produção (02/10/2026). O conjunto vem do bucket privado pelo OIDC (papel só de leitura); a chave é
 # a do projeto de DEV do Groq (teto próprio). O log mostra só métricas e ids de caso.
 name: Avaliação da IA
 
@@ -17,19 +18,6 @@ on:
       - "src/telegrana/core/categorias.py"
       - "scripts/avaliar_ia.py"
       - ".github/workflows/avaliacao.yml"
-  push:
-    branches: [main]
-    paths:
-      - "src/telegrana/ai/**"
-      - "src/telegrana/core/extracao.py"
-      - "src/telegrana/core/atalho.py"
-      - "src/telegrana/core/entendimento.py"
-      - "src/telegrana/core/audio.py"
-      - "src/telegrana/core/interpretacao.py"
-      - "src/telegrana/core/valores.py"
-      - "src/telegrana/core/datas.py"
-      - "src/telegrana/core/categorias.py"
-      - "scripts/avaliar_ia.py"
   workflow_dispatch:
 
 permissions:
@@ -47,7 +35,7 @@ jobs:
   avaliacao:
     name: avaliacao
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     environment: avaliacao
     permissions:
       contents: read
@@ -69,11 +57,11 @@ jobs:
           aws-region: us-east-1
           role-session-name: telegrana-avaliacao-${{ github.run_id }}
       - name: Avaliar (só métricas no log)
-        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --modelo cadeia --intervalo 9 --prazo 1500
+        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --modelo cadeia --intervalo 20 --prazo 2400
         env:
           BUCKET: ${{ vars.EVAL_BUCKET }}
       - name: Avaliar os áudios (Whisper + mesmo caminho; só métricas no log)
         if: ${{ !cancelled() }}
-        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --audio --modelo cadeia --modelo-audio cadeia --intervalo 9 --prazo 600
+        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --audio --modelo cadeia --modelo-audio cadeia --intervalo 20 --prazo 900
         env:
           BUCKET: ${{ vars.EVAL_BUCKET }}

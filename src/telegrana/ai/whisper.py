@@ -37,11 +37,12 @@ class Whisper:
         modelos: tuple[str, ...] = MODELOS,
         client: httpx.Client | None = None,
         relogio: Any = time.monotonic,
+        dorme: Any = time.sleep,
     ) -> None:
         self._headers = {"Authorization": f"Bearer {api_key}"}
         # 15 s: um áudio de 2 min leva 1 a 2 s no Groq; sobra folga na Lambda de 30 s.
         self._client = client or httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0))
-        self._cadeia = Cadeia(modelos, relogio)
+        self._cadeia = Cadeia(modelos, relogio, dorme)
 
     def transcreve(self, dados: bytes, formato: str, duracao: int) -> Transcricao:
         formato = formato if formato in FORMATOS else "ogg"
