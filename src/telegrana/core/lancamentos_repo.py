@@ -176,6 +176,7 @@ _CAMPOS = {
     "payment_method_id": "update telegrana.transactions set payment_method_id = %s, updated_at = now() where id = %s",
     "cash_on": "update telegrana.transactions set cash_on = %s, occurred_on = %s, updated_at = now() where id = %s",
     "recurring": "update telegrana.transactions set recurring = %s, updated_at = now() where id = %s",
+    "description": "update telegrana.transactions set description = %s, updated_at = now() where id = %s",
     "deleted": "update telegrana.transactions set deleted_at = case when %s then now() end, updated_at = now() where id = %s",
 }
 

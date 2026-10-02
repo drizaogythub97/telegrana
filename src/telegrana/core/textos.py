@@ -274,6 +274,8 @@ LEMBRAR_REGRA = "🧠 Quer que eu lembre: «{termo}» é sempre {rotulo}?"
 REGRA_APRENDIDA = "🧠 Pronto: «{termo}» vai sempre para {rotulo}."
 FIXO_SIM = "🔁 Anotado. Quando os fixos chegarem, aproveito isso para te lembrar todo mês."
 FIXO_NAO = "👍 Anotado."
+PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
+CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (
     "Não entendi a correção. Use os botões do recibo ou responda, por exemplo, «foi 54,90»."
 )
