@@ -29,11 +29,12 @@ URL = "https://api.groq.com/openai/v1/chat/completions"
 PARAMETROS: dict[str, dict[str, Any]] = {
     "openai/gpt-oss-20b": {"reasoning_effort": "low", "include_reasoning": False},
     "openai/gpt-oss-120b": {"reasoning_effort": "low", "include_reasoning": False},
-    "qwen/qwen3.8-27b": {"reasoning_effort": "none"},
+    # Sem raciocínio, o qwen às vezes repete até estourar o limite de saída (02/10/2026).
+    "qwen/qwen3.8-27b": {"reasoning_effort": "low", "reasoning_format": "hidden"},
 }
-# Ordem da cadeia: o que foi melhor na avaliação primeiro. O qwen entra quando for
-# liberado na organização e passar na avaliação (D040).
-MODELOS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
+# Ordem da cadeia (D040): os avaliados com o código atual primeiro (120b e qwen: 100% em
+# 02/10/2026); o 20b fica por último até completar uma rodada com o código atual.
+MODELOS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 MODELO = MODELOS[0]
 FORA_SEM_PRAZO = 60.0  # 429 sem retry-after
 FORA_INDISPONIVEL = 600.0  # 403/404: modelo bloqueado na organização ou retirado

@@ -296,7 +296,8 @@ def _recibo(
 # ---------------------------------------------------------------------------
 def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
     partes = (e.acao or "").split(":")
-    r = Resultado(rotulo=f"lancamento.botao.{':'.join(partes[:2])}", conta=p.account_id)
+    tipo = partes[0] if partes[0] == "rg" else ":".join(partes[:2])  # rg:<id>:<termo> fica "rg"
+    r = Resultado(rotulo=f"lancamento.botao.{tipo}", conta=p.account_id)
     hoje = agora().date()
     with db.account_context(conn, p.account_id) as cur:
         cats = repo.categorias(cur)

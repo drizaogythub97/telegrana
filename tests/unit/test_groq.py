@@ -191,7 +191,8 @@ def test_resposta_invalida_de_um_modelo_tenta_o_seguinte() -> None:
 def test_parametros_de_cada_modelo() -> None:
     groq, _, _ = cadeia({})
     qwen = groq.corpo("x", CATS, date(2026, 10, 1), "qwen/qwen3.8-27b")
-    assert qwen["reasoning_effort"] == "none"
+    assert qwen["reasoning_effort"] == "low"
+    assert qwen["reasoning_format"] == "hidden"
     assert "include_reasoning" not in qwen
     oss = groq.corpo("x", CATS, date(2026, 10, 1), "openai/gpt-oss-120b")
     assert oss["include_reasoning"] is False

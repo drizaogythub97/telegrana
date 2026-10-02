@@ -99,6 +99,14 @@ _FORMAS = (
     (re.compile(r"\b(inter|itau|c6|bradesco|santander|caixa|picpay)\b"), "credito", "_banco"),
 )
 LIMITE_PALAVRAS = 9
+_VAZIAS = frozenset(
+    {"no", "na", "de", "do", "da", "em", "o", "a", "um", "uma", "reais", "real"}
+    | {"hoje", "hj", "ontem", "anteontem", "dia", "agora", "agr"}
+)
+_PAGAMENTO = re.compile(
+    r"pix|deb|debito|dinheiro|especie|boleto|cred|credito|cartao|nu|nubank|inter|itau|c6|"
+    r"bradesco|santander|caixa|picpay"
+)
 LIMITE_RESGATE = 12
 
 
@@ -196,15 +204,23 @@ def _monta(texto: str, palavras: list[str], valor_texto: str | None) -> Extracao
     if parcelas is not None:
         forma = "credito"
 
-    vazias = {"no", "na", "de", "do", "da", "em", "o", "a", "reais", *_VERBO_GASTO, *_VERBO_GANHO}
-    sem_vazias = " ".join(p for p in palavras if p not in vazias)
-    descricao = re.sub(r"\d[\d.,]*", "", sem_vazias).strip()[:40] or None
+    # Descrição só com o que o recibo ainda não mostra: sem valor, forma, parcelas e sem
+    # repetir a categoria ("mercado 45 no pix" não vira "📝 mercado pix").
+    sem_parcelas = _PARCELAS.sub(" ", t).split()
+    categoria = next(iter(achadas)) if achadas and not ambiguo else None
+    descartar = _VAZIAS | _VERBO_GASTO | _VERBO_GANHO | {categoria or ""}
+    uteis = [
+        p
+        for p in sem_parcelas
+        if p not in descartar and not _PAGAMENTO.fullmatch(p) and not p[0].isdigit()
+    ]
+    descricao = " ".join(uteis)[:40] or None
     item = LancamentoIA(
         tipo="ganho" if ganho else "gasto",
         valor_texto=valor_texto,
         data_texto=datas.expressao_em(texto),
         descricao=descricao,
-        categoria=next(iter(achadas)) if achadas and not ambiguo else None,
+        categoria=categoria,
         categorias_sugeridas=[],
         nova_categoria_sugerida=None,
         forma_pagamento=forma,  # type: ignore[arg-type]
