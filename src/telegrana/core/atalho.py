@@ -97,6 +97,16 @@ _FORMAS = (
 LIMITE_PALAVRAS = 9
 
 
+def forma_em(texto: str) -> tuple[str | None, str | None]:
+    """(forma, cartão) citados na frase, ou (None, None)."""
+    t = normaliza(texto)
+    for padrao, nome, banco in _FORMAS:
+        achado = padrao.search(t)
+        if achado:
+            return nome, (achado.group(1) if banco == "_banco" else banco)
+    return None, None
+
+
 def _sem_acento(texto: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c))
 
@@ -128,13 +138,7 @@ def tenta(texto: str) -> ExtracaoIA | None:
     if len(achadas) > 1 or (not achadas and not ambiguo):
         return None  # sem palavra-chave (ou com duas): a IA entende melhor
 
-    forma, cartao = None, None
-    for padrao, nome, banco in _FORMAS:
-        achado = padrao.search(t)
-        if achado:
-            forma = nome
-            cartao = achado.group(1) if banco == "_banco" else banco
-            break
+    forma, cartao = forma_em(texto)
     parcelas_achadas = _PARCELAS.search(t)
     parcelas = int(parcelas_achadas.group(1)) if parcelas_achadas else None
     if parcelas is not None:

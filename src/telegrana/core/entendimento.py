@@ -15,6 +15,15 @@ from telegrana.core.extracao import CategoriaPrompt, ExtracaoIA
 from telegrana.core.interpretacao import CategoriaConta, Interpretacao, Regra, interpreta
 
 
+class ErroExtracao(RuntimeError):
+    """Falha do provedor de IA. `limite`: cota ou ritmo estourado (o bot avisa a pessoa)."""
+
+    def __init__(self, motivo: str, *, limite: bool = False, espera: float | None = None) -> None:
+        super().__init__(motivo)
+        self.limite = limite
+        self.espera = espera
+
+
 class Extrator(Protocol):
     """Provedor de IA (Groq hoje). Erros de limite sobem para quem chamou."""
 
@@ -40,11 +49,13 @@ def entende(
     categorias: list[CategoriaConta],
     regras: list[Regra],
     hoje: date,
-    extrator: Extrator,
+    extrator: Extrator | None,
 ) -> Entendimento:
     rapido = atalho.tenta(texto)
     if rapido is not None:
         return Entendimento(interpreta(rapido, texto, categorias, regras, hoje), False, 0)
+    if extrator is None:
+        raise ErroExtracao("sem provedor de IA configurado")
     extracao = extrator.extrai(texto, para_prompt(categorias), hoje)
     uso = getattr(extrator, "ultimo_uso", None)
     tokens = 0

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from telegrana.core import categorias
+from telegrana.core import categorias, lancamentos
 from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
@@ -108,10 +108,11 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
             return r.diz(t.CANCELADO)
         case "codigo:guardei":
             return r.diz("👍")
-    if e.pergunta is not None:  # resposta a pergunta de quem ainda não tinha conta
-        return r.diz(t.JA_TEM_CONTA)
-    r.rotulo = "conta.em_breve"
-    return r.diz(t.EM_BREVE)
+    if e.pergunta is not None and e.pergunta not in lancamentos.PERGUNTAS:
+        return r.diz(t.JA_TEM_CONTA)  # resposta a pergunta de quem ainda não tinha conta
+    if e.comando is not None:
+        return r.diz(t.AJUDA)
+    return lancamentos.trata(conn, ctx, e, p)
 
 
 def _atualiza_telefone(

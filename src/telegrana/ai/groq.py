@@ -16,19 +16,15 @@ import httpx
 from pydantic import ValidationError
 
 from telegrana.ai.prompt import CategoriaPrompt, mensagens
+from telegrana.core.entendimento import ErroExtracao
 from telegrana.core.extracao import ExtracaoIA, esquema_json
 
 URL = "https://api.groq.com/openai/v1/chat/completions"
 MODELO = "openai/gpt-oss-20b"
 
 
-class ErroIA(RuntimeError):
-    """Falha da IA. `limite`: cota ou ritmo estourado (o bot avisa e tenta depois)."""
-
-    def __init__(self, motivo: str, *, limite: bool = False, espera: float | None = None) -> None:
-        super().__init__(motivo)
-        self.limite = limite
-        self.espera = espera
+class ErroIA(ErroExtracao):
+    """Falha do Groq (sem chave nem texto do usuário na mensagem)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +46,9 @@ class Groq:
         self._headers = {"Authorization": f"Bearer {api_key}"}
         self._modelo = modelo
         self._esforco = esforco
-        self._client = client or httpx.Client(timeout=httpx.Timeout(25.0, connect=5.0))
+        self._client = client or httpx.Client(
+            timeout=httpx.Timeout(15.0, connect=5.0)
+        )  # folga na Lambda de 30 s
         self.ultimo_uso: Uso | None = None
 
     def corpo(self, texto: str, categorias: list[CategoriaPrompt], hoje: date) -> dict[str, Any]:

@@ -16,6 +16,8 @@ alter table telegrana.transactions
     add column installments smallint check (installments between 1 and 72),
     add column recurring boolean;
 grant update (installments, recurring) on telegrana.transactions to telegrana_app;
+-- Regra aprendida de novo ("sempre" para outra categoria) troca a categoria da regra.
+grant update (category_id) on telegrana.category_rules to telegrana_app;
 
 -- ---------------------------------------------------------------------------
 -- Rascunhos: lançamento entendido que espera uma resposta (ISOLADA, 1 dia)

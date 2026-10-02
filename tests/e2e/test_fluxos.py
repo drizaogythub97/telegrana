@@ -105,8 +105,47 @@ def test_comandos_da_conta(ana: Pessoa) -> None:
     ana.espera("Nome atualizado para Ana Teste Souza")
     ana.diz("/termos")
     ana.espera("Termos e privacidade")
-    ana.diz("gastei 30 no mercado")
-    ana.espera("lançamentos chegam na próxima etapa")
+    ana.diz("/qualquer_coisa")
+    ana.espera("Comandos")
+
+
+def test_lancamento_corrigido_apagado_e_desfeito(ana: Pessoa) -> None:
+    ana.diz("mercado 45,90 no pix")
+    recibo = ana.espera("Gasto registrado")
+    assert "🛒 Mercado · R$ 45,90" in recibo.texto
+    assert "Pix" in recibo.texto
+    ana.responde_a(recibo, "foi 54,90 no débito")
+    corrigido = ana.espera("Corrigido")
+    assert "🛒 Mercado · R$ 54,90" in corrigido.texto
+    assert "Débito" in corrigido.texto
+    ana.toca("Apagar")
+    ana.espera("Apagado: R$ 54,90")
+    ana.toca("Desfazer")
+    ana.espera("Lançamento de volta")
+    ana.espera("Gasto registrado")
+
+
+def test_ambiguo_pergunta_categoria_e_aprende(ana: Pessoa) -> None:
+    ana.diz("padaria 12")
+    ana.espera("Em qual categoria")
+    ana.toca("Alimentação fora")
+    recibo = ana.espera("Gasto registrado")
+    assert "🍽️ Alimentação fora · R$ 12,00" in recibo.texto
+    ana.espera("Quer que eu lembre")
+    ana.toca("Sempre")
+    ana.espera("vai sempre para 🍽️ Alimentação fora")
+    ana.diz("padaria 6,50")
+    assert "R$ 6,50" in ana.espera("Gasto registrado").texto
+
+
+def test_netflix_pergunta_se_e_fixo_e_ia_fora_do_ar(ana: Pessoa) -> None:
+    ana.diz("netflix 55,90")
+    assert "Isso se repete todo mês?" in ana.espera("Gasto registrado").texto
+    ana.toca("Sim, todo mês")
+    ana.espera("Anotado")
+    # Sem chave do Groq no E2E: o que o atalho não entende vira um pedido educado.
+    ana.diz("comprei umas coisinhas pra casa")
+    ana.espera("Não consegui entender agora")
 
 
 def test_categorias(ana: Pessoa) -> None:

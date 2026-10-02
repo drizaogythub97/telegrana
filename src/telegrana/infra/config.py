@@ -19,6 +19,7 @@ PARAMETROS = {
     "legal_termos": "legal/termos",  # JSON {versao, url, sha256} (scripts/publicar_legal.py)
     "legal_privacidade": "legal/privacidade",
     "admin_contact": "admin/contact",
+    "groq_api_key": "groq/api_key",  # nosec B105 — caminho no SSM, não o valor
 }
 AMBIENTES = frozenset({"dev", "prod"})
 
@@ -40,6 +41,7 @@ class Settings:
     legal_termos: str = ""
     legal_privacidade: str = ""
     admin_contact: str = ""
+    groq_api_key: str = field(default="", repr=False)
 
 
 def ssm_fetch(nomes: list[str]) -> dict[str, str]:

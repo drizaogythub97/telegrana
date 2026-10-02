@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 FUSO = ZoneInfo("America/Sao_Paulo")
@@ -26,6 +27,7 @@ class Contexto:
     privacidade: Documento
     link_convite: Callable[[str], str]  # token → link de convite do canal
     pepper: bytes = field(repr=False)
+    extrator: Any = None  # provedor de IA (core.entendimento.Extrator); None = sem IA
     max_usos_convite: int = 20
     max_pedidos_por_hora: int = 20
 

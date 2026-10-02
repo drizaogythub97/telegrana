@@ -73,13 +73,15 @@ def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Orige
             telefone = str(contato.get("phone_number") or "")
         else:
             alheio = True
-    pergunta, contexto = None, ""
+    pergunta, contexto, resposta_a = None, "", None
     respondida = mensagem.get("reply_to_message")
     if isinstance(respondida, dict) and (respondida.get("from") or {}).get("id") == id_do_bot:
         texto_respondido = str(respondida.get("text") or "")
         pergunta = textos.pergunta_respondida(texto_respondido)
         linhas = texto_respondido.splitlines()
         contexto = linhas[1].strip() if pergunta and len(linhas) > 1 else ""
+        if pergunta is None and respondida.get("message_id") is not None:
+            resposta_a = str(respondida["message_id"])  # ex.: correção respondendo ao recibo
     entrada = Entrada(
         canal=CANAL,
         external_id=str(usuario["id"]),
@@ -92,6 +94,7 @@ def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Orige
         contato_alheio=alheio,
         pergunta=pergunta,
         contexto=contexto,
+        resposta_a=resposta_a,
     )
     return entrada, Origem(int(usuario["id"]), mensagem.get("message_id"))
 
@@ -137,9 +140,15 @@ def destino(saida: Saida, origem: Origem, admin_id: int) -> int:
     return int(saida.destino)
 
 
-def executa(api: TelegramAPI, resultado: Resultado, origem: Origem, admin_id: int) -> int:
-    """Envia tudo; uma falha (ex.: pessoa bloqueou o bot) não impede as outras. Devolve falhas."""
+def executa(
+    api: TelegramAPI, resultado: Resultado, origem: Origem, admin_id: int
+) -> tuple[int, list[tuple[str, str]]]:
+    """Envia tudo; uma falha (ex.: pessoa bloqueou o bot) não impede as outras.
+
+    Devolve (falhas, [(ref, id da mensagem enviada)]) para o núcleo ligar recibo e lançamento.
+    """
     falhas = 0
+    refs: list[tuple[str, str]] = []
     if origem.callback_id:
         try:
             api.call(
@@ -164,7 +173,7 @@ def executa(api: TelegramAPI, resultado: Resultado, origem: Origem, admin_id: in
             log.warning("telegram.apagar_falhou", extra={"erro": str(exc)[:120]})
     for saida in resultado.saidas:
         try:
-            api.call(
+            enviada = api.call(
                 "sendMessage",
                 chat_id=destino(saida, origem, admin_id),
                 text=html_de(saida.texto),
@@ -173,7 +182,9 @@ def executa(api: TelegramAPI, resultado: Resultado, origem: Origem, admin_id: in
                 protect_content=saida.protegida or None,
                 link_preview_options={"is_disabled": True},
             )
+            if saida.ref and isinstance(enviada, dict) and enviada.get("message_id"):
+                refs.append((saida.ref, str(enviada["message_id"])))
         except TelegramError as exc:
             falhas += 1
             log.warning("telegram.envio_falhou", extra={"erro": str(exc)[:120]})
-    return falhas
+    return falhas, refs
