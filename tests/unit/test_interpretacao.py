@@ -105,7 +105,11 @@ def test_valor_vago_valor_alto_e_data_desconhecida() -> None:
     ).propostas
     (alto,) = interpreta(extracao(item(valor_texto="52 mil")), "x", CATEGORIAS, [], HOJE).propostas
     (sem_data,) = interpreta(
-        extracao(item(data_texto="semana que vem talvez")), "x", CATEGORIAS, [], HOJE
+        extracao(item(data_texto="semana que vem talvez")),
+        "mercado 45,90 semana que vem talvez",
+        CATEGORIAS,
+        [],
+        HOJE,
     ).propostas
     assert vago.pendencias == ("valor",)
     assert alto.pendencias == ("confirmar_valor",)
@@ -223,3 +227,57 @@ def test_vence_na_frase_faz_a_data_ser_a_proxima() -> None:
         extracao(item(data_texto="dia 10")), "escola 890 boleto vence dia 10", CATEGORIAS, [], HOJE
     ).propostas
     assert (p.data, p.futura) == (date(2026, 10, 10), True)
+
+
+def test_ambiguos_sempre_perguntam_mesmo_com_a_ia_certa() -> None:
+    cats = [*CATEGORIAS, CategoriaConta("lazer", "Lazer", "🎮", "expense")]
+    (p,) = interpreta(
+        extracao(item(categoria="mercado")), "gastei 30 de pão", cats, [], HOJE
+    ).propostas
+    assert (p.categoria, p.sugestoes, p.nova_sugerida) == (
+        None,
+        ("mercado", "alimentacao"),
+        "Padaria",
+    )
+    (p,) = interpreta(extracao(item(categoria="lazer")), "120 no bar", cats, [], HOJE).propostas
+    assert p.categoria is None
+    # A regra da pessoa resolve a ambiguidade.
+    regras = [Regra("padaria", "alimentacao")]
+    (p,) = interpreta(
+        extracao(item(categoria="mercado")), "padaria 22", cats, regras, HOJE
+    ).propostas
+    assert p.categoria == "alimentacao"
+
+
+def test_regras_de_fabrica() -> None:
+    cats = [
+        *CATEGORIAS,
+        CategoriaConta("contas_casa", "Contas da casa", "💡", "expense"),
+        CategoriaConta("combustivel", "Combustível", "⛽", "expense"),
+    ]
+    (p,) = interpreta(
+        extracao(item(categoria="combustivel")), "comprei gas 125", cats, [], HOJE
+    ).propostas
+    assert p.categoria == "contas_casa"
+    (p,) = interpreta(
+        extracao(item(categoria="combustivel")), "gas no posto 100", cats, [], HOJE
+    ).propostas
+    assert p.categoria == "combustivel"
+
+
+def test_valor_por_extenso_partido_e_juntado() -> None:
+    r = interpreta(
+        extracao(item(valor_texto="trinta e cinco"), item(valor_texto="noventa")),
+        "trinta e cinco e noventa no açougue",
+        CATEGORIAS,
+        [],
+        HOJE,
+    )
+    assert [p.centavos for p in r.propostas] == [3590]
+
+
+def test_lixo_na_data_sem_data_na_frase_e_hoje() -> None:
+    (p,) = interpreta(
+        extracao(item(data_texto="em 1x")), "300 no mercado em 1x", CATEGORIAS, [], HOJE
+    ).propostas
+    assert (p.data, p.pendencias) == (HOJE, ())

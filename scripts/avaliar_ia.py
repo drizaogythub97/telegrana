@@ -71,6 +71,11 @@ def _avalia_caso(caso: dict[str, Any], interpretacao: Any, placar: Placar) -> No
     if "lancamentos" not in caso["intencoes"] or not esperados:
         return
     previstos = list(interpretacao.propostas)
+    if caso.get("aceita_so_pergunta") and not previstos and interpretacao.pergunta:
+        # Perguntar antes de registrar também está certo neste caso (ex.: total acumulado).
+        for metrica in ("quantidade", "tipo", "valor", "data", "categoria", "pergunta (info)"):
+            placar.conta(metrica, True, id_)
+        return
     placar.conta("quantidade", len(previstos) == len(esperados), id_)
     for i, esperado in enumerate(esperados):
         p = previstos[i] if i < len(previstos) else None
@@ -132,7 +137,18 @@ def main() -> int:
     )
     parser.add_argument("--casos", nargs="*", help="só estes ids (ex.: t01 a07)")
     parser.add_argument("--prazo", type=float, default=1500.0, help="segundos até parar")
+    parser.add_argument(
+        "--espera-maxima",
+        type=float,
+        default=ESPERA_MAXIMA,
+        help="maior espera aceita num limite do Groq; acima disso, para (inconclusiva)",
+    )
     parser.add_argument("--resultado", type=Path, help="grava o placar em JSON (sem frases)")
+    parser.add_argument(
+        "--continuar",
+        type=Path,
+        help="retoma de um --resultado anterior (pula os casos já avaliados e soma o placar)",
+    )
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as temporario:
@@ -147,12 +163,22 @@ def main() -> int:
         ]
     if args.casos:
         casos = [c for c in casos if c["id"] in set(args.casos)]
+    anterior: dict[str, Any] = {}
+    if args.continuar and args.continuar.exists():
+        anterior = json.loads(args.continuar.read_text(encoding="utf-8"))
+        feitos = set(anterior.get("avaliados", []))
+        casos = [c for c in casos if c["id"] not in feitos]
 
     tipos = {"expense": "gasto", "income": "ganho"}
     categorias = [CategoriaConta(code, nome, emoji, tipo) for tipo, code, nome, emoji in PADROES]
     para_ia = [CategoriaPrompt(c.chave, c.nome, tipos[c.tipo]) for c in categorias]
     groq = Groq(_chave(args))
-    placar = Placar()
+    placar = Placar(
+        dict(anterior.get("acertos", {})),
+        dict(anterior.get("total", {})),
+        {m: list(f) for m, f in anterior.get("falhas", {}).items()},
+    )
+    feitos_ids: list[str] = list(anterior.get("avaliados", []))
     tokens = {"entrada": 0, "saida": 0, "cache": 0}
     erros: list[str] = []
     inicio = time.monotonic()
@@ -162,22 +188,23 @@ def main() -> int:
             motivo_parada = f"prazo de {args.prazo:.0f}s esgotado"
             break
         extracao = None
-        for tentativa in range(4):
+        for tentativa in range(12):
             try:
                 extracao = groq.extrai(caso["texto"], para_ia, HOJE)
                 break
             except ErroIA as exc:
-                if exc.limite and (exc.espera or 0) > ESPERA_MAXIMA:
+                if exc.limite and (exc.espera or 0) > args.espera_maxima:
                     motivo_parada = "cota diária do Groq esgotada"
                     break
-                if not exc.limite or tentativa == 3:
+                if not exc.limite or tentativa == 11:
                     erros.append(f"{caso['id']}: {exc}")
                     break
-                print(f"  {caso['id']}: limite por minuto, aguardando", flush=True)
-                time.sleep(min(60.0, (exc.espera or 10.0) + 1))
+                print(f"  {caso['id']}: limite do Groq, aguardando", flush=True)
+                time.sleep(min(args.espera_maxima, (exc.espera or 10.0) + 1))
         if motivo_parada:
             break
         avaliados += 1
+        feitos_ids.append(caso["id"])
         if extracao is None:
             placar.conta("intencao", False, caso["id"])
             continue
@@ -196,7 +223,10 @@ def main() -> int:
         if n < len(casos):
             time.sleep(args.intervalo)
 
-    print(f"Avaliação: {avaliados}/{len(casos)} casos em {time.monotonic() - inicio:.0f}s")
+    print(
+        f"Avaliação: {avaliados}/{len(casos)} casos nesta rodada em"
+        f" {time.monotonic() - inicio:.0f}s; {len(feitos_ids)} no total"
+    )
     print(
         f"Tokens: entrada {tokens['entrada']} (cache {tokens['cache']}), saída {tokens['saida']};"
         f" contados no limite ~{tokens['entrada'] - tokens['cache'] + tokens['saida']}"
@@ -224,7 +254,10 @@ def main() -> int:
             json.dumps(
                 {
                     "taxas": {m: placar.taxa(m) for m in placar.total},
+                    "acertos": placar.acertos,
+                    "total": placar.total,
                     "falhas": placar.falhas,
+                    "avaliados": feitos_ids,
                     "tokens": tokens,
                 },
                 indent=2,

@@ -17,6 +17,28 @@ from telegrana.core.extracao import ExtracaoIA, LancamentoIA
 
 CONFIRMAR_ACIMA_DE = 1_000_000  # R$ 10.000,00: valor alto pede confirmação
 GENERICAS = frozenset({"outros", "outros_ganhos"})  # D028: nunca sem perguntar
+# Ambíguos (D037): o bot SEMPRE pergunta, mesmo com a IA "certa". termo → (opções, nova)
+AMBIGUOS: dict[str, tuple[tuple[str, ...], str]] = {
+    "padaria": (("mercado", "alimentacao"), "Padaria"),
+    "pao": (("mercado", "alimentacao"), "Padaria"),
+    "paes": (("mercado", "alimentacao"), "Padaria"),
+    "bar": (("lazer", "alimentacao"), "Bar"),
+    "boteco": (("lazer", "alimentacao"), "Bar"),
+    "academia": (("saude", "lazer"), "Academia"),
+    "escola": (("educacao", "filhos"), "Escola"),
+    "colegio": (("educacao", "filhos"), "Escola"),
+    "creche": (("educacao", "filhos"), "Escola"),
+}
+# Regras de fábrica: abaixo das regras da pessoa, acima da IA.
+REGRAS_PADRAO: tuple[tuple[str, str], ...] = (
+    ("botijao", "contas_casa"),
+    ("gas de cozinha", "contas_casa"),
+    ("gas", "contas_casa"),
+    ("seguro do carro", "transporte"),
+    ("seguro da moto", "transporte"),
+    ("seguro do veiculo", "transporte"),
+)
+_COMBUSTIVEL = ("gasolina", "etanol", "alcool", "diesel", "posto", "gnv")
 _TOTAL_ACUMULADO = re.compile(r"\b(esse|este|no|nesse|neste) mes (ja|todo|inteiro)\b")
 _TIPO = {"gasto": "expense", "ganho": "income", "transferencia": "transfer"}
 
@@ -83,6 +105,43 @@ def _chave(valor: str | None, validas: dict[str, CategoriaConta]) -> str | None:
     return next((k for k, c in validas.items() if normaliza(c.nome) == alvo), None)
 
 
+def _menciona_data(texto: str) -> bool:
+    t = normaliza(texto)
+    return any(p in t.split() for p in ("dia", "ontem", "anteontem", "amanha", "semana", "mes"))
+
+
+def _ambiguo(texto: str) -> tuple[tuple[str, ...], str] | None:
+    palavras = set(normaliza(texto).split())
+    return next((AMBIGUOS[p] for p in AMBIGUOS if p in palavras), None)
+
+
+def _regras_padrao(texto: str) -> list[Regra]:
+    t = normaliza(texto)
+    if any(c in t.split() for c in _COMBUSTIVEL):  # "gás" do carro é combustível
+        return []
+    return [Regra(padrao, chave) for padrao, chave in REGRAS_PADRAO]
+
+
+def _junta_valor_partido(itens: list[LancamentoIA], mensagem: str) -> list[LancamentoIA]:
+    """ "trinta e cinco e noventa" é UM valor (R$ 35,90): desfaz a divisão da IA."""
+    texto = normaliza(mensagem)
+    saida: list[LancamentoIA] = []
+    for item in itens:
+        anterior = saida[-1] if saida else None
+        if (
+            anterior is not None
+            and anterior.valor_texto
+            and item.valor_texto
+            and not any(c.isdigit() for c in anterior.valor_texto + item.valor_texto)
+        ):
+            junto = f"{normaliza(anterior.valor_texto)} e {normaliza(item.valor_texto)}"
+            if junto in texto and valores.interpreta(junto).centavos is not None:
+                saida[-1] = anterior.model_copy(update={"valor_texto": junto})
+                continue
+        saida.append(item)
+    return saida
+
+
 def _regra_que_casa(texto: str, regras: list[Regra]) -> Regra | None:
     alvo = f" {normaliza(texto)} "
     # A regra mais específica (mais longa) ganha.
@@ -98,6 +157,8 @@ def _proposta(
     categorias: dict[str, CategoriaConta],
     regras: list[Regra],
     hoje: date,
+    *,
+    sozinho: bool = True,
 ) -> Proposta:
     tipo = _TIPO[item.tipo]
     pendencias: list[str] = []
@@ -116,6 +177,9 @@ def _proposta(
     ):
         expressao = no_texto
     quando = datas.resolve(expressao, hoje)
+    copiado = bool(item.data_texto) and normaliza(item.data_texto or "") in normaliza(mensagem)
+    if quando.dia is None and no_texto is None and not (copiado and _menciona_data(mensagem)):
+        quando = datas.Data(hoje)  # a IA pôs lixo na data e a frase não fala de data: hoje
     if quando.dia is None:
         pendencias.append("data")
 
@@ -125,14 +189,25 @@ def _proposta(
     sugestoes = tuple(dict.fromkeys(s for s in sugeridas if s and s != categoria))
     if categoria in GENERICAS:  # "Outros" só com a pessoa escolhendo
         sugestoes, categoria = (*sugestoes, categoria), None
+    nova = (item.nova_categoria_sugerida or None) if categoria is None else None
     if tipo != "transfer":
-        regra = _regra_que_casa(f"{item.descricao or ''} {mensagem}", regras)
+        alvo = f"{item.descricao or ''} {mensagem if sozinho else ''}"
+        regra = _regra_que_casa(alvo, regras)
         if regra and regra.chave in validas:
-            categoria, sugestoes = regra.chave, ()  # o que a pessoa ensinou vale mais
+            categoria, sugestoes, nova = regra.chave, (), None  # o que a pessoa ensinou vale mais
+        else:
+            ambiguo = _ambiguo(alvo)
+            fabrica = _regra_que_casa(alvo, _regras_padrao(alvo))
+            if ambiguo:
+                opcoes, nome = ambiguo
+                sugestoes = tuple(o for o in opcoes if o in validas)
+                categoria, nova = None, nome
+            elif fabrica and fabrica.chave in validas:
+                categoria, sugestoes, nova = fabrica.chave, (), None
         if categoria is None:
             pendencias.append("categoria")
     else:
-        categoria, sugestoes = None, ()
+        categoria, sugestoes, nova = None, (), None
 
     acumulado = bool(_TOTAL_ACUMULADO.search(normaliza(mensagem)))
     if (item.duvida or acumulado) and "categoria" not in pendencias and "valor" not in pendencias:
@@ -145,7 +220,7 @@ def _proposta(
         futura=quando.futura,
         categoria=categoria,
         sugestoes=sugestoes,
-        nova_sugerida=(item.nova_categoria_sugerida or None) if categoria is None else None,
+        nova_sugerida=nova,
         forma=item.forma_pagamento,
         cartao=item.cartao,
         parcelas=item.parcelas,
@@ -166,8 +241,10 @@ def interpreta(
     por_chave = {c.chave: c for c in categorias}
     propostas: tuple[Proposta, ...] = ()
     if extracao.intencao == "lancamentos":
+        itens = _junta_valor_partido(list(extracao.lancamentos), mensagem)
         propostas = tuple(
-            _proposta(item, mensagem, por_chave, regras, hoje) for item in extracao.lancamentos
+            _proposta(item, mensagem, por_chave, regras, hoje, sozinho=len(itens) == 1)
+            for item in itens
         )
     return Interpretacao(
         intencao=extracao.intencao,
