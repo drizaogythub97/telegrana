@@ -32,7 +32,7 @@ from typing import Any
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-from telegrana.ai.groq import MODELOS, ErroIA, Groq  # noqa: E402
+from telegrana.ai.groq import MODELOS, PARAMETROS, ErroIA, Groq  # noqa: E402
 from telegrana.ai.prompt import CategoriaPrompt  # noqa: E402
 from telegrana.core.categorias import PADROES  # noqa: E402
 from telegrana.core.entendimento import entende  # noqa: E402
@@ -178,7 +178,9 @@ def main() -> int:
         help="maior espera aceita num limite do Groq; acima disso, para (inconclusiva)",
     )
     parser.add_argument("--resultado", type=Path, help="grava o placar em JSON (sem frases)")
-    parser.add_argument("--modelo", choices=MODELOS, default=MODELOS[0], help="modelo do Groq")
+    parser.add_argument(
+        "--modelo", choices=sorted(PARAMETROS), default=MODELOS[0], help="modelo do Groq"
+    )
     parser.add_argument(
         "--sem-cache", action="store_true", help="sempre chama a IA (não lê nem grava o cache)"
     )
