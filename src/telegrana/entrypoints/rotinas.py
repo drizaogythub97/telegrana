@@ -34,11 +34,18 @@ def limpa(conn: db.Connection) -> dict[str, int]:
             (RETENCAO_TENTATIVAS,),
         ).rowcount
     cadastros = repositorio.limpa_cadastros_velhos(conn, DIAS_CADASTRO_INCOMPLETO)
+    with conn.transaction():
+        row = conn.execute(
+            "select o_drafts, o_refs from telegrana.purge_account_temporaries()"
+        ).fetchone()
+    rascunhos, refs = (row[0], row[1]) if row else (0, 0)
     return {
         "updates_apagados": updates,
         "pedidos_expirados_apagados": pedidos,
         "tentativas_apagadas": tentativas,
         "cadastros_incompletos_apagados": cadastros,
+        "rascunhos_vencidos_apagados": rascunhos,
+        "vinculos_de_recibo_apagados": refs,
     }
 
 

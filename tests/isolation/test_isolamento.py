@@ -40,6 +40,8 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "payment_methods": ("id", "account_id = %(conta)s"),
     "transactions": ("id", "account_id = %(conta)s"),
     "category_rules": ("id", "account_id = %(conta)s"),
+    "pending_entries": ("id", "account_id = %(conta)s"),
+    "message_refs": ("message_id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -50,6 +52,7 @@ GLOBAIS = frozenset(
         "processed_updates",
         "audit_log",
         "auth_attempts",
+        "ai_usage",
     }
 )
 
@@ -116,6 +119,16 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             "insert into telegrana.category_rules (account_id, pattern, category_id)"
             " select %s, 'drogasil', id from telegrana.categories where code = 'saude'",
             (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.pending_entries (account_id, user_id, data, pendencia)"
+            " values (%s, %s, '{}'::jsonb, 'categoria')",
+            (conta.account_id, conta.user_id),
+        )
+        cur.execute(
+            "insert into telegrana.message_refs (account_id, channel, message_id, transaction_id)"
+            " select %s, 'telegram', %s, id from telegrana.transactions limit 1",
+            (conta.account_id, "m" + external_id),
         )
     return conta
 
@@ -330,6 +343,7 @@ def test_funcoes_security_definer_sao_blindadas(migrator: db.Connection) -> None
         "erase_account",
         "purge_stale_onboarding",
         "admin_list_users",
+        "purge_account_temporaries",
     }
     for nome, config, publico in funcoes:
         assert config, f"{nome}: sem configuração"
@@ -450,3 +464,23 @@ def test_padroes_sao_idempotentes(app: db.Connection, cenario: Cenario) -> None:
         cur.execute("select telegrana.seed_account_defaults(%s)", (cenario.a.account_id,))
         depois = cur.execute("select count(*) from telegrana.categories").fetchone()
     assert antes == depois == (21,)
+
+
+def test_recibo_nao_aponta_para_lancamento_de_outra_conta(
+    app: db.Connection, migrator: db.Connection, cenario: Cenario
+) -> None:
+    with migrator.transaction():
+        row = migrator.execute(
+            "select id from telegrana.transactions where account_id = %s limit 1",
+            (cenario.b.account_id,),
+        ).fetchone()
+    assert row is not None
+    with (
+        pytest.raises(errors.ForeignKeyViolation),
+        db.account_context(app, cenario.a.account_id) as cur,
+    ):
+        cur.execute(
+            "insert into telegrana.message_refs (account_id, channel, message_id, transaction_id)"
+            " values (%s, 'telegram', 'forjado', %s)",
+            (cenario.a.account_id, row[0]),
+        )

@@ -12,9 +12,10 @@ from typing import Any
 
 import psycopg
 
+from telegrana.ai.groq import Groq
 from telegrana.channels.telegram import adaptador, webhook
 from telegrana.channels.telegram.api import TelegramAPI, TelegramError
-from telegrana.core import roteador
+from telegrana.core import lancamentos_repo, roteador
 from telegrana.core.contexto import Contexto, Documento
 from telegrana.core.seguranca import decodifica_pepper
 from telegrana.infra import config, db, logs
@@ -80,6 +81,7 @@ def _contexto(settings: config.Settings, api: TelegramAPI) -> Contexto:
             privacidade=_documento(settings.legal_privacidade),
             link_convite=link_convite,
             pepper=decodifica_pepper(settings.phone_hmac_pepper),
+            extrator=Groq(settings.groq_api_key) if settings.groq_api_key else None,
         )
     return _ctx
 
@@ -115,8 +117,11 @@ def _processa(update: dict[str, Any], settings: config.Settings, api: TelegramAP
     if convertido is None:
         return "tipo.ignorado"
     entrada, origem = convertido
-    resultado = roteador.trata(_conexao(settings), _contexto(settings, api), entrada)
-    falhas = adaptador.executa(api, resultado, origem, settings.admin_telegram_id)
+    conn = _conexao(settings)
+    resultado = roteador.trata(conn, _contexto(settings, api), entrada)
+    falhas, refs = adaptador.executa(api, resultado, origem, settings.admin_telegram_id)
+    if refs and resultado.conta is not None:
+        lancamentos_repo.guarda_refs(conn, resultado.conta, adaptador.CANAL, refs)
     return resultado.rotulo + (f".falhas_envio={falhas}" if falhas else "")
 
 

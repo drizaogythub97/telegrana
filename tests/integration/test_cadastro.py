@@ -364,7 +364,8 @@ def test_comandos_da_conta(bot: Bot) -> None:
     r = bot(de, comando="codigo_novo")
     r = bot(de, acao="cod:novo")
     codigo_em(r)
-    assert textos_de(bot(de, texto="gastei 30 no mercado")) == [t.EM_BREVE]
+    assert textos_de(bot(de, texto="gastei 30 no mercado"))[0].startswith(t.REGISTRADO["expense"])
+    assert textos_de(bot(de, comando="nao_existe")) == [t.AJUDA]
 
 
 def test_termos_novos_exigem_novo_aceite(bot: Bot) -> None:

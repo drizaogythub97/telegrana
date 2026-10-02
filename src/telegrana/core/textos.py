@@ -14,6 +14,9 @@ PERGUNTAS = {
     "cat_nova_ganho": "➕ Nova categoria de ganho: mande o emoji e o nome.\nExemplo: 🏠 Aluguel recebido",
     "cat_renomear": "✏️ Qual é o novo nome desta categoria?",
     "cat_emoji": "🎨 Mande o novo emoji desta categoria.",
+    # Lançamentos (a 2ª linha diz de qual lançamento se trata)
+    "lc_valor": "💬 Quanto foi?",
+    "lc_data": "📅 Quando foi? (ex.: hoje, ontem, sexta, 05/09)",
 }
 
 
@@ -142,13 +145,14 @@ PRONTO = (
     "💡 Dica: o Telegram apaga contas que ficam muito tempo sem uso. Se você usa o "
     "Telegram só para o Telegrana, aumente esse prazo em Configurações > Privacidade e Segurança."
 )
-EM_BREVE = "🛠️ Os lançamentos chegam na próxima etapa. Por enquanto, veja /ajuda."
 USE_OS_BOTOES = "Use os botões da mensagem acima para continuar."
 
 # ---------------------------------------------------------------------------
 # Conta
 # ---------------------------------------------------------------------------
 AJUDA = (
+    "💬 **Para registrar**, é só escrever: «mercado 45,90 no pix», «uber 18 ontem», "
+    "«recebi 3.500 de salário». Para corrigir, responda ao recibo.\n\n"
     "📋 **Comandos**\n"
     "/meus_dados — o que está guardado sobre você\n"
     "/corrigir_nome — corrigir o seu nome\n"
@@ -241,3 +245,56 @@ CATEGORIA_NOME_INVALIDO = (
 )
 CATEGORIA_EMOJI_INVALIDO = "Mande só um emoji (por exemplo 🏋️). Tente de novo em /categorias."
 CATEGORIA_SUMIU = "Não encontrei essa categoria. Veja a lista atual em /categorias."
+
+# ---------------------------------------------------------------------------
+# Lançamentos (S2.3)
+# ---------------------------------------------------------------------------
+REGISTRADO = {
+    "expense": "✅ **Gasto registrado**",
+    "income": "🟢 **Ganho registrado**",
+    "transfer": "🔁 **Transferência registrada**",
+}
+PREVISTO = "🗓️ **Gasto previsto**"
+CORRIGIDO = "✏️ **Corrigido**"
+PERGUNTA_FIXO = "🔁 Isso se repete todo mês?"
+PERGUNTA_CATEGORIA = "🤔 Em qual categoria fica **{resumo}**?"
+PERGUNTA_CONFIRMAR = "⚠️ Valor alto: confirma **{resumo}**?"
+PERGUNTA_DUVIDA = "🤔 Registro **{resumo}** como um lançamento novo?"
+CORRIGIR_COMO = (
+    "✏️ Responda a este recibo com a correção, por exemplo: «foi 54,90», «foi no débito» "
+    "ou «foi ontem»."
+)
+ESCOLHA_CATEGORIA = "🏷️ Qual a categoria certa para **{resumo}**?"
+APAGADO = "🗑️ Apagado: {resumo}"
+DESFEITO = "↩️ Lançamento de volta."
+RASCUNHO_CANCELADO = "👍 Tudo bem, não registrei."
+RASCUNHO_SUMIU = "Esse lançamento já foi resolvido ou expirou. Pode mandar de novo."
+LEMBRAR_REGRA = "🧠 Quer que eu lembre: «{termo}» é sempre {rotulo}?"
+REGRA_APRENDIDA = "🧠 Pronto: «{termo}» vai sempre para {rotulo}."
+FIXO_SIM = "🔁 Anotado. Quando os fixos chegarem, aproveito isso para te lembrar todo mês."
+FIXO_NAO = "👍 Anotado."
+CORRECAO_NAO_ENTENDI = (
+    "Não entendi a correção. Use os botões do recibo ou responda, por exemplo, «foi 54,90»."
+)
+NADA_PARA_CORRIGIR = (
+    "Não achei um lançamento recente para corrigir. Responda direto ao recibo que quer mudar."
+)
+NADA_PARA_APAGAR = "Não achei um lançamento recente para apagar. Use o botão 🗑️ do recibo."
+NAO_ENTENDI = (
+    "🤔 Não entendi bem. Me conta assim, por exemplo: «mercado 45,90 no pix» ou "
+    "«recebi 1.500 de salário»."
+)
+CONSULTA_EM_BREVE = (
+    "📊 Consultas e relatórios chegam numa próxima etapa. Por enquanto, eu registro."
+)
+FATURA_EM_BREVE = "💳 Faturas de cartão chegam numa próxima etapa."
+OI = "👋 Oi! Me conta um gasto ou um ganho, por texto, que eu registro."
+SOBRECARREGADO = (
+    "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
+)
+IA_FALHOU = "😕 Não consegui entender agora. Pode tentar de novo?"
+ADM_COTA_IA = (
+    "⚠️ IA: o modelo {modelo} já usou {pct}% da cota de hoje no Groq. "
+    "Quando acabar, sigo nos modelos de reserva."
+)
+AUDIO_EM_BREVE = "🎙️ Áudios chegam numa próxima etapa. Por enquanto, me manda por texto."

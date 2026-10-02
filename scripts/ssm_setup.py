@@ -9,6 +9,7 @@ Uso (na raiz, com `aws login --profile telegrana` ativo):
 Parâmetros (nunca exibidos):
     /telegrana/admin_telegram_id                  String
     /telegrana/<env>/telegram/bot_token           SecureString  (do .env.local)
+    /telegrana/<env>/groq/api_key                 SecureString  (GROQ_API_KEY_<ENV> do .env.local)
     /telegrana/<env>/telegram/webhook_secret      SecureString  (gerado; mantido se já existir)
     /telegrana/<env>/neon/app_url                 SecureString  (dev: do .env.local; prod: bootstrap)
     /telegrana/<env>/neon/migrator_url            SecureString
@@ -113,6 +114,11 @@ def main() -> int:
         if not token:
             raise SystemExit(f"TELEGRAM_BOT_TOKEN_{ambiente.upper()} em branco")
         _grava(ssm, f"{base}/telegram/bot_token", token)
+
+        groq = env.get(f"GROQ_API_KEY_{ambiente.upper()}", "")
+        if not groq:
+            raise SystemExit(f"GROQ_API_KEY_{ambiente.upper()} em branco")
+        _grava(ssm, f"{base}/groq/api_key", groq)
 
         nome_segredo = f"{base}/telegram/webhook_secret"
         if args.rotacionar_webhook or not _existe(ssm, nome_segredo):

@@ -8,6 +8,7 @@ O adaptador de cada canal (Telegram hoje, WhatsApp na S9) converte o que chega e
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 ADMIN = "admin"  # destino especial: o administrador
 
@@ -26,6 +27,7 @@ class Entrada:
     contato_alheio: bool = False  # contato de outra pessoa (recusado)
     pergunta: str | None = None  # id da pergunta do bot que esta mensagem responde
     contexto: str = ""  # 2ª linha da pergunta respondida (escrita pelo bot; ex.: a categoria)
+    resposta_a: str | None = None  # id da mensagem do bot respondida (ex.: um recibo)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +46,7 @@ class Saida:
     pergunta: str | None = None  # pede resposta direta (id em textos.PERGUNTAS)
     protegida: bool = False  # sem encaminhar nem salvar (código de recuperação)
     tirar_teclado: bool = False
+    ref: str | None = None  # ex.: "tx:<uuid>": o canal devolve o id da mensagem enviada
 
 
 @dataclass(slots=True)
@@ -52,6 +55,7 @@ class Resultado:
     apagar_entrada: bool = False  # a mensagem do usuário tinha segredo (código)
     aviso: str | None = None  # resposta curta ao toque no botão
     rotulo: str = "nada"  # rótulo técnico para log (sem conteúdo do usuário)
+    conta: Any = None  # conta dona das `ref` (para guardar recibo ↔ lançamento)
 
     def diz(self, texto: str, **kw: object) -> Resultado:
         self.saidas.append(Saida(texto, **kw))  # type: ignore[arg-type]

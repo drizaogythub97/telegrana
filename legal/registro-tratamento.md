@@ -4,7 +4,7 @@ Documento interno do controlador. Versão simplificada, adequada a um agente de 
 
 - **Controlador e encarregado**: Adriano Cardoso, pessoa física (contato: `{{contato_admin}}` no Telegram).
 - **Titulares**: familiares e convidados do administrador, maiores de 18 anos (5 a 10 pessoas).
-- **Última revisão**: 01/10/2026 (D032).
+- **Última revisão**: 02/10/2026 (D039: rascunhos, recibo ↔ lançamento e medidor da IA; mesma finalidade dos lançamentos, sem dado novo, sem novo aceite).
 
 ## Tratamentos
 
@@ -14,6 +14,9 @@ Documento interno do controlador. Versão simplificada, adequada a um agente de 
 | Cadastro em andamento | id do Telegram, etapa do cadastro | Art. 7º, V | Até 7 dias se não concluído | `users`, `user_channels` |
 | Conta | id do Telegram, nome completo, HMAC do telefone, hash Argon2 do código de recuperação, data da declaração de maioridade, aceites (versão e data) | Art. 7º, V | Enquanto a conta existir | `users`, `user_channels`, `terms_acceptances` |
 | Lançamentos e transcrições | valores, datas, categorias, descrições, formas de pagamento, cartões, fixos, texto da transcrição | Art. 7º, V; dado sensível incidental: art. 11, I | Enquanto a conta existir | tabelas da conta (RLS forçado) |
+| Lançamento esperando resposta | o lançamento entendido (valor, data, categoria, descrição, forma) e o texto da mensagem | Art. 7º, V | 1 dia (ou até a resposta) | `pending_entries` (RLS forçado) |
+| Recibo ↔ lançamento | id da mensagem do recibo no Telegram e id do lançamento (permite corrigir respondendo ao recibo) | Art. 7º, V | 30 dias | `message_refs` (RLS forçado) |
+| Medidor de uso da IA | dia, modelo, número de chamadas e de tokens; **sem conta, pessoa ou conteúdo** | Art. 7º, IX (continuidade do serviço) | Indefinida (não é dado pessoal) | `ai_usage` |
 | Interpretação por IA | texto ou áudio da mensagem, categorias e formas de pagamento, data | Art. 7º, V | Nenhuma no provedor (retenção zero); o áudio é descartado após a transcrição | Groq (EUA), em trânsito |
 | Registros de segurança | tipo e data do evento, ator; sem conteúdo financeiro nem dado pessoal em `details` | Art. 7º, IX | Enquanto a conta existir; na exclusão fica só o evento anônimo | `audit_log` |
 | Tentativas de recuperação | id do Telegram, tipo (código ou telefone), número de erros, trava | Art. 7º, IX (segurança) | 1 dia sem novas tentativas | `auth_attempts` |

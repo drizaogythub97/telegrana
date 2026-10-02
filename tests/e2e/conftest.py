@@ -89,13 +89,17 @@ class Pessoa:
         )
         if pergunta is None:
             raise AssertionError(f"{self.nome}: nenhuma pergunta do bot para responder")
+        self.responde_a(pergunta, texto)
+
+    def responde_a(self, msg: MensagemDoBot, texto: str) -> None:
+        """Usa o "Responder" do app numa mensagem do bot (ex.: corrigir um recibo)."""
         self._mensagem(
             text=texto,
             reply_to_message={
-                "message_id": pergunta.id,
+                "message_id": msg.id,
                 "from": {"id": BOT_ID, "is_bot": True, "first_name": "Telegrana"},
                 "chat": {"id": self.id, "type": "private"},
-                "text": pergunta.texto,
+                "text": msg.texto,
             },
         )
 

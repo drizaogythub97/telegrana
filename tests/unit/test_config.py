@@ -12,8 +12,9 @@ VALORES = {
     "/telegrana/dev/legal/termos": '{"versao": 1, "url": "https://telegra.ph/t", "sha256": "00"}',
     "/telegrana/dev/legal/privacidade": '{"versao": 1, "url": "https://telegra.ph/p", "sha256": "00"}',
     "/telegrana/dev/admin/contact": "@admin",
+    "/telegrana/dev/groq/api_key": "gsk-segredo-do-groq",
 }
-SEGREDOS = ("123:token-secreto", "segredo-webhook", "senha", "pepper-secreto")
+SEGREDOS = ("123:token-secreto", "segredo-webhook", "senha", "pepper-secreto", "gsk-segredo")
 
 
 def busca(nomes: list[str]) -> dict[str, str]:

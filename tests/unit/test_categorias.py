@@ -44,3 +44,18 @@ def test_nome_valido(texto: str, esperado: str | None) -> None:
 )
 def test_emoji_valido(texto: str, esperado: str | None) -> None:
     assert categorias.emoji_valido(texto) == esperado
+
+
+def test_padroes_em_python_iguais_aos_da_migracao() -> None:
+    import re
+    from pathlib import Path
+
+    # A última migração que (re)define seed_account_defaults é a fonte da verdade.
+    pasta = Path(__file__).resolve().parents[2] / "src/telegrana/infra/migrations"
+    sql = [
+        p.read_text(encoding="utf-8")
+        for p in sorted(pasta.glob("*.sql"))
+        if "function telegrana.seed_account_defaults" in p.read_text(encoding="utf-8")
+    ][-1]
+    da_migracao = re.findall(r"\('(expense|income)',\s*'(\w+)',\s*'([^']+)',\s*'([^']+)'", sql)
+    assert tuple(da_migracao) == categorias.PADROES

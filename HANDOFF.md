@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 01/10/2026 · S0 e S1 encerradas · **S2.1 encerrada** · Próxima: **S2.2 — IA de extração e avaliação**.
+> Atualizado em 02/10/2026 · S0, S1 e S2.1 encerradas · **S2.2 (PR #32) e S2.3 (PR #33, empilhado sobre o #32) prontas no código; falta a avaliação completa da IA passar** (cota diária do Groq).
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,31 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D028. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D040. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S2.3 — pronta no código (D038 itens 1 e 3, D039; PR #33 empilhado sobre o #32)
+
+- **Fluxo**: `core/entendimento.entende` (atalho `core/atalho.py` primeiro; IA só se ele não tiver certeza; **sem chave do Groq o atalho continua funcionando**) → `core/interpretacao` → `core/lancamentos.py` (recibo com botões `tx:fix|cat|sc|del|un`, rascunho + pergunta `lc:c|n|ok|x` e `lc_valor`/`lc_data`, regra aprendida `rg:`, "é fixo?" `fx:s|n`, correção respondendo ao recibo). SQL em `core/lancamentos_repo.py`. O bot **nunca** mostra a pergunta livre da IA.
+- **Migração 0004** (ainda não aplicada em dev/prod; entra com o merge): `pending_entries` (1 dia), `message_refs` (30 dias; limpeza em `purge_account_temporaries`, chamada pela rotina diária), `ai_usage` (global, sem dado pessoal), `transactions.installments/recurring`, formas Crédito e Boleto no padrão e para as contas existentes, `UPDATE (category_id)` em `category_rules`.
+- **Medidor**: `LIMITE_DIARIO_TOKENS = 200_000`, aviso ao admin em 70% (uma vez por dia). No limite: "estou com muita demanda, manda de novo" (desvio de D038 explicado na D039).
+- **Config**: `groq_api_key` ← `/telegrana/<env>/groq/api_key` (já existe nos dois ambientes; a Lambda já pode ler `/telegrana/<env>/*`). Timeout do Groq 15 s (Lambda 30 s).
+- **Testes**: 348 no `pytest` padrão (`tests/integration/test_lancamentos.py`: 14, com IA falsa, inclui recibo/botão de outra conta) + **17 E2E** (3 novos: recibo→correção→apagar→desfazer; ambíguo→categoria→regra; netflix "é fixo?" + IA ausente). Tudo verde localmente em 02/10/2026.
+- **IA folgada (D040)**: cadeia de modelos no `ai/groq.py` — **gpt-oss-120b → gpt-oss-20b** (cota diária própria de 200 mil tokens cada, no plano gratuito; o esgotado fica de fora até o `retry-after`). `qwen/qwen3.8-27b` já tem parâmetros, mas está **bloqueado na organização** (HTTP 403): entra na cadeia depois que o Adriano liberar e ele passar na avaliação. Medidor por modelo. Bedrock fica como reserva paga para o upgrade da AWS (bloqueado no plano gratuito, testado em 02/10/2026).
+- **Avaliação** (02/10/2026, `--modelo openai/gpt-oss-120b`): passou de primeira (intenção 97%, categoria 94%, valor/tipo/data 95,5%); depois das regras de código da D040 (gasto sem valor, `atalho.resgata`, cabelo/salão ambíguos, parcelas do texto), **100%** pelo cache. O 20b ainda não fez uma rodada completa com o código atual (cota dele estava esgotada): rodar `--modelo openai/gpt-oss-20b` quando der. **Cache de respostas** em `tests/eval/data/cache/` (fora do Git): mudou só código → reavaliação com 0 token.
+- **Falta**: avaliação completa passar → mesclar #32 → `git merge main` na `feat/s2.3-lancamentos` (o PR #33 passa a apontar para a `main`) → CI verde → mesclar #33 (vai sozinho para dev, E2E e prod) → roteiro no celular → encerrar S2.2 e S2.3 com o protocolo. **D038 item 2** fica para quando a família começar a usar a produção (teto do `telegrana-dev` 150 mil → ~50 mil; parar de usar a chave de prod localmente).
+
+### S2.2 — código pronto (D037, PR #32 ainda NÃO mesclado)
+
+- **Pronto no PR #32** (CI de código verde esperado): contrato estrito `core/extracao.py`, `ai/prompt.py`, `ai/groq.py`, `core/valores.py`, `core/datas.py`, `core/interpretacao.py`, `scripts/avaliar_ia.py`, `scripts/avaliacao_dados.py`, `.github/workflows/avaliacao.yml`. O bot ainda **não** chama a IA (isso é a S2.3).
+- **Já aplicado fora do Git**: stack `telegrana-bootstrap` com o bucket `telegrana-avaliacao-<conta>` e o papel `telegrana-github-avaliacao`; ambiente GitHub `avaliacao` e variáveis `EVAL_ROLE_ARN`/`EVAL_BUCKET`; `/telegrana/<env>/groq/api_key` no SSM; conjunto (gabarito + frases + áudios) enviado ao bucket; teto do projeto `telegrana-dev` do Groq em **150 mil tokens/dia** no `gpt-oss-20b` (autorizado pelo Adriano).
+- **Gabarito**: `tests/eval/data/gabarito.jsonl` (72 casos; local e no bucket; fora do Git). Regras do Adriano (D037): categoria ambígua → perguntar; recorrente → perguntar se é fixo; "esse mês já" → perguntar antes.
+- **1ª rodada completa** (prompt já enxuto): intenção 100%, valor 98,5%, tipo 98,5%, data 97%, **categoria 81,8%** (meta 90%). Ajustes feitos depois dela (código: nome da categoria aceito, "Outros" vira pergunta, total acumulado, data perdida e "vence" achados no texto; prompt: dicas das categorias, ambíguos explícitos, transferência só entre contas próprias, "trinta e cinco e noventa" é um valor). **A 2ª rodada não terminou**: a cota diária do Groq da organização acabou.
+- **Uso local da chave de produção** nas avaliações: autorizado pelo Adriano **só até a família começar a usar** a produção.
 
 ### S2.1 — o que existe (D036)
 
@@ -75,7 +94,7 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | AWS | **conta nova** (30/09/2026), **plano FREE**, **US$ 200 de créditos até 30/09/2027**; usuário IAM `adriano-dev` (MFA, AdministratorAccess + SignInLocalDevelopmentAccess, sem access keys); MFA na root; sem Organizations | perfil `telegrana` via `aws login --profile telegrana` (sessão ≤ 12 h; quem renova é o Adriano) |
 | AWS — base | stack `telegrana-bootstrap` (`deploy/bootstrap.yaml`): orçamentos `telegrana-gasto-zero` (US$ 0,01) e `telegrana-teto-mensal` (US$ 1; créditos contam), SNS `telegrana-orcamento-estourado` (e-mail + Lambda) e `telegrana-avisos` (e-mail), Lambda `telegrana-kill-switch` (zera a concorrência das `telegrana-*`), OIDC do GitHub + papel `telegrana-github-deploy` (só `main`, **sem permissões ainda**) | e-mails de alerta confirmados |
 | Neon | projeto `telegrana` (`aws-us-east-1`, **Postgres 18**), branches `production` e `dev` **sem expiração**; nada criado dentro do banco | `NEON_OWNER_URL_PROD`, `NEON_OWNER_URL_DEV` (papel dono, conexão direta), `NEON_API_KEY` (**Project-scoped**), `NEON_PROJECT_ID` — tudo no `.env.local` |
-| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `whisper-large-v3`; projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (400 req/dia e 80 mil tokens/dia por gpt-oss; Whisper 800 req/dia e 10.800 s/dia) | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
+| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `whisper-large-v3`; projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (teto de 150 mil tokens/dia no gpt-oss-20b desde 01/10/2026; Whisper 800 req/dia e 10.800 s/dia). **Limites do plano gratuito são por modelo e por organização** (D040); `qwen/qwen3.8-27b` ainda bloqueado na allowlist | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
 | Telegram | produção **@TelegranaAppBot**, dev **@TelegranaAppDevBot** (fora de grupos, sem webhook); app de testes "Telegrana Testes" no my.telegram.org; admin = o Adriano | `TELEGRAM_BOT_TOKEN_{PROD,DEV}`, `TELEGRAM_BOT_USERNAME_{PROD,DEV}`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_TELEGRAM_ID` |
 | Celular | Samsung Galaxy A54 (SM-A546E), **Android 16**, pareado por adb Wi-Fi, Telegram instalado | reconectar: `adb mdns services` → `adb connect IP:PORTA` |
 | Avaliação da IA | 11 áudios reais do Adriano + `audios.txt` conferido; `mensagens.txt` com 61 frases humanizadas escritas pelo agente | `tests/eval/data/` (**fora do Git**) |
@@ -117,20 +136,22 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #28 | `15d2719` | encerramento da S1.5 e da S1 |
 | #29 | `9e3bb0f` | posicionamento: assistente individual com IA; pré-requisitos do lançamento (D035) |
 | #30 | `d4d600f` | **S2.1**: categorias e lançamentos no banco; `/categorias` (D036) |
-| #31 | (este) | encerramento da S2.1 |
+| #31 | `6f06e5f` | encerramento da S2.1 |
+| #32 | (aberto) | **S2.2**: extração pela IA, normalização e avaliação (D037) |
+| #33 | (aberto; base `feat/s2.2-extracao`) | **S2.3**: lançamentos no bot, atalho sem IA, medidor (D038, D039) |
 
-## Ponto de partida exato da próxima sessão (S2.2 — IA de extração e avaliação)
+## Ponto de partida exato da próxima sessão (fechar a S2)
 
-1. Ler os 5 documentos acima. `git pull`; conferir que a `main` está limpa. `python scripts/check_setup.py`.
-2. Divisão da S2 aceita (D036): ~~S2.1~~ ✅ PR #30 → **S2.2 (agora)** → S2.3 (lançamentos no bot).
-3. **Bucket do conjunto de avaliação** (D036): acrescentar ao `deploy/bootstrap.yaml` um bucket `telegrana-avaliacao-<conta>` (SSE, bloqueio de acesso público, só TLS, versionado) e um papel OIDC **só de leitura** para o job de avaliação (ambiente GitHub `avaliacao`, restrito à `main` e a PRs do próprio repositório), com `ssm:GetParameter` só na chave do Groq de dev. Atualizar a stack (`aws cloudformation deploy`, como no `deploy/README.md`) e subir `tests/eval/data/` com um script (`scripts/avaliacao_dados.py enviar|baixar`). Nada do conjunto entra no Git nem nos logs.
-4. **Chaves do Groq no SSM**: `/telegrana/<env>/groq/api_key` (SecureString) a partir de `GROQ_API_KEY_{DEV,PROD}` do `.env.local`, em `ssm_setup.py`; entrar em `config.PARAMETROS` só quando a Lambda for usar (S2.3), para não quebrar a subida antes da hora.
-5. **Código** (`src/telegrana/ai/`, ainda vazio): interface `LLMProvider` + cliente Groq (httpx; `response_format` `json_schema` com `strict: true`; `reasoning_effort` baixo para economizar tokens — conferir na doc do Groq); modelos Pydantic `extra="forbid"` da extração (lista de lançamentos: tipo, texto do valor, expressão de data, categoria **por código/nome da lista da conta** ou null + motivo, forma de pagamento, descrição, parcelas, pergunta de esclarecimento opcional). Prompt com a mensagem como **dado** (delimitada), a lista de categorias e formas da conta e a data de hoje; nada de histórico.
-6. **Normalização no código** (`core/`): valores ("50 conto", "R$ 1.234,56", "mil e duzentos", "1,2k", "2 mil", "uns 30 e poucos" → pergunta) e datas relativas ("ontem", "sexta passada", "dia 5") em America/Sao_Paulo; regras por palavra-chave e `category_rules` **antes** da IA. Testes unitários extensos.
-7. **Gabarito**: escrever a saída esperada das 61 frases e das 11 transcrições (no bucket, nunca no Git); mostrar ao Adriano **só os casos ambíguos** para ele decidir. Runner de avaliação com as métricas do PLANO 5.3 (≥ 95% valor/tipo/data, ≥ 90% categoria), saída só agregada; job de CI com filtro de caminhos (`src/telegrana/ai/**`, normalizadores, gabarito) + execução manual. Respeitar o limite de 8 mil tokens/min (espaçar as chamadas).
-8. Encerrar a S2.2 com o protocolo; a IA ainda não responde no bot (isso é a S2.3).
+1. Ler os 5 documentos acima. `git pull`; `git checkout feat/s2.3-lancamentos`. `python scripts/check_setup.py`.
+2. **Merge**: o PR #33 foi reapontado para a `main` e contém a S2.2 inteira (o #32 foi fechado como incorporado). Conferir o CI do #33 (`qualidade`, `testes`, `segredos`, `avaliacao`) e mesclar com squash, sem bypass de admin. O pipeline aplica a migração 0004 e publica dev → E2E → prod.
+3. Se ainda não rodou: `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD --modelo openai/gpt-oss-20b` (o modelo de reserva também precisa das metas). Usa o cache; só os casos sem resposta guardada gastam cota.
+4. **Roteiro no celular** (bot de dev e depois prod; adb Wi-Fi): "mercado 45,90 no pix" (recibo), responder ao recibo "foi 54,90", Apagar → Desfazer, "padaria 12" (pergunta + Sempre), "netflix 55,90" (é fixo?), "gastei no mercado" (pergunta o valor), "mil e duzentos de mercado esse mês já" (pergunta antes), "tênis 480 em 4x" (Crédito · 4x), uma frase só para a IA. Conferir no CloudWatch que não há erro.
+5. Encerrar a S2 com o protocolo (HANDOFF, PLANO S2 ✅, memórias). Próxima: **S3 — Áudio**.
 
 ## Pendências do Adriano
+
+- **Groq — liberar o `qwen/qwen3.8-27b`** na organização (Settings → Limits/Models; hoje bloqueado): vira o terceiro modelo da cadeia (mais 200 mil tokens/dia) depois de avaliado. Opcional; o agente pode fazer pelo Chrome com o login do Adriano.
+- **Quando a família começar a usar a produção** (D038 item 2): tetos do projeto `telegrana-dev` por modelo (~50 mil) e parar de usar a chave de produção nas avaliações locais.
 
 - Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
 - Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
@@ -147,6 +168,13 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 - O admin tem bypass no ruleset, mas **não o use**: sempre branch → PR → esperar `qualidade`, `testes` e `segredos` verdes → `gh pr merge --squash`. Leia o CI com `mcp__ccd_pr__get_status` e confirme uma vez com `gh pr checks <n>`, sem ficar consultando em laço.
 - Arquivos gravados pelo Python no Windows saem com CRLF, e o hook `mixed-line-ending` interrompe o commit ao corrigir. Grave com `write_text(..., newline="\n")` ou refaça o `git add` e o commit.
 - O `uv` não está no PATH do Git Bash: use `~/AppData/Roaming/Python/Python314/Scripts/uv.exe`.
+
+**IA e Groq (S2.2)**
+- **Cota diária por organização**: 200 mil tokens/dia no `gpt-oss-20b`, somando dev e prod (os tetos por projeto são sub-limites). Uma avaliação completa gasta ~60 mil; um dia de ajustes acaba com a cota. Use `--casos` para rodar só alguns casos enquanto ajusta.
+- **8 mil tokens/minuto**: avalie com `--intervalo 9` (padrão). O cache de prompt do Groq é irregular; não conte com ele.
+- O modelo às vezes devolve o **nome** da categoria em vez do código, junta ou separa valores, perde "vence"/datas: o código já corrige o que dá (`core/interpretacao.py`). Sempre que possível, regra no código > instrução no prompt.
+- Heredoc no Git Bash: `\\b` dentro de `'PYEOF'` virou o caractere de controle 0x08 numa regex (erro silencioso). Para editar Python com regex, gravar o script com a ferramenta Write.
+- O Neon pode derrubar a conexão no meio da suíte longa ("server closed the connection unexpectedly"): rode de novo os arquivos afetados antes de investigar.
 
 **Testes e E2E (S1.5)**
 - **O servidor de testes do Telegram não serve mais**: as contas `99966XYYYY` estão desativadas desde 06/2025 (o pedido de código funciona, mas `22222`/`222222` dão `PHONE_CODE_INVALID`). Não tente de novo sem notícia oficial de que voltou (D034).
