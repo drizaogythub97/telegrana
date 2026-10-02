@@ -24,6 +24,7 @@ class TelegramAPI:
     ) -> None:
         # Servidor de testes do Telegram: /bot<token>/test/<método> (PLANO 10.1).
         self._prefix = f"/bot{token}/test/" if test_server else f"/bot{token}/"
+        self._arquivos = f"/file/bot{token}/test/" if test_server else f"/file/bot{token}/"
         self._client = client or httpx.Client(
             base_url=BASE_URL, timeout=httpx.Timeout(10.0, connect=5.0)
         )
@@ -58,6 +59,33 @@ class TelegramAPI:
             descricao = str(corpo.get("description", ""))[:200] if isinstance(corpo, dict) else ""
             raise TelegramError(f"{method}: HTTP {resposta.status_code} {descricao}".strip())
         return corpo.get("result")
+
+    def baixa_arquivo(self, file_id: str, limite: int) -> bytes:
+        """getFile + download em memória, parando se passar de `limite` bytes.
+
+        O link do arquivo contém o token: nunca sai daqui (nem em erro, nem em log).
+        """
+        info = self.call("getFile", file_id=file_id)
+        caminho = str(info.get("file_path") or "") if isinstance(info, dict) else ""
+        if not caminho or ".." in caminho or caminho.startswith("/"):
+            raise TelegramError("getFile: sem caminho válido")
+        tamanho = info.get("file_size")
+        if isinstance(tamanho, int) and tamanho > limite:
+            raise TelegramError("getFile: arquivo acima do limite")
+        partes: list[bytes] = []
+        total = 0
+        try:
+            with self._client.stream("GET", self._arquivos + caminho) as resposta:
+                if resposta.status_code != 200:
+                    raise TelegramError(f"download: HTTP {resposta.status_code}")
+                for pedaco in resposta.iter_bytes():
+                    total += len(pedaco)
+                    if total > limite:
+                        raise TelegramError("download: arquivo acima do limite")
+                    partes.append(pedaco)
+        except httpx.HTTPError as exc:
+            raise TelegramError(f"download: falha de comunicação ({type(exc).__name__})") from None
+        return b"".join(partes)
 
     def send_message(
         self,

@@ -98,6 +98,8 @@ class TelegramSimulado:
     teclado_de_contato: dict[int, bool] = field(default_factory=dict)
     callbacks_abertos: set[str] = field(default_factory=set)
     chamadas: list[str] = field(default_factory=list)
+    arquivos: dict[str, bytes] = field(default_factory=dict)  # file_id → conteúdo (áudios)
+    acoes_de_chat: list[tuple[int, str]] = field(default_factory=list)
     _ids: itertools.count[int] = field(default_factory=lambda: itertools.count(50_000))
 
     def proximo_id(self) -> int:
@@ -109,6 +111,13 @@ class TelegramSimulado:
         )
 
     def _responde(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/file/bot"):
+            # Download: /file/bot<token>/voice/<file_id>.oga
+            file_id = request.url.path.rsplit("/", 1)[-1].removesuffix(".oga")
+            if request.method != "GET" or file_id not in self.arquivos:
+                return httpx.Response(404)
+            self.chamadas.append("download")
+            return httpx.Response(200, content=self.arquivos[file_id])
         metodo = request.url.path.rsplit("/", 1)[-1]
         corpo = json.loads(request.content or b"{}")
         self.chamadas.append(metodo)
@@ -159,6 +168,25 @@ class TelegramSimulado:
         return True
 
     def _deleteMessage(self, c: dict[str, Any]) -> bool:
+        return True
+
+    def _getFile(self, c: dict[str, Any]) -> dict[str, Any]:
+        file_id = str(c["file_id"])
+        if file_id not in self.arquivos:
+            raise RecusaDoTelegram("Bad Request: invalid file_id")
+        return {
+            "file_id": file_id,
+            "file_size": len(self.arquivos[file_id]),
+            "file_path": f"voice/{file_id}.oga",
+        }
+
+    def _sendChatAction(self, c: dict[str, Any]) -> bool:
+        chat = int(c["chat_id"])
+        if chat not in self.chats:
+            raise RecusaDoTelegram("Bad Request: chat not found")
+        if c.get("action") not in {"typing", "record_voice", "upload_document"}:
+            raise RecusaDoTelegram("Bad Request: wrong chat action")
+        self.acoes_de_chat.append((chat, str(c["action"])))
         return True
 
     def _getMe(self, c: dict[str, Any]) -> dict[str, Any]:

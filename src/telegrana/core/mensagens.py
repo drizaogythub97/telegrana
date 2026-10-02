@@ -7,10 +7,28 @@ O adaptador de cada canal (Telegram hoje, WhatsApp na S9) converte o que chega e
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 ADMIN = "admin"  # destino especial: o administrador
+
+
+class ErroCanal(RuntimeError):
+    """Falha do canal ao entregar algo ao núcleo (ex.: baixar um áudio). Sem dado do usuário."""
+
+
+@dataclass(frozen=True, slots=True)
+class Audio:
+    """Áudio recebido. O núcleo só baixa (`baixar()`) quando vai mesmo transcrever.
+
+    Os bytes ficam só em memória durante a transcrição e são descartados (PLANO 8.5).
+    """
+
+    duracao: int  # segundos, informados pelo canal
+    tamanho: int | None  # bytes, se o canal informar
+    formato: str  # extensão aceita pelo transcritor: ogg, mp3, m4a, wav...
+    baixar: Callable[[], bytes] = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +46,7 @@ class Entrada:
     pergunta: str | None = None  # id da pergunta do bot que esta mensagem responde
     contexto: str = ""  # 2ª linha da pergunta respondida (escrita pelo bot; ex.: a categoria)
     resposta_a: str | None = None  # id da mensagem do bot respondida (ex.: um recibo)
+    audio: Audio | None = None  # mensagem de voz ou arquivo de áudio
 
 
 @dataclass(frozen=True, slots=True)

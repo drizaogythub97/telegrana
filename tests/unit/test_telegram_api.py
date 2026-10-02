@@ -84,3 +84,40 @@ def test_logs_de_http_silenciados(caplog: pytest.LogCaptureFixture) -> None:
 
     api_com(httpx.MockTransport(ok)).get_webhook_info()
     assert TOKEN not in caplog.text
+
+
+def _servidor_de_arquivos(conteudo: bytes, tamanho_informado: int | None) -> httpx.MockTransport:
+    def responde(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/getFile"):
+            info = {"file_id": "F", "file_path": "voice/file_1.oga"}
+            if tamanho_informado is not None:
+                info["file_size"] = tamanho_informado
+            return httpx.Response(200, json={"ok": True, "result": info})
+        assert req.url.path == f"/file/bot{TOKEN}/voice/file_1.oga"
+        return httpx.Response(200, content=conteudo)
+
+    return httpx.MockTransport(responde)
+
+
+def test_baixa_arquivo_em_memoria() -> None:
+    api = api_com(_servidor_de_arquivos(b"OggS" * 10, 40))
+    assert api.baixa_arquivo("F", 1000) == b"OggS" * 10
+
+
+@pytest.mark.parametrize(("conteudo", "informado"), [(b"x" * 10, 5000), (b"x" * 5000, None)])
+def test_baixa_arquivo_recusa_acima_do_limite(conteudo: bytes, informado: int | None) -> None:
+    api = api_com(_servidor_de_arquivos(conteudo, informado))
+    with pytest.raises(TelegramError, match="acima do limite") as info:
+        api.baixa_arquivo("F", 1000)
+    assert TOKEN not in str(info.value)
+
+
+def test_baixa_arquivo_falha_sem_vazar_token() -> None:
+    def responde(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/getFile"):
+            return httpx.Response(200, json={"ok": True, "result": {"file_path": "voice/a.oga"}})
+        raise httpx.ConnectError("falhou em " + str(req.url))
+
+    with pytest.raises(TelegramError) as info:
+        api_com(httpx.MockTransport(responde)).baixa_arquivo("F", 1000)
+    assert TOKEN not in str(info.value)

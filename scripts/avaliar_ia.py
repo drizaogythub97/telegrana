@@ -5,6 +5,9 @@ Uso local (lê tests/eval/data/ e a chave GROQ_API_KEY_DEV do .env.local):
     uv run python scripts/avaliar_ia.py
 No CI: `--baixar` busca o conjunto no bucket privado e `--chave-ssm` lê a chave de dev.
 `--modelo` escolhe o modelo do Groq (cada um tem cota própria; D040).
+`--audio` avalia os áudios (casos `aNN` ↔ `audios/NN.ogg`): o Whisper transcreve e a
+transcrição segue o mesmo caminho do bot; mede também o erro de palavras (WER) contra a
+transcrição conferida pelo Adriano (D041).
 
 Cache de respostas (local, fora do Git, em tests/eval/data/cache/): a resposta da IA fica
 guardada pela impressão digital do pedido (modelo + prompt + frase). Mudou só o código?
@@ -34,10 +37,12 @@ sys.path.insert(0, str(RAIZ / "src"))
 
 from telegrana.ai.groq import MODELOS, PARAMETROS, ErroIA, Groq  # noqa: E402
 from telegrana.ai.prompt import CategoriaPrompt  # noqa: E402
+from telegrana.ai.whisper import MODELOS as MODELOS_AUDIO  # noqa: E402
+from telegrana.ai.whisper import VOCABULARIO, Whisper  # noqa: E402
 from telegrana.core.categorias import PADROES  # noqa: E402
 from telegrana.core.entendimento import entende  # noqa: E402
 from telegrana.core.extracao import ExtracaoIA  # noqa: E402
-from telegrana.core.interpretacao import CategoriaConta, Proposta  # noqa: E402
+from telegrana.core.interpretacao import CategoriaConta, Proposta, normaliza  # noqa: E402
 
 HOJE = date(2026, 10, 1)  # data de referência do gabarito
 ESPERA_MAXIMA = 120.0  # espera maior que isso = cota do dia acabou: parar, não insistir
@@ -133,6 +138,42 @@ class ComCache:
         return extracao
 
 
+class OuvidoComCache:
+    """Whisper com cache da transcrição (pela impressão digital: modelo + prompt + áudio)."""
+
+    def __init__(self, whisper: Whisper, modelo: str, pasta: Path | None) -> None:
+        self.whisper = whisper
+        self.modelo = modelo
+        self.pasta = pasta
+        self.chamadas = 0
+
+    def transcreve(self, dados: bytes) -> str:
+        arquivo = None
+        if self.pasta is not None:
+            digital = hashlib.sha256(self.modelo.encode() + VOCABULARIO.encode() + dados)
+            arquivo = self.pasta / f"audio-{digital.hexdigest()}.txt"
+            if arquivo.exists():
+                return arquivo.read_text(encoding="utf-8")
+        self.chamadas += 1
+        texto = self.whisper.transcreve(dados, "ogg", 10).texto
+        if arquivo is not None:
+            arquivo.parent.mkdir(parents=True, exist_ok=True)
+            arquivo.write_text(texto, encoding="utf-8")
+        return texto
+
+
+def wer(referencia: str, hipotese: str) -> float:
+    """Taxa de erro de palavras (distância de edição sobre palavras normalizadas)."""
+    ref, hip = normaliza(referencia).split(), normaliza(hipotese).split()
+    linha = list(range(len(hip) + 1))
+    for i, r in enumerate(ref, 1):
+        anterior, linha[0] = linha[0], i
+        for j, h in enumerate(hip, 1):
+            atual = min(linha[j] + 1, linha[j - 1] + 1, anterior + (r != h))
+            anterior, linha[j] = linha[j], atual
+    return linha[-1] / max(1, len(ref))
+
+
 def _chave(args: argparse.Namespace) -> str:
     if args.chave_ssm:
         import boto3
@@ -149,11 +190,13 @@ def _chave(args: argparse.Namespace) -> str:
     raise SystemExit(f"{args.chave_local} não encontrada no .env.local")
 
 
-def _baixa(bucket: str, destino: Path) -> None:
+def _baixa(bucket: str, destino: Path, chaves: list[str]) -> None:
     import boto3
 
     s3 = boto3.client("s3", region_name="us-east-1")
-    s3.download_file(bucket, "gabarito.jsonl", str(destino / "gabarito.jsonl"))
+    for chave in chaves:
+        (destino / chave).parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(bucket, chave, str(destino / chave))
 
 
 def main() -> int:
@@ -184,6 +227,10 @@ def main() -> int:
     parser.add_argument(
         "--sem-cache", action="store_true", help="sempre chama a IA (não lê nem grava o cache)"
     )
+    parser.add_argument("--audio", action="store_true", help="avalia os áudios (Whisper + IA)")
+    parser.add_argument(
+        "--modelo-audio", choices=MODELOS_AUDIO, default=MODELOS_AUDIO[0], help="modelo do Whisper"
+    )
     parser.add_argument(
         "--continuar",
         type=Path,
@@ -191,16 +238,24 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    audios: dict[str, bytes] = {}
     with tempfile.TemporaryDirectory() as temporario:
         pasta = args.dados
         if args.baixar:
             pasta = Path(temporario)
-            _baixa(args.baixar, pasta)
+            _baixa(args.baixar, pasta, ["gabarito.jsonl"])
         casos = [
             json.loads(linha)
             for linha in (pasta / "gabarito.jsonl").read_text(encoding="utf-8").splitlines()
             if linha.strip()
         ]
+        if args.audio:
+            casos = [c for c in casos if c["id"].startswith("a")]
+            chaves = [f"audios/{c['id'][1:]}.ogg" for c in casos]
+            if args.baixar:
+                _baixa(args.baixar, pasta, chaves)
+            # Em memória: a pasta temporária some no fim do bloco.
+            audios = {c["id"]: (pasta / k).read_bytes() for c, k in zip(casos, chaves, strict=True)}
     if args.casos:
         casos = [c for c in casos if c["id"] in set(args.casos)]
     anterior: dict[str, Any] = {}
@@ -213,6 +268,12 @@ def main() -> int:
     pasta_cache = None if args.sem_cache or args.baixar else args.dados / "cache"
     groq = ComCache(Groq(_chave(args), modelos=(args.modelo,)), pasta_cache)
     print(f"Modelo: {args.modelo}; cache: {'sim' if pasta_cache else 'não'}")
+    ouvido = None
+    if args.audio:
+        whisper = Whisper(_chave(args), modelos=(args.modelo_audio,))
+        ouvido = OuvidoComCache(whisper, args.modelo_audio, pasta_cache)
+        print(f"Áudio: {len(audios)} arquivos; Whisper {args.modelo_audio}")
+    erros_palavra: list[float] = []
     chamadas_ia = 0
     placar = Placar(
         dict(anterior.get("acertos", {})),
@@ -231,8 +292,13 @@ def main() -> int:
         entendido = None
         for tentativa in range(12):
             try:
+                texto = caso["texto"]
+                if ouvido is not None:
+                    texto = ouvido.transcreve(audios[caso["id"]])
                 # O mesmo caminho do bot: atalho sem IA primeiro, IA só quando precisa.
-                entendido = entende(caso["texto"], categorias, [], HOJE, groq)
+                entendido = entende(texto, categorias, [], HOJE, groq)
+                if ouvido is not None:
+                    erros_palavra.append(wer(caso["texto"], texto))
                 break
             except ErroIA as exc:
                 if exc.limite and (exc.espera or 0) > args.espera_maxima:
@@ -278,6 +344,12 @@ def main() -> int:
         f"Tokens: entrada {tokens['entrada']} (cache {tokens['cache']}), saída {tokens['saida']};"
         f" contados no limite ~{tokens['entrada'] - tokens['cache'] + tokens['saida']}"
     )
+    if erros_palavra:
+        media = sum(erros_palavra) / len(erros_palavra)
+        print(
+            f"Transcrição: WER médio {media:.1%} em {len(erros_palavra)} áudios"
+            f" (pior {max(erros_palavra):.1%}); chamadas ao Whisper: {ouvido.chamadas if ouvido else 0}"
+        )
     reprovado = False
     for metrica in sorted(placar.total, key=lambda m: (m.endswith("(info)"), m)):
         taxa = placar.taxa(metrica)
