@@ -20,9 +20,11 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from telegrana.ai.cadeia import Cadeia, ErroIA, erro_http
 from telegrana.ai.prompt import CategoriaPrompt, mensagens
-from telegrana.core.entendimento import ErroExtracao
 from telegrana.core.extracao import ExtracaoIA, esquema_json
+
+__all__ = ["MODELOS", "PARAMETROS", "ErroIA", "Groq", "Uso"]
 
 URL = "https://api.groq.com/openai/v1/chat/completions"
 # Parâmetros de raciocínio de cada modelo (verificados em 02/10/2026 na documentação).
@@ -36,12 +38,6 @@ PARAMETROS: dict[str, dict[str, Any]] = {
 # 02/10/2026); o 20b fica por último até completar uma rodada com o código atual.
 MODELOS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 MODELO = MODELOS[0]
-FORA_SEM_PRAZO = 60.0  # 429 sem retry-after
-FORA_INDISPONIVEL = 600.0  # 403/404: modelo bloqueado na organização ou retirado
-
-
-class ErroIA(ErroExtracao):
-    """Falha do Groq (sem chave nem texto do usuário na mensagem)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,8 +64,7 @@ class Groq:
         self._modelos = modelos
         # 15 s: folga dentro da Lambda de 30 s mesmo se o primeiro modelo falhar.
         self._client = client or httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0))
-        self._relogio = relogio
-        self._fora_ate: dict[str, float] = {}
+        self._cadeia = Cadeia(modelos, relogio)
         self.ultimo_uso: Uso | None = None
 
     def corpo(
@@ -90,26 +85,10 @@ class Groq:
 
     def extrai(self, texto: str, categorias: list[CategoriaPrompt], hoje: date) -> ExtracaoIA:
         self.ultimo_uso = None
-        agora = self._relogio()
-        ultimo_erro: ErroIA | None = None
-        for modelo in self._modelos:
-            if self._fora_ate.get(modelo, 0.0) > agora:
-                continue
-            try:
-                return self._chama(modelo, texto, categorias, hoje)
-            except ErroIA as exc:
-                ultimo_erro = exc
-                if exc.limite:
-                    self._fora_ate[modelo] = agora + (exc.espera or FORA_SEM_PRAZO)
-                elif "HTTP 403" in str(exc) or "HTTP 404" in str(exc):
-                    self._fora_ate[modelo] = agora + FORA_INDISPONIVEL
-        disponiveis = [m for m in self._modelos if self._fora_ate.get(m, 0.0) <= agora]
-        if ultimo_erro is not None and not ultimo_erro.limite and disponiveis:
-            raise ultimo_erro  # falha comum (ex.: HTTP 500) num modelo que segue na cadeia
-        # Todos de fora (limite ou bloqueio): para a pessoa, é "muita demanda agora".
-        restante = [t - agora for m, t in self._fora_ate.items() if m in self._modelos]
-        espera = max(1.0, min(restante)) if restante else None
-        raise ErroIA("limite do Groq em todos os modelos", limite=True, espera=espera)
+        extracao, _modelo = self._cadeia.executa(
+            lambda modelo: self._chama(modelo, texto, categorias, hoje)
+        )
+        return extracao
 
     def _chama(
         self, modelo: str, texto: str, categorias: list[CategoriaPrompt], hoje: date
@@ -120,13 +99,8 @@ class Groq:
             )
         except httpx.HTTPError as exc:
             raise ErroIA(f"falha de comunicação ({type(exc).__name__})") from None
-        if resposta.status_code == 429:
-            espera = resposta.headers.get("retry-after")
-            raise ErroIA(
-                "limite do Groq", limite=True, espera=float(espera) if espera else None
-            ) from None
         if resposta.status_code >= 400:
-            raise ErroIA(f"HTTP {resposta.status_code}") from None
+            raise erro_http(resposta) from None
         try:
             dados = resposta.json()
             uso = dados.get("usage") or {}

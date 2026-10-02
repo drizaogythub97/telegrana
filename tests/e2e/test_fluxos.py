@@ -138,6 +138,51 @@ def test_ambiguo_pergunta_categoria_e_aprende(ana: Pessoa) -> None:
     assert "R$ 6,50" in ana.espera("Gasto registrado").texto
 
 
+@pytest.fixture
+def ouvido(mundo: Mundo, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Groq falso no lugar do real: o Whisper "ouve" os bytes como texto; a IA está fora."""
+    from dataclasses import replace
+
+    from telegrana.core.audio import Transcricao, segundos_cobrados
+    from telegrana.core.entendimento import ErroExtracao
+    from telegrana.entrypoints import bot
+
+    class WhisperFalso:
+        def __init__(self, chave: str) -> None:
+            pass
+
+        def transcreve(self, dados: bytes, formato: str, duracao: int) -> Transcricao:
+            return Transcricao(dados.decode(), "whisper-large-v3", segundos_cobrados(duracao))
+
+    class GroqFora:
+        ultimo_uso = None
+
+        def __init__(self, chave: str) -> None:
+            pass
+
+        def extrai(self, *args: object) -> None:
+            raise ErroExtracao("fora do ar no E2E")
+
+    monkeypatch.setattr(bot, "Whisper", WhisperFalso)
+    monkeypatch.setattr(bot, "Groq", GroqFora)
+    monkeypatch.setattr(bot, "_settings", replace(bot._settings, groq_api_key="gsk-falsa-e2e"))
+    monkeypatch.setattr(bot, "_ctx", None)  # recria o contexto com os falsos (e volta depois)
+
+
+def test_lancamento_por_audio(mundo: Mundo, ana: Pessoa, ouvido: None) -> None:
+    ana.manda_audio("mercado 45,90 no pix")
+    recibo = ana.espera("Gasto registrado")
+    assert "🛒 Mercado · R$ 45,90" in recibo.texto
+    assert "🎙️ «mercado 45,90 no pix»" in recibo.texto
+    assert (ana.id, "typing") in mundo.tg.acoes_de_chat  # "digitando…" enquanto ouve
+    ana.responde_a(recibo, "foi 50")  # e corrige por texto, como qualquer recibo
+    assert "R$ 50,00" in ana.espera("Corrigido").texto
+    ana.manda_audio("oi tudo bem")
+    ana.espera("Ouvi: «oi tudo bem»")
+    ana.manda_audio("um áudio comprido demais", duracao=180)
+    ana.espera("passa de 2 minutos")
+
+
 def test_netflix_pergunta_se_e_fixo_e_ia_fora_do_ar(ana: Pessoa) -> None:
     ana.diz("netflix 55,90")
     assert "Isso se repete todo mês?" in ana.espera("Gasto registrado").texto

@@ -10,17 +10,19 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
 from telegrana.core import atalho, datas, valores
+from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.contexto import Contexto, agora
 from telegrana.core.entendimento import ErroExtracao, entende
 from telegrana.core.interpretacao import AMBIGUOS, Proposta, normaliza
-from telegrana.core.mensagens import ADMIN, Botao, Entrada, Resultado, Saida, seguro
+from telegrana.core.mensagens import ADMIN, Botao, Entrada, ErroCanal, Resultado, Saida, seguro
 from telegrana.core.repositorio import Pessoa
 from telegrana.infra import db
 
@@ -40,16 +42,86 @@ _GENERICAS = {"expense": "outros", "income": "outros_ganhos"}
 def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultado:
     if (e.acao or "").startswith(PREFIXOS):
         return _botao(conn, e, p)
+    ouvido: str | None = None
+    avisos: list[Saida] = []
+    if e.audio is not None:
+        transcrito = _transcreve(conn, ctx, e, p)
+        if isinstance(transcrito, Resultado):
+            return transcrito
+        ouvido, avisos = transcrito
+        e = replace(e, texto=ouvido, audio=None)  # daqui em diante, igual ao texto
     if e.pergunta in PERGUNTAS:
-        return _resposta(conn, e, p)
-    if e.resposta_a:
-        return _corrige_pelo_recibo(conn, e, p)
-    if not e.texto.strip():
-        return Resultado(rotulo="lancamento.sem_texto").diz(t.AUDIO_EM_BREVE)
-    return _mensagem(conn, ctx, e, p)
+        r = _resposta(conn, e, p)
+    elif e.resposta_a:
+        r = _corrige_pelo_recibo(conn, e, p)
+    elif not e.texto.strip():
+        return Resultado(rotulo="lancamento.sem_texto").diz(t.SO_TEXTO_OU_AUDIO)
+    else:
+        r = _mensagem(conn, ctx, e, p, origem="audio" if ouvido else "text")
+    return _com_eco(r, ouvido, avisos)
 
 
-def _mensagem(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultado:
+def _transcreve(
+    conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa
+) -> tuple[str, list[Saida]] | Resultado:
+    """Limites ANTES de baixar; o áudio fica só em memória e é descartado (PLANO 8.3, 8.5)."""
+    audio = e.audio
+    r = Resultado(rotulo="lancamento.audio", conta=p.account_id)
+    if audio is None:
+        return r.diz(t.AUDIO_FALHOU)
+    if audio.duracao > aud.DURACAO_MAXIMA:
+        r.rotulo += ".longo"
+        return r.diz(t.AUDIO_LONGO)
+    if audio.tamanho is not None and audio.tamanho > aud.TAMANHO_MAXIMO:
+        r.rotulo += ".grande"
+        return r.diz(t.AUDIO_GRANDE)
+    if ctx.transcritor is None:
+        r.rotulo += ".sem_transcritor"
+        return r.diz(t.AUDIO_INDISPONIVEL)
+    try:
+        transcricao = ctx.transcritor.transcreve(audio.baixar(), audio.formato, audio.duracao)
+    except ErroCanal:
+        r.rotulo += ".download_falhou"
+        return r.diz(t.AUDIO_FALHOU)
+    except ErroExtracao as exc:
+        r.rotulo += ".limite" if exc.limite else ".falhou"
+        return r.diz(t.SOBRECARREGADO if exc.limite else t.AUDIO_FALHOU)
+    avisos: list[Saida] = []
+    if transcricao.modelo:
+        modelo = transcricao.modelo.rsplit("/", 1)[-1][:40]
+        pct = repo.registra_uso(
+            conn,
+            agora().date(),
+            modelo,
+            transcricao.segundos,
+            aud.LIMITE_DIARIO_SEGUNDOS,
+            ALERTA_COTA,
+            medida="segundos",
+        )
+        if pct is not None:
+            avisos.append(Saida(t.ADM_COTA_IA.format(pct=pct, modelo=modelo), destino=ADMIN))
+    texto = " ".join(transcricao.texto.split())[: aud.LIMITE_TEXTO]
+    if not texto:
+        r.rotulo += ".vazio"
+        r.saidas.extend(avisos)
+        return r.diz(t.AUDIO_VAZIO)
+    return texto, avisos
+
+
+def _com_eco(r: Resultado, ouvido: str | None, avisos: list[Saida]) -> Resultado:
+    """Áudio que não virou recibo: mostra o que foi ouvido (o recibo já traz a transcrição)."""
+    if ouvido is None:
+        return r
+    r.rotulo += ".audio"
+    if not any(s.ref for s in r.saidas):
+        r.saidas.insert(0, Saida(t.OUVI.format(trecho=seguro(aud.resumo(ouvido), 120))))
+    r.saidas.extend(avisos)
+    return r
+
+
+def _mensagem(
+    conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa, *, origem: str = "text"
+) -> Resultado:
     hoje = agora().date()
     with db.account_context(conn, p.account_id) as cur:
         cats = repo.categorias(cur)
@@ -74,7 +146,7 @@ def _mensagem(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resu
         if interp.intencao == "lancamentos" and interp.propostas:
             formas = repo.formas(cur)
             for prop in interp.propostas:
-                _processa(cur, p, _dados(prop, e.texto), cats, formas, hoje, r)
+                _processa(cur, p, _dados(prop, e.texto, origem), cats, formas, hoje, r)
             return r
         if interp.intencao == "correcao":
             return _corrige_ultimo(cur, p, interp.correcao_texto or e.texto, cats, hoje, r)
@@ -94,7 +166,7 @@ def _mensagem(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resu
 # ---------------------------------------------------------------------------
 # Proposta → lançamento ou rascunho
 # ---------------------------------------------------------------------------
-def _dados(prop: Proposta, texto: str) -> dict[str, Any]:
+def _dados(prop: Proposta, texto: str, origem: str = "text") -> dict[str, Any]:
     termo = next(
         (x for x in normaliza(f"{prop.descricao or ''} {texto}").split() if x in AMBIGUOS), None
     )
@@ -115,6 +187,7 @@ def _dados(prop: Proposta, texto: str) -> dict[str, Any]:
         "fixo": prop.pode_ser_fixo,
         "pendencias": [x for x in ORDEM if x in prop.pendencias],
         "texto": texto[:1000],
+        "origem": origem,
         "termo": termo,
         "perguntou_categoria": False,
     }
@@ -221,7 +294,7 @@ def _registra(
         data=data,
         futura=bool(dados.get("futura")),
         descricao=dados.get("descricao"),
-        origem="text",
+        origem=dados.get("origem") or "text",
         texto_original=dados.get("texto", ""),
         parcelas=dados.get("parcelas"),
     )
@@ -275,7 +348,9 @@ def _recibo(
         detalhes.append(f"{tx.parcelas}x")
     detalhes.append(_quando(tx.data, hoje))
     linhas = [titulo, linha_principal, " · ".join(detalhes)]
-    if tx.descricao:
+    if tx.origem == "audio" and tx.texto_original:
+        linhas.append(f"🎙️ «{seguro(aud.resumo(tx.texto_original), 120)}»")
+    elif tx.descricao:
         linhas.append(f"📝 {seguro(tx.descricao, 80)}")
     i = seg.curto(tx.id)
     botoes: list[tuple[Botao, ...]] = [

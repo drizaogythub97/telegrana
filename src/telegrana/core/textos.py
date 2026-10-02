@@ -140,8 +140,9 @@ CODIGO_RECUPERACAO = (
 BOTAO_GUARDEI = "✅ Guardei"
 PRONTO = (
     "🎉 **Conta criada!**\n"
-    "Os lançamentos por texto e áudio chegam na próxima etapa do Telegrana. "
-    "Enquanto isso, veja /ajuda.\n\n"
+    "Já pode me contar seus gastos e ganhos, por texto ou áudio. Experimente: "
+    "«mercado 45,90 no pix» ou um áudio dizendo «gastei 30 reais de pão hoje». "
+    "Mais em /ajuda.\n\n"
     "💡 Dica: o Telegram apaga contas que ficam muito tempo sem uso. Se você usa o "
     "Telegram só para o Telegrana, aumente esse prazo em Configurações > Privacidade e Segurança."
 )
@@ -151,8 +152,8 @@ USE_OS_BOTOES = "Use os botões da mensagem acima para continuar."
 # Conta
 # ---------------------------------------------------------------------------
 AJUDA = (
-    "💬 **Para registrar**, é só escrever: «mercado 45,90 no pix», «uber 18 ontem», "
-    "«recebi 3.500 de salário». Para corrigir, responda ao recibo.\n\n"
+    "💬 **Para registrar**, é só escrever ou mandar um áudio: «mercado 45,90 no pix», "
+    "«uber 18 ontem», «recebi 3.500 de salário». Para corrigir, responda ao recibo.\n\n"
     "📋 **Comandos**\n"
     "/meus_dados — o que está guardado sobre você\n"
     "/corrigir_nome — corrigir o seu nome\n"
@@ -297,4 +298,10 @@ ADM_COTA_IA = (
     "⚠️ IA: o modelo {modelo} já usou {pct}% da cota de hoje no Groq. "
     "Quando acabar, sigo nos modelos de reserva."
 )
-AUDIO_EM_BREVE = "🎙️ Áudios chegam numa próxima etapa. Por enquanto, me manda por texto."
+SO_TEXTO_OU_AUDIO = "Me conta um gasto ou um ganho, por texto ou áudio, que eu registro. 🙂"
+AUDIO_LONGO = "🎙️ Esse áudio passa de 2 minutos. Manda um mais curto (ou por texto), por favor."
+AUDIO_GRANDE = "🎙️ Esse arquivo de áudio é grande demais. Manda um mais curto, por favor."
+AUDIO_INDISPONIVEL = "🎙️ Não consigo ouvir áudios agora. Me manda por texto, por favor."
+AUDIO_FALHOU = "😕 Não consegui ouvir esse áudio. Pode mandar de novo ou escrever?"
+AUDIO_VAZIO = "🎙️ Não ouvi nada nesse áudio. Pode mandar de novo?"
+OUVI = "🎙️ Ouvi: «{trecho}»"

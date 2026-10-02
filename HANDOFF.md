@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 02/10/2026 · **S0, S1 e S2 encerradas** · lançamentos por texto com IA **no ar em dev e prod** · próxima: **S3 — Áudio**.
+> Atualizado em 02/10/2026 · **S0, S1 e S2 encerradas** · lançamentos por texto com IA **no ar em dev e prod** · **S3 (Áudio) em andamento**: S3.1 no PR da branch `feat/s3.1-audio`.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,19 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D040. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D041. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S3 — em andamento (D041)
+
+- **S3.1 — áudio no bot** (branch `feat/s3.1-audio`): `voice`/`audio` do Telegram → `Entrada.audio` (duração, tamanho, formato, `baixar()` fornecido pelo canal) → `core/lancamentos.trata`: limites **antes** de baixar (≤ 2 min, ≤ 20 MB; `core/audio.py`) → download em memória (`TelegramAPI.baixa_arquivo`, para em 20 MB; o link com token nunca sai dali) → `ai/whisper.py` (cadeia `whisper-large-v3` → `whisper-large-v3-turbo`, `language=pt`, prompt com vocabulário) → a transcrição segue **como texto** (perguntas, correção de recibo, tudo). Recibo com "🎙️ «transcrição resumida»"; áudio que não vira recibo recebe "🎙️ Ouvi: «…»". "Digitando…" enquanto ouve. `ai/cadeia.py` agora é comum à extração e à transcrição. Migração **0005**: `ai_usage.audio_seconds` (medidor em segundos; aviso ao admin em 70% de 28.800 s/dia por modelo).
+- **Avaliação dos áudios** (`scripts/avaliar_ia.py --audio [--modelo-audio ...]`; cache das transcrições): **whisper-large-v3: 100%** em intenção, valor, tipo, data e categoria nos 11 áudios reais; WER médio 14,9% (pior 25%), sem efeito no resultado. O workflow do CI ganhou o passo de áudio.
+- ⚠️ **`whisper-large-v3-turbo` está bloqueado na allowlist** da organização do Groq (HTTP 403): até o Adriano autorizar a liberação (Settings → Limits → Allowed Models), a cadeia de áudio tem só o v3 — o turbo é pulado sem erro. Depois de liberar: `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD --audio --modelo-audio whisper-large-v3-turbo`.
+- **Testes**: unitários (Whisper, download, adaptador) + `tests/integration/test_audio.py` (10, Postgres real, transcritor falso: recibo, limites antes de baixar, falhas, eco, pergunta e correção por áudio, medidor) + E2E 18 (novo: áudio com "digitando…", recibo, correção, eco, recusa > 2 min; a Bot API simulada ganhou `getFile`, download e `sendChatAction`).
 
 ### S2 — encerrada em 02/10/2026 (D036–D040; PRs #30, #33, #34)
 
@@ -135,19 +142,17 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #34 | `be2df4b` | qwen na cadeia + ajustes do roteiro de validação (D040) |
 | #35 | (este) | encerramento da S2 |
 
-## Ponto de partida exato da próxima sessão (S3 — Áudio)
+## Ponto de partida exato da próxima sessão (fechar a S3)
 
-1. Ler os 5 documentos acima. `git pull` na `main`. `python scripts/check_setup.py` (esperado: tudo OK menos os áudios opcionais). `aws login --profile telegrana` é do Adriano se a sessão tiver expirado.
-2. **Pendência curta da S2** (opcional, antes de começar): completar a avaliação do 20b — `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD --modelo openai/gpt-oss-20b` (usa o cache; ~45 chamadas). Se passar, ele pode subir na cadeia; se não, continua por último.
-3. **Planejar a S3** a partir do PLANO (seção da S3 e 5.x do áudio) e propor ao Adriano a divisão em micro-fases, como na S2. Pontos já conhecidos:
-   - Hoje a mensagem de voz responde `AUDIO_EM_BREVE` (`core/lancamentos.trata` com texto vazio). O adaptador precisa entregar o `file_id` do `voice`/`audio` (o núcleo continua sem saber de Telegram: o adaptador baixa e entrega bytes).
-   - Groq (verificar de novo na documentação): `whisper-large-v3` e `whisper-large-v3-turbo` têm limites **próprios** (20 req/min, 2 mil req/dia, 7.200 s de áudio/hora e 28.800 s/dia cada) → dá para usar a mesma ideia de cadeia da D040. Conferir formatos aceitos (o Telegram manda OGG/Opus) e o tamanho máximo.
-   - A política v1 já diz que o áudio é transcrito e **descartado na hora** e só o texto fica, junto do lançamento: nada de guardar o arquivo (nem em `/tmp` além da chamada). `getFile` da Bot API baixa até 20 MB.
-   - A transcrição passa pelo **mesmo** `entende` do texto; recibo com a transcrição resumida (PLANO). Avaliação de áudio: os 11 áudios de `tests/eval/data/audios/` + `audios.txt` (meta no mesmo patamar do texto).
-   - Lambda com 256 MB e 30 s: medir o tempo de download + Whisper + IA.
-4. Seguir o protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro → encerramento.
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`.
+2. Se o PR da S3.1 ainda estiver aberto: conferir o CI (`qualidade`, `testes`, `segredos` obrigatórios; `avaliacao` agora tem o passo de áudio) e mesclar com squash. O pipeline aplica a migração 0005 e publica dev → E2E → prod.
+3. Turbo liberado pelo Adriano? Avaliar (comando acima) e, se passar, deixar como está na cadeia (já é o 2º).
+4. **Roteiro** no bot de dev (celular com depuração Wi-Fi, ou Telegram Web do Adriano, abrindo **só** o chat do bot de dev): áudio "gastei 30 reais de pão hoje" (pergunta a categoria + recibo com 🎙️), áudio com valor por extenso, áudio respondendo à pergunta de valor, responder ao recibo com áudio corrigindo, áudio que não é lançamento ("oi"), áudio > 2 min (recusa). Conferir no CloudWatch o tempo de resposta e que não há erro.
+5. Encerrar a S3 com o protocolo. Próxima: **S4 — Fixos e lembretes** (o "é fixo?" já grava `transactions.recurring`).
 
 ## Pendências do Adriano
+
+- **Autorizar a liberação do `whisper-large-v3-turbo`** na allowlist do Groq (o agente faz pelo Chrome): reserva da transcrição.
 
 - **Quando a família começar a usar a produção** (D038 item 2): tetos do projeto `telegrana-dev` por modelo (~50 mil) e parar de usar a chave de produção nas avaliações locais.
 
@@ -170,6 +175,7 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 **IA e Groq (S2)**
 - **Limites por modelo E por organização** (dev + prod juntos): 200 mil tokens/dia, 1.000 req/dia, 8 mil tokens/min por modelo no plano gratuito. A Política de Uso Aceitável do Groq **proíbe** criar outras contas ou organizações para somar limites — não proponha isso. A folga vem da cadeia de modelos (D040).
 - Uma avaliação completa gasta ~45–50 mil tokens do modelo avaliado. Use o **cache** (padrão) e `--casos` enquanto ajusta; `--sem-cache` só quando quiser medir a variação do modelo.
+- Desde o PR #36 o CI avalia a **cadeia** (`--modelo cadeia`), como o bot: fica inconclusivo só se todos os modelos esgotarem. Local, use `--modelo <um>` (com cache) para comparar modelos.
 - O workflow "Avaliação da IA" sai **INCONCLUSIVA (código 2)** quando a cota do modelo acaba — aparece como check vermelho, mas **não é obrigatório**. Leia o log: se as métricas avaliadas estão acima da meta, não é regressão (foi o caso do PR #34). Melhoria possível: tratar o código 2 como aviso.
 - O modelo varia entre rodadas mesmo com temperatura 0 (ex.: t14 errou a categoria no CI e acertou no local). Sempre que possível, regra no **código** > instrução no prompt.
 - qwen com `reasoning_effort: none` repete até estourar `max_completion_tokens` (HTTP 400 `json_validate_failed`): use `low`.

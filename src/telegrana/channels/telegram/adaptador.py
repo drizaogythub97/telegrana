@@ -8,12 +8,16 @@ from __future__ import annotations
 import html
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from telegrana.channels.telegram.api import TelegramAPI, TelegramError
 from telegrana.core import textos
-from telegrana.core.mensagens import ADMIN, Entrada, Resultado, Saida
+from telegrana.core.audio import TAMANHO_MAXIMO
+from telegrana.core.mensagens import ADMIN, Audio, Entrada, ErroCanal, Resultado, Saida
+
+Baixador = Callable[[str, int], bytes]  # (file_id, limite em bytes) → conteúdo
 
 log = logging.getLogger("telegrana.telegram")
 CANAL = "telegram"
@@ -37,7 +41,55 @@ def _nome(usuario: dict[str, Any]) -> str:
     return " ".join(p for p in (usuario.get("first_name"), usuario.get("last_name")) if p)
 
 
-def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Origem] | None:
+_FORMATOS = {
+    "audio/ogg": "ogg",
+    "audio/opus": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/mp4": "m4a",
+    "audio/m4a": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/aac": "m4a",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/webm": "webm",
+    "audio/flac": "flac",
+}
+
+
+def _formato(bruto: dict[str, Any]) -> str:
+    mime = str(bruto.get("mime_type") or "").lower()
+    if mime in _FORMATOS:
+        return _FORMATOS[mime]
+    extensao = str(bruto.get("file_name") or "").rsplit(".", 1)[-1].lower()
+    return extensao if extensao in set(_FORMATOS.values()) else "ogg"
+
+
+def _audio(mensagem: dict[str, Any], baixar: Baixador | None) -> Audio | None:
+    """Mensagem de voz ou arquivo de áudio. O download só acontece se o núcleo pedir."""
+    bruto = mensagem.get("voice") or mensagem.get("audio")
+    if not isinstance(bruto, dict) or not bruto.get("file_id") or baixar is None:
+        return None
+    file_id = str(bruto["file_id"])
+    tamanho = bruto.get("file_size")
+
+    def baixa() -> bytes:
+        try:
+            return baixar(file_id, TAMANHO_MAXIMO)
+        except TelegramError as exc:
+            raise ErroCanal(str(exc)) from None
+
+    return Audio(
+        duracao=int(bruto.get("duration") or 0),
+        tamanho=int(tamanho) if isinstance(tamanho, int) else None,
+        formato=_formato(bruto),
+        baixar=baixa,
+    )
+
+
+def para_entrada(
+    update: dict[str, Any], id_do_bot: int, baixar: Baixador | None = None
+) -> tuple[Entrada, Origem] | None:
     """Só conversa privada com pessoa (não bot). None = nada a fazer."""
     callback = update.get("callback_query")
     if isinstance(callback, dict):
@@ -95,6 +147,7 @@ def para_entrada(update: dict[str, Any], id_do_bot: int) -> tuple[Entrada, Orige
         pergunta=pergunta,
         contexto=contexto,
         resposta_a=resposta_a,
+        audio=_audio(mensagem, baixar),
     )
     return entrada, Origem(int(usuario["id"]), mensagem.get("message_id"))
 

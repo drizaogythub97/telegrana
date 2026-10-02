@@ -10,6 +10,7 @@ on:
       - "src/telegrana/core/extracao.py"
       - "src/telegrana/core/atalho.py"
       - "src/telegrana/core/entendimento.py"
+      - "src/telegrana/core/audio.py"
       - "src/telegrana/core/interpretacao.py"
       - "src/telegrana/core/valores.py"
       - "src/telegrana/core/datas.py"
@@ -23,6 +24,7 @@ on:
       - "src/telegrana/core/extracao.py"
       - "src/telegrana/core/atalho.py"
       - "src/telegrana/core/entendimento.py"
+      - "src/telegrana/core/audio.py"
       - "src/telegrana/core/interpretacao.py"
       - "src/telegrana/core/valores.py"
       - "src/telegrana/core/datas.py"
@@ -67,6 +69,11 @@ jobs:
           aws-region: us-east-1
           role-session-name: telegrana-avaliacao-${{ github.run_id }}
       - name: Avaliar (só métricas no log)
-        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --intervalo 9 --prazo 1500
+        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --modelo cadeia --intervalo 9 --prazo 1500
+        env:
+          BUCKET: ${{ vars.EVAL_BUCKET }}
+      - name: Avaliar os áudios (Whisper + mesmo caminho; só métricas no log)
+        if: ${{ !cancelled() }}
+        run: uv run python scripts/avaliar_ia.py --baixar "$BUCKET" --chave-ssm --audio --modelo cadeia --modelo-audio cadeia --intervalo 9 --prazo 600
         env:
           BUCKET: ${{ vars.EVAL_BUCKET }}

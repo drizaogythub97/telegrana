@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from telegrana.channels.telegram import adaptador
 from telegrana.core import textos
 from telegrana.core.mensagens import ADMIN, Botao, Saida
@@ -134,3 +136,37 @@ def test_perguntas_tem_primeiras_linhas_distintas() -> None:
     assert len(set(linhas)) == len(linhas)
     for chave, texto in textos.PERGUNTAS.items():
         assert textos.pergunta_respondida(textos.primeira_linha(texto)) == chave
+
+
+def test_voz_vira_audio_que_so_baixa_quando_pedido() -> None:
+    baixados: list[tuple[str, int]] = []
+
+    def baixar(file_id: str, limite: int) -> bytes:
+        baixados.append((file_id, limite))
+        return b"OggS"
+
+    voz = {"file_id": "VOZ1", "duration": 7, "mime_type": "audio/ogg", "file_size": 9000}
+    entrada, _ = adaptador.para_entrada(mensagem(voice=voz), BOT, baixar)  # type: ignore[misc]
+    assert entrada.audio is not None
+    assert (entrada.audio.duracao, entrada.audio.tamanho, entrada.audio.formato) == (7, 9000, "ogg")
+    assert baixados == []  # nada baixado até o núcleo pedir
+    assert entrada.audio.baixar() == b"OggS"
+    assert baixados == [("VOZ1", 20 * 1024 * 1024)]
+
+
+def test_arquivo_de_audio_formato_e_falha_do_canal() -> None:
+    from telegrana.channels.telegram.api import TelegramError
+    from telegrana.core.mensagens import ErroCanal
+
+    def falha(file_id: str, limite: int) -> bytes:
+        raise TelegramError("download: HTTP 404")
+
+    arquivo = {"file_id": "A", "duration": 30, "file_name": "nota.m4a"}
+    entrada, _ = adaptador.para_entrada(mensagem(audio=arquivo), BOT, falha)  # type: ignore[misc]
+    assert entrada.audio is not None
+    assert entrada.audio.formato == "m4a"
+    with pytest.raises(ErroCanal):
+        entrada.audio.baixar()
+    # Sem baixador (ex.: testes antigos), áudio é ignorado.
+    sem, _ = adaptador.para_entrada(mensagem(voice={"file_id": "V"}), BOT)  # type: ignore[misc]
+    assert sem.audio is None

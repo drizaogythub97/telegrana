@@ -91,6 +91,20 @@ class Pessoa:
             raise AssertionError(f"{self.nome}: nenhuma pergunta do bot para responder")
         self.responde_a(pergunta, texto)
 
+    def manda_audio(self, fala: str, duracao: int = 5) -> None:
+        """Mensagem de voz. No E2E, o "áudio" é a própria fala em bytes (o transcritor é falso)."""
+        file_id = f"voz{self.mundo.tg.proximo_id()}"
+        self.mundo.tg.arquivos[file_id] = fala.encode()
+        self._mensagem(
+            voice={
+                "file_id": file_id,
+                "file_unique_id": file_id,
+                "duration": duracao,
+                "mime_type": "audio/ogg",
+                "file_size": len(fala.encode()),
+            }
+        )
+
     def responde_a(self, msg: MensagemDoBot, texto: str) -> None:
         """Usa o "Responder" do app numa mensagem do bot (ex.: corrigir um recibo)."""
         self._mensagem(

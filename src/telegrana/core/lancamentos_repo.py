@@ -65,12 +65,14 @@ class Lancamento:
     recorrente: bool | None
     apagado: bool
     criado: datetime
+    origem: str = "text"  # text | audio | fixed | invoice
+    texto_original: str | None = None  # mensagem ou transcrição (do próprio usuário)
 
 
 _SELECT_LANC = (
     "select id, kind, amount_cents, category_id, payment_method_id, to_payment_method_id,"
     " cash_on, description, status, installments, recurring, deleted_at is not null,"
-    " created_at from telegrana.transactions"
+    " created_at, source, original_text from telegrana.transactions"
 )
 
 
@@ -282,18 +284,36 @@ def lancamento_do_recibo(cur: Any, canal: str, mensagem_id: str) -> uuid.UUID | 
 # ---------------------------------------------------------------------------
 # Medidor de uso da IA (global; D038)
 # ---------------------------------------------------------------------------
+_USO = {
+    "tokens": (
+        "insert into telegrana.ai_usage (day, model, requests, tokens) values (%s, %s, 1, %s)"
+        " on conflict (day, model) do update set requests = ai_usage.requests + 1,"
+        " tokens = ai_usage.tokens + excluded.tokens"
+        " returning tokens, alerted_at"
+    ),
+    "segundos": (
+        "insert into telegrana.ai_usage (day, model, requests, audio_seconds)"
+        " values (%s, %s, 1, %s)"
+        " on conflict (day, model) do update set requests = ai_usage.requests + 1,"
+        " audio_seconds = ai_usage.audio_seconds + excluded.audio_seconds"
+        " returning audio_seconds, alerted_at"
+    ),
+}
+
+
 def registra_uso(
-    conn: db.Connection, dia: date, modelo: str, tokens: int, limite: int, alerta: float
+    conn: db.Connection,
+    dia: date,
+    modelo: str,
+    quantidade: int,
+    limite: int,
+    alerta: float,
+    medida: str = "tokens",
 ) -> int | None:
-    """Soma o uso do dia. Devolve o percentual se acabou de passar do alerta (uma vez/dia)."""
+    """Soma o uso do dia (tokens ou segundos de áudio). Devolve o percentual se acabou de
+    passar do alerta (uma vez por dia e modelo)."""
     with conn.transaction():
-        row = conn.execute(
-            "insert into telegrana.ai_usage (day, model, requests, tokens) values (%s, %s, 1, %s)"
-            " on conflict (day, model) do update set requests = ai_usage.requests + 1,"
-            " tokens = ai_usage.tokens + excluded.tokens"
-            " returning tokens, alerted_at",
-            (dia, modelo, tokens),
-        ).fetchone()
+        row = conn.execute(_USO[medida], (dia, modelo, quantidade)).fetchone()
         if row is None or row[1] is not None or row[0] < limite * alerta:
             return None
         conn.execute(

@@ -28,6 +28,7 @@ class Contexto:
     link_convite: Callable[[str], str]  # token → link de convite do canal
     pepper: bytes = field(repr=False)
     extrator: Any = None  # provedor de IA (core.entendimento.Extrator); None = sem IA
+    transcritor: Any = None  # provedor de transcrição (core.audio.Transcritor); None = sem áudio
     max_usos_convite: int = 20
     max_pedidos_por_hora: int = 20
 

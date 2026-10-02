@@ -6,6 +6,7 @@ núcleo pelo adaptador do Telegram (S1.4: entrada, cadastro, recuperação e adm
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from typing import Any
@@ -13,6 +14,7 @@ from typing import Any
 import psycopg
 
 from telegrana.ai.groq import Groq
+from telegrana.ai.whisper import Whisper
 from telegrana.channels.telegram import adaptador, webhook
 from telegrana.channels.telegram.api import TelegramAPI, TelegramError
 from telegrana.core import lancamentos_repo, roteador
@@ -82,6 +84,7 @@ def _contexto(settings: config.Settings, api: TelegramAPI) -> Contexto:
             link_convite=link_convite,
             pepper=decodifica_pepper(settings.phone_hmac_pepper),
             extrator=Groq(settings.groq_api_key) if settings.groq_api_key else None,
+            transcritor=Whisper(settings.groq_api_key) if settings.groq_api_key else None,
         )
     return _ctx
 
@@ -113,10 +116,17 @@ def _processa(update: dict[str, Any], settings: config.Settings, api: TelegramAP
         api.leave_chat(int(mensagem["chat"]["id"]))
         return "grupo.saiu"
 
-    convertido = adaptador.para_entrada(update, adaptador.bot_id(settings.telegram_bot_token))
+    convertido = adaptador.para_entrada(
+        update,
+        adaptador.bot_id(settings.telegram_bot_token),
+        lambda file_id, limite: api.baixa_arquivo(file_id, limite),  # só se o núcleo baixar
+    )
     if convertido is None:
         return "tipo.ignorado"
     entrada, origem = convertido
+    if entrada.audio is not None:
+        with contextlib.suppress(TelegramError):  # "digitando…" enquanto baixa e transcreve
+            api.call("sendChatAction", chat_id=origem.chat_id, action="typing")
     conn = _conexao(settings)
     resultado = roteador.trata(conn, _contexto(settings, api), entrada)
     falhas, refs = adaptador.executa(api, resultado, origem, settings.admin_telegram_id)
