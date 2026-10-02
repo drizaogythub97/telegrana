@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 02/10/2026 · **S0, S1 e S2 encerradas** · lançamentos por texto com IA **no ar em dev e prod** · **S3 (Áudio) em andamento**: S3.1 no PR da branch `feat/s3.1-audio`.
+> Atualizado em 02/10/2026 · **S0, S1 e S2 encerradas** · lançamentos por texto **e áudio** no ar em dev e prod · **S3 (Áudio)**: S3.1 mesclada (PR #36, `d197494`); falta o roteiro com voz de verdade e o encerramento.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -17,9 +17,9 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 
 ### S3 — em andamento (D041)
 
-- **S3.1 — áudio no bot** (branch `feat/s3.1-audio`): `voice`/`audio` do Telegram → `Entrada.audio` (duração, tamanho, formato, `baixar()` fornecido pelo canal) → `core/lancamentos.trata`: limites **antes** de baixar (≤ 2 min, ≤ 20 MB; `core/audio.py`) → download em memória (`TelegramAPI.baixa_arquivo`, para em 20 MB; o link com token nunca sai dali) → `ai/whisper.py` (cadeia `whisper-large-v3` → `whisper-large-v3-turbo`, `language=pt`, prompt com vocabulário) → a transcrição segue **como texto** (perguntas, correção de recibo, tudo). Recibo com "🎙️ «transcrição resumida»"; áudio que não vira recibo recebe "🎙️ Ouvi: «…»". "Digitando…" enquanto ouve. `ai/cadeia.py` agora é comum à extração e à transcrição. Migração **0005**: `ai_usage.audio_seconds` (medidor em segundos; aviso ao admin em 70% de 28.800 s/dia por modelo).
+- **S3.1 — áudio no bot** (PR #36, `d197494`, em prod): `voice`/`audio` do Telegram → `Entrada.audio` (duração, tamanho, formato, `baixar()` fornecido pelo canal) → `core/lancamentos.trata`: limites **antes** de baixar (≤ 2 min, ≤ 20 MB; `core/audio.py`) → download em memória (`TelegramAPI.baixa_arquivo`, para em 20 MB; o link com token nunca sai dali) → `ai/whisper.py` (cadeia `whisper-large-v3` → `whisper-large-v3-turbo`, `language=pt`, prompt com vocabulário) → a transcrição segue **como texto** (perguntas, correção de recibo, tudo). Recibo com "🎙️ «transcrição resumida»"; áudio que não vira recibo recebe "🎙️ Ouvi: «…»". "Digitando…" enquanto ouve. `ai/cadeia.py` agora é comum à extração e à transcrição. Migração **0005**: `ai_usage.audio_seconds` (medidor em segundos; aviso ao admin em 70% de 28.800 s/dia por modelo).
 - **Avaliação dos áudios** (`scripts/avaliar_ia.py --audio [--modelo-audio ...]`; cache das transcrições): **whisper-large-v3: 100%** em intenção, valor, tipo, data e categoria nos 11 áudios reais; WER médio 14,9% (pior 25%), sem efeito no resultado. O workflow do CI ganhou o passo de áudio.
-- ⚠️ **`whisper-large-v3-turbo` está bloqueado na allowlist** da organização do Groq (HTTP 403): até o Adriano autorizar a liberação (Settings → Limits → Allowed Models), a cadeia de áudio tem só o v3 — o turbo é pulado sem erro. Depois de liberar: `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD --audio --modelo-audio whisper-large-v3-turbo`.
+- **`whisper-large-v3-turbo` liberado** na allowlist pelo agente (Chrome, autorizado pelo Adriano em 02/10/2026) e avaliado: **100%**, WER 14,3%. A cadeia de áudio tem os dois modelos.
 - **Testes**: unitários (Whisper, download, adaptador) + `tests/integration/test_audio.py` (10, Postgres real, transcritor falso: recibo, limites antes de baixar, falhas, eco, pergunta e correção por áudio, medidor) + E2E 18 (novo: áudio com "digitando…", recibo, correção, eco, recusa > 2 min; a Bot API simulada ganhou `getFile`, download e `sendChatAction`).
 
 ### S2 — encerrada em 02/10/2026 (D036–D040; PRs #30, #33, #34)
@@ -94,7 +94,7 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | AWS | **conta nova** (30/09/2026), **plano FREE**, **US$ 200 de créditos até 30/09/2027**; usuário IAM `adriano-dev` (MFA, AdministratorAccess + SignInLocalDevelopmentAccess, sem access keys); MFA na root; sem Organizations | perfil `telegrana` via `aws login --profile telegrana` (sessão ≤ 12 h; quem renova é o Adriano) |
 | AWS — base | stack `telegrana-bootstrap` (`deploy/bootstrap.yaml`): orçamentos `telegrana-gasto-zero` (US$ 0,01) e `telegrana-teto-mensal` (US$ 1; créditos contam), SNS `telegrana-orcamento-estourado` (e-mail + Lambda) e `telegrana-avisos` (e-mail), Lambda `telegrana-kill-switch` (zera a concorrência das `telegrana-*`), OIDC do GitHub + papel `telegrana-github-deploy` (só `main`, **sem permissões ainda**) | e-mails de alerta confirmados |
 | Neon | projeto `telegrana` (`aws-us-east-1`, **Postgres 18**), branches `production` e `dev` **sem expiração**; nada criado dentro do banco | `NEON_OWNER_URL_PROD`, `NEON_OWNER_URL_DEV` (papel dono, conexão direta), `NEON_API_KEY` (**Project-scoped**), `NEON_PROJECT_ID` — tudo no `.env.local` |
-| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` (liberado em 02/10/2026), `whisper-large-v3`; projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (teto de 150 mil tokens/dia no gpt-oss-20b desde 01/10/2026; Whisper 800 req/dia e 10.800 s/dia). **Limites do plano gratuito são por modelo e por organização** (D040) | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
+| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `whisper-large-v3`, `whisper-large-v3-turbo` (qwen e turbo liberados em 02/10/2026); projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (teto de 150 mil tokens/dia no gpt-oss-20b desde 01/10/2026; Whisper 800 req/dia e 10.800 s/dia). **Limites do plano gratuito são por modelo e por organização** (D040) | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
 | Telegram | produção **@TelegranaAppBot**, dev **@TelegranaAppDevBot** (fora de grupos, sem webhook); app de testes "Telegrana Testes" no my.telegram.org; admin = o Adriano | `TELEGRAM_BOT_TOKEN_{PROD,DEV}`, `TELEGRAM_BOT_USERNAME_{PROD,DEV}`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_TELEGRAM_ID` |
 | Celular | Samsung Galaxy A54 (SM-A546E), **Android 16**, pareado por adb Wi-Fi, Telegram instalado | reconectar: `adb mdns services` → `adb connect IP:PORTA` |
 | Avaliação da IA | 11 áudios reais do Adriano + `audios.txt` conferido; `mensagens.txt` com 61 frases humanizadas escritas pelo agente | `tests/eval/data/` (**fora do Git**) |
@@ -145,14 +145,14 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 ## Ponto de partida exato da próxima sessão (fechar a S3)
 
 1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`.
-2. Se o PR da S3.1 ainda estiver aberto: conferir o CI (`qualidade`, `testes`, `segredos` obrigatórios; `avaliacao` agora tem o passo de áudio) e mesclar com squash. O pipeline aplica a migração 0005 e publica dev → E2E → prod.
-3. Turbo liberado pelo Adriano? Avaliar (comando acima) e, se passar, deixar como está na cadeia (já é o 2º).
+2. A S3.1 já está em prod (PR #36, `d197494`; o 1º deploy falhou por rede GitHub→Neon e passou na reexecução: `gh run rerun <id> --failed`).
+3. O turbo já foi liberado e avaliado (100%).
 4. **Roteiro** no bot de dev (celular com depuração Wi-Fi, ou Telegram Web do Adriano, abrindo **só** o chat do bot de dev): áudio "gastei 30 reais de pão hoje" (pergunta a categoria + recibo com 🎙️), áudio com valor por extenso, áudio respondendo à pergunta de valor, responder ao recibo com áudio corrigindo, áudio que não é lançamento ("oi"), áudio > 2 min (recusa). Conferir no CloudWatch o tempo de resposta e que não há erro.
 5. Encerrar a S3 com o protocolo. Próxima: **S4 — Fixos e lembretes** (o "é fixo?" já grava `transactions.recurring`).
 
 ## Pendências do Adriano
 
-- **Autorizar a liberação do `whisper-large-v3-turbo`** na allowlist do Groq (o agente faz pelo Chrome): reserva da transcrição.
+- **Roteiro de voz no bot de dev** (S3): gravar os 5 áudios do Ponto de partida (ou ligar a depuração Wi-Fi para o agente acompanhar).
 
 - **Quando a família começar a usar a produção** (D038 item 2): tetos do projeto `telegrana-dev` por modelo (~50 mil) e parar de usar a chave de produção nas avaliações locais.
 
