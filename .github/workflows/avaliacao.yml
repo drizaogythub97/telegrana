@@ -8,6 +8,8 @@ on:
     paths:
       - "src/telegrana/ai/**"
       - "src/telegrana/core/extracao.py"
+      - "src/telegrana/core/atalho.py"
+      - "src/telegrana/core/entendimento.py"
       - "src/telegrana/core/interpretacao.py"
       - "src/telegrana/core/valores.py"
       - "src/telegrana/core/datas.py"
@@ -19,6 +21,8 @@ on:
     paths:
       - "src/telegrana/ai/**"
       - "src/telegrana/core/extracao.py"
+      - "src/telegrana/core/atalho.py"
+      - "src/telegrana/core/entendimento.py"
       - "src/telegrana/core/interpretacao.py"
       - "src/telegrana/core/valores.py"
       - "src/telegrana/core/datas.py"
