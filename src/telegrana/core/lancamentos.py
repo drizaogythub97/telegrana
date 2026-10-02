@@ -405,7 +405,9 @@ def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
             return r.diz(t.RASCUNHO_SUMIU)
         acao = f"{partes[0]}:{partes[1]}"
         if acao == "tx:fix":
-            return r.diz(t.CORRIGIR_COMO)
+            # A resposta a ESTA mensagem também corrige o lançamento (como a do recibo).
+            r.saidas.append(Saida(t.CORRIGIR_COMO, ref=f"tx:{tx.id}"))
+            return r
         if acao == "tx:cat":
             ativas = [c for c in cats if c.ativa and c.tipo == tx.tipo]
             botoes = [Botao(c.rotulo, f"tx:sc:{partes[2]}:{seg.curto(c.id)}") for c in ativas]
