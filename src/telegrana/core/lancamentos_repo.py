@@ -160,7 +160,7 @@ def lancamento(cur: Any, tx_id: uuid.UUID) -> Lancamento | None:
     return Lancamento(*row) if row else None
 
 
-def ultimo(cur: Any, user_id: uuid.UUID, minutos: int = 30) -> Lancamento | None:
+def ultimo(cur: Any, user_id: uuid.UUID, minutos: int = 24 * 60) -> Lancamento | None:
     row = cur.execute(
         _SELECT_LANC + " where user_id = %s and deleted_at is null"
         " and created_at > now() - make_interval(mins => %s)"

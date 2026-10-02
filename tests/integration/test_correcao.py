@@ -183,3 +183,26 @@ def test_criar_categoria_pelo_botao_de_outra_conta_falha(
     criar = next(x for x in acoes(r) if x.startswith("tx:nc:"))
     assert bot(b, acao=criar).saidas[0].texto == t.RASCUNHO_SUMIU  # RLS
     assert lancamentos_de(banco, a)[0][2] == "mercado"
+
+
+def test_responder_a_mensagem_do_botao_corrigir_e_ultimo_do_dia(
+    bot: Bot, conn: db.Connection, banco: Banco
+) -> None:
+    de = conta(bot)
+    r = bot(de, texto="mercado 50 no pix")
+    corrigir = bot(de, acao=acoes(r)[0])  # ✏️ Corrigir
+    assert corrigir.saidas[0].texto == t.CORRIGIR_COMO
+    assert corrigir.conta is not None
+    lrepo.guarda_refs(conn, corrigir.conta, "telegram", [(corrigir.saidas[0].ref or "", "c1")])
+    r = bot(de, resposta_a="c1", texto="foi 52,80")
+    assert r.saidas[0].texto.startswith(t.CORRIGIDO)
+    assert lancamentos_de(banco, de)[0][1] == 5280
+    # Sem responder a nada: vale o último lançamento das últimas 24 h, não só de 30 min.
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute(
+            "update telegrana.transactions set created_at = now() - interval '3 hours'"
+            " where user_id = (select user_id from telegrana.user_channels where external_id = %s)",
+            (de,),
+        )
+    r = bot(de, texto="na verdade foi na padaria")
+    assert r.saidas[0].texto == t.PERGUNTA_CATEGORIA_CORRECAO.format(resumo="R$ 52,80")

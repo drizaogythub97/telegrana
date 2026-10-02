@@ -262,8 +262,8 @@ PERGUNTA_CATEGORIA = "🤔 Em qual categoria fica **{resumo}**?"
 PERGUNTA_CONFIRMAR = "⚠️ Valor alto: confirma **{resumo}**?"
 PERGUNTA_DUVIDA = "🤔 Registro **{resumo}** como um lançamento novo?"
 CORRIGIR_COMO = (
-    "✏️ Responda a este recibo com a correção, por exemplo: «foi 54,90», «foi no débito» "
-    "ou «foi ontem»."
+    "✏️ Responda a **esta mensagem** (ou ao recibo) com a correção, por texto ou áudio. "
+    "Por exemplo: «foi 54,90», «foi no débito», «foi ontem» ou «foi na padaria»."
 )
 ESCOLHA_CATEGORIA = "🏷️ Qual a categoria certa para **{resumo}**?"
 APAGADO = "🗑️ Apagado: {resumo}"
