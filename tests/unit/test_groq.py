@@ -198,3 +198,45 @@ def test_parametros_de_cada_modelo() -> None:
     assert oss["include_reasoning"] is False
     with pytest.raises(ValueError, match="modelos sem parâmetros"):
         Groq(CHAVE, modelos=("modelo/inventado",))
+
+
+def test_limite_por_minuto_curto_espera_e_tenta_de_novo() -> None:
+    respostas = iter(
+        [
+            (429, {"error": {}}, {"retry-after": "2"}),  # 20b
+            (429, {"error": {}}, {"retry-after": "3"}),  # 120b
+            (429, {"error": {}}, {"retry-after": "2"}),  # qwen
+            OK,  # 20b de novo, depois da espera
+        ]
+    )
+    esperas: list[float] = []
+
+    def responde(request: httpx.Request) -> httpx.Response:
+        status, corpo, cabecalhos = next(respostas)
+        return httpx.Response(status, json=corpo, headers=cabecalhos)
+
+    relogio = Relogio()
+
+    def dorme(segundos: float) -> None:
+        esperas.append(segundos)
+        relogio.t += segundos
+
+    groq = Groq(
+        CHAVE,
+        modelos=("openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"),
+        client=httpx.Client(transport=httpx.MockTransport(responde)),
+        relogio=relogio,
+        dorme=dorme,
+    )
+    assert groq.extrai("x", CATS, date(2026, 10, 1)).intencao == "lancamentos"
+    assert esperas == [2.0]
+
+
+def test_limite_longo_nao_espera() -> None:
+    groq, _, _ = cadeia(
+        {"openai/gpt-oss-20b": LIMITE, "openai/gpt-oss-120b": LIMITE, "qwen/qwen3.8-27b": LIMITE}
+    )
+    with pytest.raises(ErroIA) as info:
+        groq.extrai("x", CATS, date(2026, 10, 1))
+    assert info.value.limite
+    assert info.value.espera == 300.0

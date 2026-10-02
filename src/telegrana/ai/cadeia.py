@@ -18,6 +18,9 @@ import httpx
 from telegrana.core.entendimento import ErroExtracao
 
 FORA_SEM_PRAZO = 60.0  # 429 sem retry-after
+# Todos no limite POR MINUTO, liberando em poucos segundos: espera uma vez e tenta de novo
+# (cabe na Lambda de 30 s) em vez de responder "muita demanda" (02/10/2026).
+ESPERA_CURTA = 6.0
 FORA_INDISPONIVEL = 600.0  # 403/404: modelo bloqueado na organização ou retirado
 
 T = TypeVar("T")
@@ -35,15 +38,30 @@ def erro_http(resposta: httpx.Response) -> ErroIA:
 
 
 class Cadeia:
-    def __init__(self, modelos: tuple[str, ...], relogio: Any = time.monotonic) -> None:
+    def __init__(
+        self,
+        modelos: tuple[str, ...],
+        relogio: Any = time.monotonic,
+        dorme: Callable[[float], None] = time.sleep,
+    ) -> None:
         if not modelos:
             raise ValueError("cadeia sem modelos")
         self.modelos = modelos
         self._relogio = relogio
+        self._dorme = dorme
         self._fora_ate: dict[str, float] = {}
 
     def executa(self, chamada: Callable[[str], T]) -> tuple[T, str]:
         """Devolve (resultado, modelo que respondeu)."""
+        try:
+            return self._percorre(chamada)
+        except ErroIA as exc:
+            if not exc.limite or exc.espera is None or exc.espera > ESPERA_CURTA:
+                raise
+            self._dorme(exc.espera)
+            return self._percorre(chamada)
+
+    def _percorre(self, chamada: Callable[[str], T]) -> tuple[T, str]:
         agora = self._relogio()
         ultimo_erro: ErroIA | None = None
         for modelo in self.modelos:
