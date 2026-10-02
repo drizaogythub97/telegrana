@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 01/10/2026 · S0, S1 e S2.1 encerradas · **S2.2 em andamento (PR #32 aberto, falta a avaliação passar)**.
+> Atualizado em 02/10/2026 · S0, S1 e S2.1 encerradas · **S2.2 (PR #32) e S2.3 (PR #33, empilhado sobre o #32) prontas no código; falta a avaliação completa da IA passar** (cota diária do Groq).
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,14 +8,24 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D028. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D039. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
 
-### S2.2 — em andamento (D037, PR #32 ainda NÃO mesclado)
+### S2.3 — pronta no código (D038 itens 1 e 3, D039; PR #33 empilhado sobre o #32)
+
+- **Fluxo**: `core/entendimento.entende` (atalho `core/atalho.py` primeiro; IA só se ele não tiver certeza; **sem chave do Groq o atalho continua funcionando**) → `core/interpretacao` → `core/lancamentos.py` (recibo com botões `tx:fix|cat|sc|del|un`, rascunho + pergunta `lc:c|n|ok|x` e `lc_valor`/`lc_data`, regra aprendida `rg:`, "é fixo?" `fx:s|n`, correção respondendo ao recibo). SQL em `core/lancamentos_repo.py`. O bot **nunca** mostra a pergunta livre da IA.
+- **Migração 0004** (ainda não aplicada em dev/prod; entra com o merge): `pending_entries` (1 dia), `message_refs` (30 dias; limpeza em `purge_account_temporaries`, chamada pela rotina diária), `ai_usage` (global, sem dado pessoal), `transactions.installments/recurring`, formas Crédito e Boleto no padrão e para as contas existentes, `UPDATE (category_id)` em `category_rules`.
+- **Medidor**: `LIMITE_DIARIO_TOKENS = 200_000`, aviso ao admin em 70% (uma vez por dia). No limite: "estou com muita demanda, manda de novo" (desvio de D038 explicado na D039).
+- **Config**: `groq_api_key` ← `/telegrana/<env>/groq/api_key` (já existe nos dois ambientes; a Lambda já pode ler `/telegrana/<env>/*`). Timeout do Groq 15 s (Lambda 30 s).
+- **Testes**: 348 no `pytest` padrão (`tests/integration/test_lancamentos.py`: 14, com IA falsa, inclui recibo/botão de outra conta) + **17 E2E** (3 novos: recibo→correção→apagar→desfazer; ambíguo→categoria→regra; netflix "é fixo?" + IA ausente). Tudo verde localmente em 02/10/2026.
+- **Avaliação com o atalho** (02/10/2026): inconclusiva — cota do Groq esgotada; os 6 primeiros casos passaram, todos pelo atalho (0 tokens). Retomar com `--continuar` (ver Ponto de partida).
+- **Falta**: avaliação completa passar → mesclar #32 → `git merge main` na `feat/s2.3-lancamentos` (o PR #33 passa a apontar para a `main`) → CI verde → mesclar #33 (vai sozinho para dev, E2E e prod) → roteiro no celular → encerrar S2.2 e S2.3 com o protocolo. **D038 item 2** fica para quando a família começar a usar a produção (teto do `telegrana-dev` 150 mil → ~50 mil; parar de usar a chave de prod localmente).
+
+### S2.2 — código pronto (D037, PR #32 ainda NÃO mesclado)
 
 - **Pronto no PR #32** (CI de código verde esperado): contrato estrito `core/extracao.py`, `ai/prompt.py`, `ai/groq.py`, `core/valores.py`, `core/datas.py`, `core/interpretacao.py`, `scripts/avaliar_ia.py`, `scripts/avaliacao_dados.py`, `.github/workflows/avaliacao.yml`. O bot ainda **não** chama a IA (isso é a S2.3).
 - **Já aplicado fora do Git**: stack `telegrana-bootstrap` com o bucket `telegrana-avaliacao-<conta>` e o papel `telegrana-github-avaliacao`; ambiente GitHub `avaliacao` e variáveis `EVAL_ROLE_ARN`/`EVAL_BUCKET`; `/telegrana/<env>/groq/api_key` no SSM; conjunto (gabarito + frases + áudios) enviado ao bucket; teto do projeto `telegrana-dev` do Groq em **150 mil tokens/dia** no `gpt-oss-20b` (autorizado pelo Adriano).
@@ -127,14 +137,16 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 | #30 | `d4d600f` | **S2.1**: categorias e lançamentos no banco; `/categorias` (D036) |
 | #31 | `6f06e5f` | encerramento da S2.1 |
 | #32 | (aberto) | **S2.2**: extração pela IA, normalização e avaliação (D037) |
+| #33 | (aberto; base `feat/s2.2-extracao`) | **S2.3**: lançamentos no bot, atalho sem IA, medidor (D038, D039) |
 
-## Ponto de partida exato da próxima sessão (fechar a S2.2)
+## Ponto de partida exato da próxima sessão (fechar a S2.2 e a S2.3)
 
-1. Ler os 5 documentos acima. `git pull`; `git checkout feat/s2.2-extracao` (PR #32). `python scripts/check_setup.py`.
-2. **Rodar a avaliação completa** (local, ~11 min, ~60 mil tokens): `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD` (ou `GROQ_API_KEY_DEV`). Saída 0 = passou; 1 = abaixo da meta; 2 = **inconclusiva** (cota/prazo). Se der 2 de cara, a cota diária da organização (200 mil tokens, janela de 24 h, dev + prod juntos) ainda não voltou: esperar. Para ver **localmente** o que a IA respondeu nos casos que falharam, use um script de diagnóstico que imprime a frase (nunca no CI).
-3. Ajustar prompt/código até: valor, tipo, data ≥ 95%; categoria ≥ 90%; intenção ≥ 90%. Lembre: o modelo varia um pouco entre rodadas mesmo com temperatura 0 — prefira regras no **código** (determinísticas) quando der.
-4. Atualizar o gabarito no bucket se mudar (`scripts/avaliacao_dados.py enviar`); disparar o workflow "Avaliação da IA" no PR (roda pelo filtro de caminhos) e conferir que passa no CI também.
-5. Mesclar o PR #32, encerrar a S2.2 com o protocolo e seguir para a **S2.3** (incluir os itens 1–3 da **D038**: atalho sem IA, dev separado de prod, medidor de uso; e mais: lançamentos no bot: recibo com botões, perguntas da IA com botões e criação de categoria, correção por reply, apagar com desfazer, regras aprendidas, pergunta "é fixo?", tratamento de cartão de crédito antes da S5, E2E com Groq falso, roteiro no celular, produção). Na S2.3 a chave `groq/api_key` entra em `config.PARAMETROS`.
+1. Ler os 5 documentos acima. `git pull`; `git checkout feat/s2.3-lancamentos` (PR #33; contém tudo do #32). `python scripts/check_setup.py`.
+2. **Retomar a avaliação completa** (a cota da organização é de 200 mil tokens em janela de 24 h, dev + prod juntos): `uv run python scripts/avaliar_ia.py --chave-local GROQ_API_KEY_PROD --resultado <scratchpad>/aval-s23.json --continuar <scratchpad>/aval-s23.json --espera-maxima 120` (se o arquivo não existir mais, rode sem `--continuar`). Saída 0 = passou; 1 = abaixo da meta; 2 = **inconclusiva** (esperar a cota). A avaliação usa o caminho do bot (`entende`: atalho + IA); ~35% dos casos não gastam token.
+3. Se ficar abaixo da meta (valor, tipo, data ≥ 95%; categoria ≥ 90%; intenção ≥ 90%): preferir regras no **código** (atalho, `REGRAS_PADRAO`, `AMBIGUOS`) ao prompt.
+4. Passou: mesclar o #32 (squash; o CI do PR precisa estar verde, sem bypass de admin); na `feat/s2.3-lancamentos`, `git merge origin/main` + push; conferir que o #33 aponta para a `main` e o CI está verde; mesclar o #33. O pipeline aplica a 0004 e publica em dev → E2E → prod.
+5. **Roteiro no celular** (bot de dev e depois prod; adb Wi-Fi): "mercado 45,90 no pix" (recibo), responder ao recibo "foi 54,90", Apagar → Desfazer, "padaria 12" (pergunta + Sempre), "netflix 55,90" (é fixo?), "gastei 1200 no mercado esse mês já" (pergunta antes, via IA), "tenis 480 em 4x" (Crédito · 4x), uma frase só para a IA. Conferir no CloudWatch que não há erro.
+6. Encerrar S2.2 e S2.3 com o protocolo (HANDOFF, PLANO S2 ✅, memórias). Próxima: **S3 — Áudio**.
 
 ## Pendências do Adriano
 
