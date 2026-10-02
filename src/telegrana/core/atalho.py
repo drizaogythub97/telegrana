@@ -10,9 +10,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from telegrana.core import datas
+from telegrana.core import datas, valores
 from telegrana.core.extracao import ExtracaoIA, LancamentoIA
-from telegrana.core.interpretacao import AMBIGUOS, normaliza
+from telegrana.core.interpretacao import _TOTAL_ACUMULADO, AMBIGUOS, normaliza
 
 # Palavra → código da categoria padrão. Só termos sem ambiguidade (os ambíguos ficam em
 # interpretacao.AMBIGUOS e viram pergunta).
@@ -60,6 +60,10 @@ GANHOS: dict[str, str] = {
     "reembolso": "reembolso",
 }
 _VERBO_GANHO = {"recebi", "caiu", "ganhei", "entrou", "recebido"}
+_VERBO_GASTO = {"gastei", "comprei", "paguei"}
+_PERGUNTA = re.compile(
+    r"\b(quanto|quanta|quantos|quantas|qnt|qto|qual|quais|como|relatorio|resumo|saldo|sobrou)\b"
+)
 _RECORRENTES = {
     "aluguel",
     "condominio",
@@ -95,6 +99,7 @@ _FORMAS = (
     (re.compile(r"\b(inter|itau|c6|bradesco|santander|caixa|picpay)\b"), "credito", "_banco"),
 )
 LIMITE_PALAVRAS = 9
+LIMITE_RESGATE = 12
 
 
 def forma_em(texto: str) -> tuple[str | None, str | None]:
@@ -111,10 +116,32 @@ def _sem_acento(texto: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c))
 
 
+def _valores_em_digitos(texto: str) -> list[str]:
+    bruto = " ".join(_sem_acento(texto.lower()).replace("r$", " ").split())  # mantém , e .
+    # Parcelas ("3x") e datas ("dia 5", "05/09") não podem ser confundidas com o valor.
+    sem_ruido = _PARCELAS.sub(" ", bruto)
+    sem_ruido = re.sub(r"\bdia \d{1,2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b", " ", sem_ruido)
+    return list(_VALOR.findall(sem_ruido))
+
+
+def valor_por_extenso(texto: str) -> str | None:
+    """O maior trecho só de palavras que vira valor ("mil e duzentos"), se houver."""
+    palavras = [p for p in normaliza(texto).split() if not any(c.isdigit() for c in p)]
+    melhor: str | None = None
+    for i in range(len(palavras)):
+        for j in range(min(len(palavras), i + 8), i, -1):
+            trecho = " ".join(palavras[i:j])
+            if valores.interpreta(trecho).centavos:
+                if melhor is None or len(trecho) > len(melhor):
+                    melhor = trecho
+                break
+    return melhor
+
+
 def tenta(texto: str) -> ExtracaoIA | None:
     t = normaliza(texto)
     palavras = t.split()
-    bruto = " ".join(_sem_acento(texto.lower()).replace("r$", " ").split())  # mantém , e .
+    bruto = " ".join(_sem_acento(texto.lower()).replace("r$", " ").split())
     if (
         not palavras
         or len(palavras) > LIMITE_PALAVRAS
@@ -123,14 +150,39 @@ def tenta(texto: str) -> ExtracaoIA | None:
         or re.search(r"\d\s*k\b", bruto)
     ):
         return None
-    # Parcelas ("3x") e datas ("dia 5", "05/09") não podem ser confundidas com o valor.
-    sem_ruido = _PARCELAS.sub(" ", bruto)
-    sem_ruido = re.sub(r"\bdia \d{1,2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b", " ", sem_ruido)
-    valores = _VALOR.findall(sem_ruido)
-    if len(valores) != 1:
+    achados = _valores_em_digitos(texto)
+    if len(achados) > 1:
         return None
-    valor_texto = valores[0]
+    if not achados:
+        # Sem número nenhum: só "gastei no mercado" (pergunta o valor). Valor por extenso
+        # ("gastei trinta no mercado") fica com a IA.
+        verbo = (_VERBO_GASTO | _VERBO_GANHO) & set(palavras)
+        if not verbo or valor_por_extenso(texto) is not None:
+            return None
+    return _monta(texto, palavras, achados[0] if achados else None)
 
+
+def resgata(texto: str) -> ExtracaoIA | None:
+    """Depois da IA: frase de gasto que ela não virou lançamento.
+
+    Ex.: "gastei no mercado" (sem valor) ou "mil e duzentos de mercado esse mês já" lido
+    como consulta. Só com UMA palavra-chave e sem cara de pergunta; o lançamento resgatado
+    passa pelas mesmas pendências (valor, total acumulado → pergunta antes de registrar).
+    """
+    t = normaliza(texto)
+    palavras = t.split()
+    if not palavras or len(palavras) > LIMITE_RESGATE or "?" in texto or _PERGUNTA.search(t):
+        return None
+    if not (_VERBO_GASTO & set(palavras) or _TOTAL_ACUMULADO.search(t)):
+        return None
+    achados = _valores_em_digitos(texto)
+    if len(achados) > 1:
+        return None
+    return _monta(texto, palavras, achados[0] if achados else valor_por_extenso(texto))
+
+
+def _monta(texto: str, palavras: list[str], valor_texto: str | None) -> ExtracaoIA | None:
+    t = " ".join(palavras)
     ganho = bool(_VERBO_GANHO & set(palavras)) or any(p in GANHOS for p in palavras)
     tabela = GANHOS if ganho else PALAVRAS
     achadas = {tabela[p] for p in palavras if p in tabela}
@@ -144,9 +196,8 @@ def tenta(texto: str) -> ExtracaoIA | None:
     if parcelas is not None:
         forma = "credito"
 
-    sem_vazias = " ".join(
-        p for p in palavras if p not in {"no", "na", "de", "do", "da", "em", "o", "a", "reais"}
-    )
+    vazias = {"no", "na", "de", "do", "da", "em", "o", "a", "reais", *_VERBO_GASTO, *_VERBO_GANHO}
+    sem_vazias = " ".join(p for p in palavras if p not in vazias)
     descricao = re.sub(r"\d[\d.,]*", "", sem_vazias).strip()[:40] or None
     item = LancamentoIA(
         tipo="ganho" if ganho else "gasto",

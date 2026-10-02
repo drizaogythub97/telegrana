@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
-from telegrana.ai.groq import ErroIA, Groq
+from telegrana.ai.groq import MODELOS, ErroIA, Groq
 from telegrana.ai.prompt import CategoriaPrompt
 
 CHAVE = "gsk_segredo_de_teste"
@@ -72,7 +72,7 @@ def test_extrai_e_envia_pedido_estrito() -> None:
     assert groq.ultimo_uso is not None
     assert groq.ultimo_uso.tokens_em_cache == 1280
     enviado = json.loads(pedidos[0].content)
-    assert enviado["model"] == "openai/gpt-oss-20b"
+    assert enviado["model"] == MODELOS[0]
     assert enviado["temperature"] == 0
     assert enviado["response_format"]["json_schema"]["strict"] is True
     assert pedidos[0].headers["authorization"] == f"Bearer {CHAVE}"
@@ -108,3 +108,92 @@ def test_erro_http_nao_vaza_chave_nem_texto() -> None:
         groq.extrai("minha mensagem secreta", CATS, date(2026, 10, 1))
     assert CHAVE not in str(info.value)
     assert "secreta" not in str(info.value)
+
+
+# ---------------------------------------------------------------------------
+# Cadeia de modelos (D040)
+# ---------------------------------------------------------------------------
+class Relogio:
+    def __init__(self) -> None:
+        self.t = 1000.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+def cadeia(
+    por_modelo: dict[str, tuple[int, Any, dict[str, str]]],
+) -> tuple[Groq, list[str], Relogio]:
+    chamados: list[str] = []
+
+    def responde(request: httpx.Request) -> httpx.Response:
+        modelo = json.loads(request.content)["model"]
+        chamados.append(modelo)
+        status, corpo, cabecalhos = por_modelo[modelo]
+        return httpx.Response(status, json=corpo, headers=cabecalhos)
+
+    relogio = Relogio()
+    groq = Groq(
+        CHAVE,
+        modelos=("openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"),
+        client=httpx.Client(transport=httpx.MockTransport(responde)),
+        relogio=relogio,
+    )
+    return groq, chamados, relogio
+
+
+LIMITE = (429, {"error": {"message": "rate limit"}}, {"retry-after": "300"})
+OK = (200, resposta(VALIDA, {"prompt_tokens": 1000, "completion_tokens": 100}), {})
+
+
+def test_modelo_esgotado_passa_para_o_seguinte_e_fica_de_fora() -> None:
+    groq, chamados, relogio = cadeia(
+        {"openai/gpt-oss-20b": LIMITE, "openai/gpt-oss-120b": OK, "qwen/qwen3.8-27b": OK}
+    )
+    groq.extrai("x", CATS, date(2026, 10, 1))
+    assert chamados == ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+    assert groq.ultimo_uso is not None
+    assert groq.ultimo_uso.modelo == "openai/gpt-oss-120b"
+    groq.extrai("y", CATS, date(2026, 10, 1))  # o 20b continua de fora
+    assert chamados[2:] == ["openai/gpt-oss-120b"]
+    relogio.t += 301  # passou o retry-after: o principal volta a ser tentado
+    groq.extrai("z", CATS, date(2026, 10, 1))
+    assert chamados[3:] == ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+
+
+def test_modelo_bloqueado_na_organizacao_e_pulado() -> None:
+    bloqueado = (403, {"error": {"message": "blocked at the organization level"}}, {})
+    groq, chamados, _ = cadeia(
+        {"openai/gpt-oss-20b": LIMITE, "openai/gpt-oss-120b": LIMITE, "qwen/qwen3.8-27b": bloqueado}
+    )
+    with pytest.raises(ErroIA) as info:
+        groq.extrai("x", CATS, date(2026, 10, 1))
+    assert info.value.limite  # dois no limite e um bloqueado: "muita demanda"
+    assert info.value.espera == 300.0
+    with pytest.raises(ErroIA) as info:
+        groq.extrai("y", CATS, date(2026, 10, 1))
+    assert info.value.limite
+    assert len(chamados) == 3  # nada foi chamado de novo
+
+
+def test_resposta_invalida_de_um_modelo_tenta_o_seguinte() -> None:
+    groq, chamados, _ = cadeia(
+        {
+            "openai/gpt-oss-20b": (200, resposta("não é json"), {}),
+            "openai/gpt-oss-120b": OK,
+            "qwen/qwen3.8-27b": OK,
+        }
+    )
+    assert groq.extrai("x", CATS, date(2026, 10, 1)).intencao == "lancamentos"
+    assert chamados == ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
+
+
+def test_parametros_de_cada_modelo() -> None:
+    groq, _, _ = cadeia({})
+    qwen = groq.corpo("x", CATS, date(2026, 10, 1), "qwen/qwen3.8-27b")
+    assert qwen["reasoning_effort"] == "none"
+    assert "include_reasoning" not in qwen
+    oss = groq.corpo("x", CATS, date(2026, 10, 1), "openai/gpt-oss-120b")
+    assert oss["include_reasoning"] is False
+    with pytest.raises(ValueError, match="modelos sem parâmetros"):
+        Groq(CHAVE, modelos=("modelo/inventado",))

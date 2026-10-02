@@ -94,3 +94,42 @@ def test_ambiguo_vai_pelo_atalho_e_pergunta() -> None:
 )
 def test_vai_para_a_ia(texto: str) -> None:
     assert atalho.tenta(texto) is None
+
+
+def test_gasto_sem_valor_pergunta_o_valor() -> None:
+    p = proposta("gastei no mercado")
+    assert p.categoria == "mercado"
+    assert p.pendencias == ("valor",)
+    assert atalho.tenta("gastei trinta no mercado") is None  # por extenso: a IA lê
+
+
+@pytest.mark.parametrize(
+    ("texto", "centavos", "pendencias"),
+    [
+        ("mil e duzentos de mercado esse mes ja mds", 120000, ("duvida",)),
+        ("comprei umas coisa na feira", None, ("valor",)),
+    ],
+)
+def test_resgate_depois_da_ia(texto: str, centavos: int | None, pendencias: tuple[str]) -> None:
+    extracao = atalho.resgata(texto)
+    assert extracao is not None
+    (p,) = interpreta(extracao, texto, CATEGORIAS, [], HOJE).propostas
+    assert (p.centavos, p.categoria, p.pendencias) == (centavos, "mercado", pendencias)
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "qnt gastei de mercado esse mes?",
+        "quanto gastei no mercado esse mes ja",  # cara de pergunta, mesmo sem "?"
+        "oi tudo bem",
+        "gastei no mercado e na farmacia",  # duas palavras-chave: fica com a IA
+    ],
+)
+def test_resgate_nao_inventa_lancamento(texto: str) -> None:
+    assert atalho.resgata(texto) is None
+
+
+def test_valor_por_extenso() -> None:
+    assert atalho.valor_por_extenso("mil e duzentos de mercado") == "mil e duzentos"
+    assert atalho.valor_por_extenso("gastei no mercado") is None

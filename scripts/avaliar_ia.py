@@ -4,6 +4,11 @@
 Uso local (lê tests/eval/data/ e a chave GROQ_API_KEY_DEV do .env.local):
     uv run python scripts/avaliar_ia.py
 No CI: `--baixar` busca o conjunto no bucket privado e `--chave-ssm` lê a chave de dev.
+`--modelo` escolhe o modelo do Groq (cada um tem cota própria; D040).
+
+Cache de respostas (local, fora do Git, em tests/eval/data/cache/): a resposta da IA fica
+guardada pela impressão digital do pedido (modelo + prompt + frase). Mudou só o código?
+A reavaliação não gasta token. Mudou o prompt ou o modelo? Só os casos afetados chamam a IA.
 
 Imprime SÓ métricas e ids de caso: o repositório e os logs do Actions são públicos e as
 frases do conjunto nunca podem aparecer (D016). Sai com erro se ficar abaixo das metas:
@@ -13,6 +18,7 @@ valor, tipo e data ≥ 95%; categoria ≥ 90%; intenção ≥ 90%.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -26,9 +32,11 @@ from typing import Any
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
-from telegrana.ai.groq import ErroIA, Groq  # noqa: E402
+from telegrana.ai.groq import MODELOS, ErroIA, Groq  # noqa: E402
+from telegrana.ai.prompt import CategoriaPrompt  # noqa: E402
 from telegrana.core.categorias import PADROES  # noqa: E402
 from telegrana.core.entendimento import entende  # noqa: E402
+from telegrana.core.extracao import ExtracaoIA  # noqa: E402
 from telegrana.core.interpretacao import CategoriaConta, Proposta  # noqa: E402
 
 HOJE = date(2026, 10, 1)  # data de referência do gabarito
@@ -99,6 +107,32 @@ def _avalia_caso(caso: dict[str, Any], interpretacao: Any, placar: Placar) -> No
     placar.conta("pergunta (info)", perguntou == caso["perguntar"], id_)
 
 
+class ComCache:
+    """Extrator que guarda e reaproveita as respostas da IA (só na avaliação)."""
+
+    def __init__(self, groq: Groq, pasta: Path | None) -> None:
+        self.groq = groq
+        self.pasta = pasta
+        self.ultimo_uso: Any = None
+        self.acertos_cache = 0
+
+    def extrai(self, texto: str, categorias: list[CategoriaPrompt], hoje: date) -> ExtracaoIA:
+        self.ultimo_uso = None
+        arquivo = None
+        if self.pasta is not None:
+            pedido = json.dumps(self.groq.corpo(texto, categorias, hoje), sort_keys=True)
+            arquivo = self.pasta / f"{hashlib.sha256(pedido.encode()).hexdigest()}.json"
+            if arquivo.exists():
+                self.acertos_cache += 1
+                return ExtracaoIA.model_validate_json(arquivo.read_text(encoding="utf-8"))
+        extracao = self.groq.extrai(texto, categorias, hoje)
+        self.ultimo_uso = self.groq.ultimo_uso
+        if arquivo is not None:
+            arquivo.parent.mkdir(parents=True, exist_ok=True)
+            arquivo.write_text(extracao.model_dump_json(), encoding="utf-8")
+        return extracao
+
+
 def _chave(args: argparse.Namespace) -> str:
     if args.chave_ssm:
         import boto3
@@ -144,6 +178,10 @@ def main() -> int:
         help="maior espera aceita num limite do Groq; acima disso, para (inconclusiva)",
     )
     parser.add_argument("--resultado", type=Path, help="grava o placar em JSON (sem frases)")
+    parser.add_argument("--modelo", choices=MODELOS, default=MODELOS[0], help="modelo do Groq")
+    parser.add_argument(
+        "--sem-cache", action="store_true", help="sempre chama a IA (não lê nem grava o cache)"
+    )
     parser.add_argument(
         "--continuar",
         type=Path,
@@ -170,7 +208,9 @@ def main() -> int:
         casos = [c for c in casos if c["id"] not in feitos]
 
     categorias = [CategoriaConta(code, nome, emoji, tipo) for tipo, code, nome, emoji in PADROES]
-    groq = Groq(_chave(args))
+    pasta_cache = None if args.sem_cache or args.baixar else args.dados / "cache"
+    groq = ComCache(Groq(_chave(args), modelos=(args.modelo,)), pasta_cache)
+    print(f"Modelo: {args.modelo}; cache: {'sim' if pasta_cache else 'não'}")
     chamadas_ia = 0
     placar = Placar(
         dict(anterior.get("acertos", {})),
@@ -221,14 +261,17 @@ def main() -> int:
         print(
             f"  {caso['id']}: {'ok' if not erradas else 'falhou ' + ', '.join(erradas)}", flush=True
         )
-        if n < len(casos) and entendido.usou_ia:
+        if n < len(casos) and entendido.usou_ia and groq.ultimo_uso is not None:
             time.sleep(args.intervalo)
 
     print(
         f"Avaliação: {avaliados}/{len(casos)} casos nesta rodada em"
         f" {time.monotonic() - inicio:.0f}s; {len(feitos_ids)} no total"
     )
-    print(f"Chamadas à IA: {chamadas_ia} (o resto foi pelo atalho sem IA)")
+    print(
+        f"Chamadas à IA: {chamadas_ia}; respostas do cache: {groq.acertos_cache}"
+        " (o resto foi pelo atalho sem IA)"
+    )
     print(
         f"Tokens: entrada {tokens['entrada']} (cache {tokens['cache']}), saída {tokens['saida']};"
         f" contados no limite ~{tokens['entrada'] - tokens['cache'] + tokens['saida']}"
@@ -261,6 +304,7 @@ def main() -> int:
                     "falhas": placar.falhas,
                     "avaliados": feitos_ids,
                     "tokens": tokens,
+                    "modelo": args.modelo,
                 },
                 indent=2,
             ),

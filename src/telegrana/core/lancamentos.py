@@ -27,9 +27,9 @@ from telegrana.infra import db
 ORDEM = ("valor", "categoria", "data", "confirmar_valor", "duvida")
 PERGUNTAS = frozenset({"lc_valor", "lc_data"})
 PREFIXOS = ("lc:", "tx:", "rg:", "fx:")
-LIMITE_DIARIO_TOKENS = 200_000  # gpt-oss-20b, por organização (D038)
+LIMITE_DIARIO_TOKENS = 200_000  # por modelo, por organização, no plano gratuito (D038, D040)
 ALERTA_COTA = 0.7
-MODELO = "gpt-oss-20b"
+MODELO = "desconhecido"  # provedor que não informa o modelo
 EMOJI_NOVA = {"padaria": "🥖", "bar": "🍺", "academia": "🏋️", "escola": "🏫", "beleza": "💇"}
 _GENERICAS = {"expense": "outros", "income": "outros_ganhos"}
 
@@ -62,11 +62,12 @@ def _mensagem(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resu
         r.rotulo = "lancamento.ia_limite" if exc.limite else "lancamento.ia_falhou"
         return r.diz(t.SOBRECARREGADO if exc.limite else t.IA_FALHOU)
     if entendido.usou_ia:
+        modelo = (entendido.modelo or MODELO).rsplit("/", 1)[-1][:40]
         pct = repo.registra_uso(
-            conn, hoje, MODELO, entendido.tokens, LIMITE_DIARIO_TOKENS, ALERTA_COTA
+            conn, hoje, modelo, entendido.tokens, LIMITE_DIARIO_TOKENS, ALERTA_COTA
         )
         if pct is not None:
-            r.diz(t.ADM_COTA_IA.format(pct=pct, tokens=entendido.tokens), destino=ADMIN)
+            r.diz(t.ADM_COTA_IA.format(pct=pct, modelo=modelo), destino=ADMIN)
     interp = entendido.interpretacao
     r.rotulo = f"lancamento.{interp.intencao}" + (".ia" if entendido.usou_ia else ".atalho")
     with db.account_context(conn, p.account_id) as cur:

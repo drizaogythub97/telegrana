@@ -28,6 +28,12 @@ AMBIGUOS: dict[str, tuple[tuple[str, ...], str]] = {
     "escola": (("educacao", "filhos"), "Escola"),
     "colegio": (("educacao", "filhos"), "Escola"),
     "creche": (("educacao", "filhos"), "Escola"),
+    "cabelo": (("saude",), "Beleza"),
+    "salao": (("saude",), "Beleza"),
+    "barbeiro": (("saude",), "Beleza"),
+    "barbearia": (("saude",), "Beleza"),
+    "manicure": (("saude",), "Beleza"),
+    "unha": (("saude",), "Beleza"),
 }
 # Regras de fábrica: abaixo das regras da pessoa, acima da IA.
 REGRAS_PADRAO: tuple[tuple[str, str], ...] = (
@@ -40,6 +46,7 @@ REGRAS_PADRAO: tuple[tuple[str, str], ...] = (
 )
 _COMBUSTIVEL = ("gasolina", "etanol", "alcool", "diesel", "posto", "gnv")
 _TOTAL_ACUMULADO = re.compile(r"\b(esse|este|no|nesse|neste) mes (ja|todo|inteiro)\b")
+_PARCELAS = re.compile(r"\b(?:em )?(\d{1,2}) ?x\b")
 _TIPO = {"gasto": "expense", "ganho": "income", "transferencia": "transfer"}
 
 
@@ -209,6 +216,14 @@ def _proposta(
     else:
         categoria, sugestoes, nova = None, (), None
 
+    # "em 4x" que a IA não copiou; parcelado sem forma é crédito.
+    parcelas, forma = item.parcelas, item.forma_pagamento
+    achado = _PARCELAS.search(normaliza(mensagem)) if sozinho and parcelas is None else None
+    if achado and 1 <= int(achado.group(1)) <= 72:
+        parcelas = int(achado.group(1))
+    if parcelas is not None and forma is None:
+        forma = "credito"
+
     acumulado = bool(_TOTAL_ACUMULADO.search(normaliza(mensagem)))
     if (item.duvida or acumulado) and "categoria" not in pendencias and "valor" not in pendencias:
         pendencias.append("duvida")
@@ -221,9 +236,9 @@ def _proposta(
         categoria=categoria,
         sugestoes=sugestoes,
         nova_sugerida=nova,
-        forma=item.forma_pagamento,
+        forma=forma,
         cartao=item.cartao,
-        parcelas=item.parcelas,
+        parcelas=parcelas,
         descricao=item.descricao,
         pode_ser_fixo=item.pode_ser_fixo,
         duvida=item.duvida,

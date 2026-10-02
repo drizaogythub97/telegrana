@@ -293,5 +293,8 @@ SOBRECARREGADO = (
     "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
 )
 IA_FALHOU = "😕 Não consegui entender agora. Pode tentar de novo?"
-ADM_COTA_IA = "⚠️ IA: {pct}% da cota diária do Groq já foi usada hoje ({tokens} tokens)."
+ADM_COTA_IA = (
+    "⚠️ IA: o modelo {modelo} já usou {pct}% da cota de hoje no Groq. "
+    "Quando acabar, sigo nos modelos de reserva."
+)
 AUDIO_EM_BREVE = "🎙️ Áudios chegam numa próxima etapa. Por enquanto, me manda por texto."

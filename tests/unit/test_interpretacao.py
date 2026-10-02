@@ -281,3 +281,20 @@ def test_lixo_na_data_sem_data_na_frase_e_hoje() -> None:
         extracao(item(data_texto="em 1x")), "300 no mercado em 1x", CATEGORIAS, [], HOJE
     ).propostas
     assert (p.data, p.pendencias) == (HOJE, ())
+
+
+def test_parcelas_do_texto_e_parcelado_sem_forma_e_credito() -> None:
+    texto = "fone bluetooth 199 4x"
+    sem_forma = item(categoria="mercado", forma_pagamento=None)
+    r = interpreta(extracao(sem_forma), texto, CATEGORIAS, [], HOJE)
+    (p,) = r.propostas
+    assert (p.parcelas, p.forma) == (4, "credito")
+
+
+def test_cabelo_e_ambiguo() -> None:
+    r = interpreta(
+        extracao(item(categoria="vestuario")), "cortei o cabelo 45", CATEGORIAS, [], HOJE
+    )
+    (p,) = r.propostas
+    assert p.categoria is None
+    assert p.nova_sugerida == "Beleza"

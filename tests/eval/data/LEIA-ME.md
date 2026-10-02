@@ -15,3 +15,7 @@ tests/eval/data/
 
 Como o CI vai acessar esses dados sem publicá-los será decidido na S2 (proposta
 em D016: um repositório privado separado só para o conjunto de avaliação).
+
+## Cache de respostas (D040)
+
+`cache/` guarda as respostas da IA pela impressão digital do pedido (modelo + prompt + frase). Reavaliar depois de mudar só o código não gasta token; `--sem-cache` força chamadas novas. Fica fora do Git como o resto desta pasta.

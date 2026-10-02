@@ -178,7 +178,7 @@ def test_cria_categoria_nova_na_hora(bot: Bot, banco: Banco) -> None:
 def test_valor_que_faltou_e_perguntado(bot: Bot, banco: Banco) -> None:
     de = conta(bot)
     r = bot(de, texto="gastei no mercado")
-    assert r.rotulo == "lancamento.lancamentos.ia"
+    assert r.rotulo == "lancamento.lancamentos.atalho"  # sem número: o atalho pergunta o valor
     assert r.saidas[0].pergunta == "lc_valor"
     r = bot(de, pergunta="lc_valor", texto="não sei")
     assert r.saidas[0].pergunta == "lc_valor"  # pergunta de novo
@@ -278,7 +278,7 @@ def test_ia_fora_do_ar_e_limite(bot: Bot, ia: IAFalsa) -> None:
     de = conta(bot)
     assert bot(de, texto="algo que a IA não conhece").saidas[0].texto == t.IA_FALHOU
     ia.limite = True
-    assert bot(de, texto="gastei no mercado").saidas[0].texto == t.SOBRECARREGADO
+    assert bot(de, texto="guardei 52 mil na poupança").saidas[0].texto == t.SOBRECARREGADO
 
 
 def test_intencoes_sem_lancamento(bot: Bot) -> None:
@@ -298,5 +298,7 @@ def test_medidor_avisa_o_admin_uma_vez(
     r2 = bot(de, texto="oi")  # 2.400: passou de 70% → avisa
     r3 = bot(de, texto="oi")  # já avisou hoje
     assert not [s for s in r1.saidas if s.destino == ADMIN]
-    assert next(s.texto for s in r2.saidas if s.destino == ADMIN).startswith("⚠️ IA: 120%")
+    assert next(s.texto for s in r2.saidas if s.destino == ADMIN) == t.ADM_COTA_IA.format(
+        modelo="desconhecido", pct=120
+    )
     assert not [s for s in r3.saidas if s.destino == ADMIN]
