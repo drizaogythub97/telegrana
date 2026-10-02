@@ -7,6 +7,7 @@ os trechos de valor e de data como a pessoa falou; quem converte é o código
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,6 +24,15 @@ Intencao = Literal[
 Tipo = Literal["gasto", "ganho", "transferencia"]
 Forma = Literal["pix", "debito", "dinheiro", "credito", "boleto", "poupanca"]
 CampoCorrecao = Literal["valor", "data", "categoria", "forma_pagamento", "descricao"]
+
+
+@dataclass(frozen=True, slots=True)
+class CategoriaPrompt:
+    """Como uma categoria da conta aparece para a IA."""
+
+    code: str  # o que a IA devolve (o code das padrão ou o nome das criadas)
+    nome: str
+    tipo: str  # "gasto" | "ganho"
 
 
 class LancamentoIA(BaseModel):

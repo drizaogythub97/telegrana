@@ -6,8 +6,9 @@ data de hoje. Nada de histórico. A mensagem do usuário vai delimitada e é DAD
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date
+
+from telegrana.core.extracao import CategoriaPrompt
 
 _DIAS = (
     "segunda-feira",
@@ -18,6 +19,7 @@ _DIAS = (
     "sábado",
     "domingo",
 )
+__all__ = ["DICAS", "LIMITE_MENSAGEM", "REGRAS", "CategoriaPrompt", "mensagens"]
 LIMITE_MENSAGEM = 1000  # PLANO 8.3
 # Pistas curtas das categorias padrão (desfazem confusões vistas na avaliação).
 DICAS = {
@@ -28,13 +30,6 @@ DICAS = {
     "encargos": "juros, multa, tarifa",
     "reembolso": "dinheiro devolvido",
 }
-
-
-@dataclass(frozen=True, slots=True)
-class CategoriaPrompt:
-    code: str  # o que a IA devolve
-    nome: str
-    tipo: str  # "gasto" | "ganho"
 
 
 REGRAS = """Extraia lançamentos financeiros de mensagens em português do Brasil (assistente financeiro pessoal). Responda só o JSON.

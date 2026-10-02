@@ -27,9 +27,9 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "src"))
 
 from telegrana.ai.groq import ErroIA, Groq  # noqa: E402
-from telegrana.ai.prompt import CategoriaPrompt  # noqa: E402
 from telegrana.core.categorias import PADROES  # noqa: E402
-from telegrana.core.interpretacao import CategoriaConta, Proposta, interpreta  # noqa: E402
+from telegrana.core.entendimento import entende  # noqa: E402
+from telegrana.core.interpretacao import CategoriaConta, Proposta  # noqa: E402
 
 HOJE = date(2026, 10, 1)  # data de referência do gabarito
 ESPERA_MAXIMA = 120.0  # espera maior que isso = cota do dia acabou: parar, não insistir
@@ -169,10 +169,9 @@ def main() -> int:
         feitos = set(anterior.get("avaliados", []))
         casos = [c for c in casos if c["id"] not in feitos]
 
-    tipos = {"expense": "gasto", "income": "ganho"}
     categorias = [CategoriaConta(code, nome, emoji, tipo) for tipo, code, nome, emoji in PADROES]
-    para_ia = [CategoriaPrompt(c.chave, c.nome, tipos[c.tipo]) for c in categorias]
     groq = Groq(_chave(args))
+    chamadas_ia = 0
     placar = Placar(
         dict(anterior.get("acertos", {})),
         dict(anterior.get("total", {})),
@@ -187,10 +186,11 @@ def main() -> int:
         if time.monotonic() - inicio > args.prazo:
             motivo_parada = f"prazo de {args.prazo:.0f}s esgotado"
             break
-        extracao = None
+        entendido = None
         for tentativa in range(12):
             try:
-                extracao = groq.extrai(caso["texto"], para_ia, HOJE)
+                # O mesmo caminho do bot: atalho sem IA primeiro, IA só quando precisa.
+                entendido = entende(caso["texto"], categorias, [], HOJE, groq)
                 break
             except ErroIA as exc:
                 if exc.limite and (exc.espera or 0) > args.espera_maxima:
@@ -205,28 +205,30 @@ def main() -> int:
             break
         avaliados += 1
         feitos_ids.append(caso["id"])
-        if extracao is None:
+        if entendido is None:
             placar.conta("intencao", False, caso["id"])
             continue
-        if groq.ultimo_uso:
+        if entendido.usou_ia and groq.ultimo_uso:
+            chamadas_ia += 1
             tokens["entrada"] += groq.ultimo_uso.tokens_entrada
             tokens["saida"] += groq.ultimo_uso.tokens_saida
             tokens["cache"] += groq.ultimo_uso.tokens_em_cache
         antes = {m: len(f) for m, f in placar.falhas.items()}
-        _avalia_caso(caso, interpreta(extracao, caso["texto"], categorias, [], HOJE), placar)
+        _avalia_caso(caso, entendido.interpretacao, placar)
         erradas = sorted(
             m for m, f in placar.falhas.items() if len(f) > antes.get(m, 0)
         )  # só nomes de métricas e o id: nunca a frase
         print(
             f"  {caso['id']}: {'ok' if not erradas else 'falhou ' + ', '.join(erradas)}", flush=True
         )
-        if n < len(casos):
+        if n < len(casos) and entendido.usou_ia:
             time.sleep(args.intervalo)
 
     print(
         f"Avaliação: {avaliados}/{len(casos)} casos nesta rodada em"
         f" {time.monotonic() - inicio:.0f}s; {len(feitos_ids)} no total"
     )
+    print(f"Chamadas à IA: {chamadas_ia} (o resto foi pelo atalho sem IA)")
     print(
         f"Tokens: entrada {tokens['entrada']} (cache {tokens['cache']}), saída {tokens['saida']};"
         f" contados no limite ~{tokens['entrada'] - tokens['cache'] + tokens['saida']}"
