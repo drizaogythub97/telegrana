@@ -175,6 +175,7 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 **IA e Groq (S2)**
 - **Limites por modelo E por organização** (dev + prod juntos): 200 mil tokens/dia, 1.000 req/dia, 8 mil tokens/min por modelo no plano gratuito. A Política de Uso Aceitável do Groq **proíbe** criar outras contas ou organizações para somar limites — não proponha isso. A folga vem da cadeia de modelos (D040).
 - Uma avaliação completa gasta ~45–50 mil tokens do modelo avaliado. Use o **cache** (padrão) e `--casos` enquanto ajusta; `--sem-cache` só quando quiser medir a variação do modelo.
+- Desde o PR #36 o CI avalia a **cadeia** (`--modelo cadeia`), como o bot: fica inconclusivo só se todos os modelos esgotarem. Local, use `--modelo <um>` (com cache) para comparar modelos.
 - O workflow "Avaliação da IA" sai **INCONCLUSIVA (código 2)** quando a cota do modelo acaba — aparece como check vermelho, mas **não é obrigatório**. Leia o log: se as métricas avaliadas estão acima da meta, não é regressão (foi o caso do PR #34). Melhoria possível: tratar o código 2 como aviso.
 - O modelo varia entre rodadas mesmo com temperatura 0 (ex.: t14 errou a categoria no CI e acertou no local). Sempre que possível, regra no **código** > instrução no prompt.
 - qwen com `reasoning_effort: none` repete até estourar `max_completion_tokens` (HTTP 400 `json_validate_failed`): use `low`.
