@@ -183,11 +183,27 @@ def test_lancamento_por_audio(mundo: Mundo, ana: Pessoa, ouvido: None) -> None:
     ana.espera("passa de 2 minutos")
 
 
+def test_fixo_por_frase_e_ajustes(ana: Pessoa) -> None:
+    ana.diz("aluguel 1500 todo dia 10")
+    criado = ana.espera("Fixo cadastrado")
+    assert "Aluguel" in criado.texto
+    assert "dia 10" in criado.texto
+    ana.toca("Ajustar")
+    ana.espera("Fixo")
+    ana.toca("Lembretes")
+    ana.espera("Lembretes de Aluguel")
+    ana.toca("Véspera")
+    ana.toca("Ambos")
+    assert "às 09:00 e às 20:00" in ana.espera("Lembretes de Aluguel").texto
+    ana.diz("/fixos")
+    assert "Aluguel" in ana.espera("Seus fixos").texto
+
+
 def test_netflix_pergunta_se_e_fixo_e_ia_fora_do_ar(ana: Pessoa) -> None:
     ana.diz("netflix 55,90")
     assert "Isso se repete todo mês?" in ana.espera("Gasto registrado").texto
     ana.toca("Sim, todo mês")
-    ana.espera("Anotado")
+    assert "Netflix" in ana.espera("Fixo cadastrado").texto
     # Sem chave do Groq no E2E: o que o atalho não entende vira um pedido educado.
     ana.diz("comprei umas coisinhas pra casa")
     ana.espera("Não consegui entender agora")

@@ -8,12 +8,17 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D042. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D043. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S4 — em andamento (D043)
+
+- **S4.1 — fixos** (branch `feat/s4.1-fixos`): `core/fixos.py` + migração **0006** (`fixed_items` isolada; `transactions.fixed_item_id`). Nasce pelo "Sim, todo mês" do recibo (cria na hora, com ⚙️ Ajustar e ↩️ Desfazer), por frase com recorrência ("aluguel 1500 todo dia 10" só cadastra; "paguei a internet 120 todo dia 5" lança e cadastra) e é gerido em `/fixos` (valor, dia, lembretes, fixo/estimado, pausar, apagar). Testes: `tests/unit/test_fixos.py` (calendário, recorrência, fixo x estimado), `tests/integration/test_fixos.py` (5, inclui isolamento), isolamento (fixo não aponta para categoria/forma de outra conta; lançamento não aponta para fixo de outra conta) e E2E (fixo por frase + ajustes).
+- **S4.2 — lembretes (próxima)**: rotina das 09:00 e 20:00 calcula o que vence por conta (as contas com fixos ativos precisam vir de uma função SECURITY DEFINER que devolve só ids — a rotina não vê dados financeiros fora do `account_context`), envia pelo Telegram (a Lambda `rotinas` ainda não fala com o Telegram: precisa do token no SSM e do adaptador), grava `reminder_sends` (ISOLADA, única por fixo + vencimento + regra + horário), botões ✅ Paguei/Recebi, ✏️ Outro valor, ⏭️ Pular este mês (lançamento com `source = 'fixed'` e `fixed_item_id`), "todo dia depois" até pagar/pular, testes de calendário (meses curtos, virada de mês, fuso America/Sao_Paulo).
 
 ### S3 — em andamento (D041)
 
