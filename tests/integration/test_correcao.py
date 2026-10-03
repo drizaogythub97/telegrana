@@ -61,6 +61,7 @@ class IACorretora(IAFalsa):
             "muda a descrição pra compras do mês": correcao(descricao="compras do mês"),
             "a IA inventou": correcao(valor_texto="99"),  # não está na frase
             "tá certo": correcao(entendeu=False),
+            "uber 12": correcao(valor_texto="12"),
         }
         self.vistos: list[str] = []
 
@@ -206,3 +207,29 @@ def test_responder_a_mensagem_do_botao_corrigir_e_ultimo_do_dia(
         )
     r = bot(de, texto="na verdade foi na padaria")
     assert r.saidas[0].texto == t.PERGUNTA_CATEGORIA_CORRECAO.format(resumo="R$ 52,80")
+
+
+def test_depois_de_tocar_corrigir_a_proxima_mensagem_corrige_aquele_lancamento(
+    bot: Bot, banco: Banco
+) -> None:
+    de = conta(bot)
+    r = bot(de, texto="mercado 50 no pix")
+    bot(de, acao=acoes(r)[0])  # ✏️ Corrigir, sem responder depois
+    bot(de, texto="uber 12")  # a mensagem seguinte é a correção (vale para UMA mensagem)
+    assert [x[1:3] for x in lancamentos_de(banco, de)] == [(1200, "mercado")]
+    r = bot(de, texto="uber 12")  # a marca foi consumida: agora é lançamento novo
+    assert r.saidas[0].texto.startswith(t.REGISTRADO["expense"])
+
+
+def test_marca_de_corrigir_expira(bot: Bot, banco: Banco) -> None:
+    de = conta(bot)
+    r = bot(de, texto="mercado 50 no pix")
+    bot(de, acao=acoes(r)[0])
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute(
+            "update telegrana.pending_entries set created_at = now() - interval '11 minutes'"
+            " where pendencia = 'corrigir'"
+        )
+    r = bot(de, texto="uber 12")
+    assert r.saidas[0].texto.startswith(t.REGISTRADO["expense"])
+    assert len(lancamentos_de(banco, de)) == 2
