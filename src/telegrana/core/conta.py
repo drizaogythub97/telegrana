@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from telegrana.core import categorias, lancamentos
+from telegrana.core import categorias, fixos, lancamentos
 from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
@@ -67,6 +67,12 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
         with db.account_context(conn, p.account_id) as cur:
             repo.atualiza_pessoa(cur, p.user_id, full_name=nome)
         return r.diz(t.NOME_CORRIGIDO.format(nome=nome))
+    if (
+        e.comando == "fixos"
+        or (e.acao or "").startswith(fixos.PREFIXO)
+        or e.pergunta in fixos.PERGUNTAS
+    ):
+        return fixos.trata(conn, ctx, e, p)
     if (
         e.comando == "categorias"
         or (e.acao or "").startswith("cat:")

@@ -17,6 +17,9 @@ PERGUNTAS = {
     # Lançamentos (a 2ª linha diz de qual lançamento se trata)
     "lc_valor": "💬 Quanto foi?",
     "lc_data": "📅 Quando foi? (ex.: hoje, ontem, sexta, 05/09)",
+    # Fixos (a 2ª linha diz qual fixo: "🔁 <nome>")
+    "fi_valor": "💰 Qual é o novo valor deste fixo?",
+    "fi_dia": "📅 Em que dia do mês ele vence? (de 1 a 31)",
 }
 
 
@@ -158,6 +161,7 @@ AJUDA = (
     "/meus_dados — o que está guardado sobre você\n"
     "/corrigir_nome — corrigir o seu nome\n"
     "/categorias — ver, criar e editar suas categorias\n"
+    "/fixos — contas e ganhos que se repetem todo mês, com lembretes\n"
     "/termos — termos de uso, privacidade e versão aceita\n"
     "/codigo_novo — gerar um novo código de recuperação\n"
     "/apagar_conta — apagar tudo, definitivamente"
@@ -272,7 +276,22 @@ RASCUNHO_CANCELADO = "👍 Tudo bem, não registrei."
 RASCUNHO_SUMIU = "Esse lançamento já foi resolvido ou expirou. Pode mandar de novo."
 LEMBRAR_REGRA = "🧠 Quer que eu lembre: «{termo}» é sempre {rotulo}?"
 REGRA_APRENDIDA = "🧠 Pronto: «{termo}» vai sempre para {rotulo}."
-FIXO_SIM = "🔁 Anotado. Quando os fixos chegarem, aproveito isso para te lembrar todo mês."
+FIXO_TITULO = "🔁 **Fixo**"
+FIXO_CRIADO = "🔁 **Fixo cadastrado**"
+FIXO_JA_EXISTE = "🔁 **Esse fixo já existe**"
+FIXO_ATUALIZADO = "✅ **Fixo atualizado**"
+FIXOS_TITULO = "🔁 **Seus fixos**"
+FIXOS_VAZIO = (
+    "🔁 Você ainda não tem fixos. Mande, por exemplo: «aluguel 1500 todo dia 10», "
+    "«salário 3.500 todo dia 5» ou «internet 120 todo mês dia 15». "
+    "Ou toque em «Sim, todo mês» num recibo."
+)
+FIXO_SUMIU = "Esse fixo não existe mais. Veja seus fixos em /fixos."
+FIXO_APAGAR_CONFIRMA = (
+    "🗑️ Apagar o fixo **{nome}**? Os lembretes param; os lançamentos já feitos continuam."
+)
+FIXO_APAGADO = "🗑️ Fixo apagado."
+FIXO_DESFEITO = "↩️ Pronto, não é mais um fixo."
 FIXO_NAO = "👍 Anotado."
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."

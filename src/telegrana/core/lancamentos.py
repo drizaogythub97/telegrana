@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
-from telegrana.core import atalho, datas, valores
+from telegrana.core import atalho, datas, fixos, valores
 from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
@@ -155,8 +155,13 @@ def _mensagem(
     with db.account_context(conn, p.account_id) as cur:
         if interp.intencao == "lancamentos" and interp.propostas:
             formas = repo.formas(cur)
+            repete, dia = fixos.recorrencia(e.texto)
+            unico = len(interp.propostas) == 1
             for prop in interp.propostas:
-                _processa(cur, p, _dados(prop, e.texto, origem), cats, formas, hoje, r)
+                dados = _dados(prop, e.texto, origem)
+                if repete and unico and prop.tipo != "transfer":
+                    _vira_fixo(dados, dia, so_cadastro=fixos.so_cadastro(e.texto))
+                _processa(cur, p, dados, cats, formas, hoje, r)
             return r
         if interp.intencao == "apagar_ultimo":
             ultimo = repo.ultimo(cur, p.user_id)
@@ -208,6 +213,18 @@ def _dados(prop: Proposta, texto: str, origem: str = "text") -> dict[str, Any]:
         "termo": termo,
         "perguntou_categoria": False,
     }
+
+
+def _vira_fixo(dados: dict[str, Any], dia: int | None, *, so_cadastro: bool) -> None:
+    """Frase com recorrência (D043): "aluguel 1500 todo dia 10" só cadastra o fixo;
+    "paguei o aluguel 1500, todo dia 10" lança o pagamento E cadastra o fixo."""
+    dados["fixo_dia"] = dia
+    dados["fixo"] = False  # não pergunta "é fixo?": a pessoa já disse
+    if so_cadastro:
+        dados["destino"] = "fixo"
+        dados["pendencias"] = [x for x in dados["pendencias"] if x != "data"]
+    else:
+        dados["vira_fixo"] = True
 
 
 def _processa(
@@ -290,9 +307,24 @@ def _registra(
     formas: dict[str, repo.Forma],
     hoje: date,
     r: Resultado,
-) -> uuid.UUID:
+) -> uuid.UUID | None:
     tipo = dados["tipo"]
     cat = _por_chave(cats, dados.get("categoria")) if tipo != "transfer" else None
+    if dados.get("destino") == "fixo":
+        forma_fixo = formas.get(repo.FORMAS.get(dados.get("forma") or "", ""))
+        fixo, novo = fixos.cria(
+            cur,
+            p,
+            tipo=tipo,
+            nome=fixos.nome_para(dados.get("descricao"), cat.nome if cat else None),
+            categoria_id=cat.id if cat else None,
+            centavos=dados["centavos"],
+            valor_tipo_=fixos.valor_tipo(cat.code if cat else None, dados.get("texto", "")),
+            dia=dados.get("fixo_dia") or hoje.day,
+            forma_id=forma_fixo.id if forma_fixo else None,
+        )
+        r.saidas.append(fixos.criado(fixo, {c.id: c.emoji for c in cats}, novo))
+        return None
     forma = formas.get(repo.FORMAS.get(dados.get("forma") or "", ""))
     destino = None
     if tipo == "transfer":
@@ -319,6 +351,8 @@ def _registra(
     if tx is None:
         raise RuntimeError("lançamento recém-gravado não encontrado")
     r.saidas.append(_recibo(cur, tx, cats, hoje, perguntar_fixo=bool(dados.get("fixo"))))
+    if dados.get("vira_fixo") and tx.tipo != "transfer":
+        r.saidas.append(_fixo_do_lancamento(cur, p, tx, cats, dados.get("fixo_dia")))
     termo = dados.get("termo")
     if dados.get("perguntou_categoria") and termo and cat is not None and len(termo) <= 30:
         r.diz(
@@ -430,10 +464,35 @@ def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
             repo.atualiza(cur, tx.id, "deleted", False)
             r.diz(t.DESFEITO)
             return _recibo_atualizado(cur, tx.id, cats, hoje, r, titulo=t.REGISTRADO[tx.tipo])
-        if acao in {"fx:s", "fx:n"}:
-            repo.atualiza(cur, tx.id, "recurring", acao == "fx:s")
-            return r.diz(t.FIXO_SIM if acao == "fx:s" else t.FIXO_NAO)
+        if acao == "fx:n":
+            repo.atualiza(cur, tx.id, "recurring", False)
+            return r.diz(t.FIXO_NAO)
+        if acao == "fx:s":
+            if tx.tipo == "transfer":
+                return r.diz(t.USE_OS_BOTOES)
+            r.saidas.append(_fixo_do_lancamento(cur, p, tx, cats, None))
+            return r
     return r.diz(t.USE_OS_BOTOES)
+
+
+def _fixo_do_lancamento(
+    cur: Any, p: Pessoa, tx: repo.Lancamento, cats: list[repo.Categoria], dia: int | None
+) -> Saida:
+    """Cria o fixo a partir de um lançamento (nome, valor, categoria, forma, dia) e liga os dois."""
+    cat = next((c for c in cats if c.id == tx.categoria_id), None)
+    fixo, novo = fixos.cria(
+        cur,
+        p,
+        tipo=tx.tipo,
+        nome=fixos.nome_para(tx.descricao, cat.nome if cat else None),
+        categoria_id=tx.categoria_id,
+        centavos=tx.centavos,
+        valor_tipo_=fixos.valor_tipo(cat.code if cat else None, tx.texto_original or ""),
+        dia=dia or tx.data.day,
+        forma_id=tx.forma_id,
+    )
+    fixos.liga_lancamento(cur, tx.id, fixo.id)
+    return fixos.criado(fixo, {c.id: c.emoji for c in cats}, novo)
 
 
 def _recibo_atualizado(

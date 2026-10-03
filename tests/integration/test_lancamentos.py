@@ -262,7 +262,9 @@ def test_pergunta_se_e_fixo(bot: Bot, banco: Banco) -> None:
     r = bot(de, texto="netflix 55,90")
     assert t.PERGUNTA_FIXO in r.saidas[0].texto
     sim = next(a for a in acoes(r) if a.startswith("fx:s:"))
-    assert bot(de, acao=sim).saidas[0].texto == t.FIXO_SIM
+    criado = bot(de, acao=sim).saidas[0].texto
+    assert criado.startswith(t.FIXO_CRIADO)
+    assert "Netflix" in criado
     assert lancamentos_de(banco, de)[0][6] is True
 
 

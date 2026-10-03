@@ -42,6 +42,7 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "category_rules": ("id", "account_id = %(conta)s"),
     "pending_entries": ("id", "account_id = %(conta)s"),
     "message_refs": ("message_id", "account_id = %(conta)s"),
+    "fixed_items": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -129,6 +130,13 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             "insert into telegrana.message_refs (account_id, channel, message_id, transaction_id)"
             " select %s, 'telegram', %s, id from telegrana.transactions limit 1",
             (conta.account_id, "m" + external_id),
+        )
+        cur.execute(
+            "insert into telegrana.fixed_items (account_id, user_id, kind, name, category_id,"
+            " amount_cents, amount_kind, day_of_month)"
+            " select %s, %s, 'expense', 'Aluguel', id, 150000, 'fixed', 10"
+            " from telegrana.categories where code = 'moradia'",
+            (conta.account_id, conta.user_id),
         )
     return conta
 
@@ -484,3 +492,32 @@ def test_recibo_nao_aponta_para_lancamento_de_outra_conta(
             " values (%s, 'telegram', 'forjado', %s)",
             (cenario.a.account_id, row[0]),
         )
+
+
+def test_fixo_nao_aponta_para_categoria_nem_forma_de_outra_conta(
+    app: db.Connection, cenario: Cenario
+) -> None:
+    with db.account_context(app, cenario.b.account_id) as cur:
+        categoria_b = cur.execute("select id from telegrana.categories limit 1").fetchone()[0]
+        forma_b = cur.execute("select id from telegrana.payment_methods limit 1").fetchone()[0]
+    for coluna, alheio in (("category_id", categoria_b), ("payment_method_id", forma_b)):
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):  # noqa: SIM117
+            with db.account_context(app, cenario.a.account_id) as cur:
+                cur.execute(
+                    sql.SQL(
+                        "insert into telegrana.fixed_items (account_id, user_id, kind, name,"
+                        " {coluna}, amount_cents, amount_kind, day_of_month)"
+                        " values (%s, %s, 'expense', 'Invasor', %s, 100, 'fixed', 1)"
+                    ).format(coluna=sql.Identifier(coluna)),
+                    (cenario.a.account_id, cenario.a.user_id, alheio),
+                )
+
+
+def test_lancamento_nao_aponta_para_fixo_de_outra_conta(
+    app: db.Connection, cenario: Cenario
+) -> None:
+    with db.account_context(app, cenario.b.account_id) as cur:
+        fixo_b = cur.execute("select id from telegrana.fixed_items limit 1").fetchone()[0]
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):  # noqa: SIM117
+        with db.account_context(app, cenario.a.account_id) as cur:
+            cur.execute("update telegrana.transactions set fixed_item_id = %s", (fixo_b,))
