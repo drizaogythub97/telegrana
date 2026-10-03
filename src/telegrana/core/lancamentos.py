@@ -60,12 +60,28 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
             return transcrito
         ouvido, avisos = transcrito
         e = replace(e, texto=ouvido, audio=None)  # daqui em diante, igual ao texto
+    pendente = None
+    if e.pergunta not in PERGUNTAS and e.texto.strip():
+        with db.account_context(conn, p.account_id) as cur:
+            pendente = repo.correcao_pendente(cur, p.user_id)
+            if pendente is not None:
+                repo.limpa_correcao(cur, p.user_id)  # vale para UMA mensagem
     if e.pergunta in PERGUNTAS:
         r = _resposta(conn, e, p)
     elif e.resposta_a:
         r = _corrige_pelo_recibo(conn, ctx, e, p)
     elif not e.texto.strip():
         return Resultado(rotulo="lancamento.sem_texto").diz(t.SO_TEXTO_OU_AUDIO)
+    elif pendente is not None:
+        # Tocou ✏️ Corrigir e mandou a correção sem responder: corrige AQUELE lançamento.
+        r = _corrige(
+            conn,
+            ctx,
+            p,
+            pendente,
+            e.texto,
+            Resultado(rotulo="lancamento.correcao.pendente", conta=p.account_id),
+        )
     else:
         r = _mensagem(conn, ctx, e, p, origem="audio" if ouvido else "text")
     return _com_eco(r, ouvido, avisos)
@@ -439,7 +455,9 @@ def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
             return r.diz(t.RASCUNHO_SUMIU)
         acao = f"{partes[0]}:{partes[1]}"
         if acao == "tx:fix":
-            # A resposta a ESTA mensagem também corrige o lançamento (como a do recibo).
+            # A resposta a ESTA mensagem corrige o lançamento (como a do recibo); e, por
+            # 10 minutos, a próxima mensagem também, mesmo sem responder.
+            repo.marca_correcao(cur, p.account_id, p.user_id, tx.id)
             r.saidas.append(Saida(t.CORRIGIR_COMO, ref=f"tx:{tx.id}", responder=True))
             return r
         if acao == "tx:cat":

@@ -257,6 +257,35 @@ def apaga_rascunho(cur: Any, rascunho_id: uuid.UUID) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Correção pendente (✏️ Corrigir): a próxima mensagem corrige aquele lançamento
+# ---------------------------------------------------------------------------
+def marca_correcao(cur: Any, account_id: uuid.UUID, user_id: uuid.UUID, tx_id: uuid.UUID) -> None:
+    limpa_correcao(cur, user_id)
+    cria_rascunho(cur, account_id, user_id, {"tx": str(tx_id)}, "corrigir")
+
+
+def correcao_pendente(cur: Any, user_id: uuid.UUID, minutos: int = 10) -> uuid.UUID | None:
+    row = cur.execute(
+        "select data->>'tx' from telegrana.pending_entries"
+        " where user_id = %s and pendencia = 'corrigir'"
+        " and created_at > now() - make_interval(mins => %s)"
+        " order by created_at desc limit 1",
+        (user_id, minutos),
+    ).fetchone()
+    try:
+        return uuid.UUID(str(row[0])) if row and row[0] else None
+    except ValueError:
+        return None
+
+
+def limpa_correcao(cur: Any, user_id: uuid.UUID) -> None:
+    cur.execute(
+        "delete from telegrana.pending_entries where user_id = %s and pendencia = 'corrigir'",
+        (user_id,),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Recibo ↔ lançamento
 # ---------------------------------------------------------------------------
 def guarda_refs(
