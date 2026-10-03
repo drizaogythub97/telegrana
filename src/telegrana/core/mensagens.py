@@ -66,6 +66,8 @@ class Saida:
     protegida: bool = False  # sem encaminhar nem salvar (código de recuperação)
     tirar_teclado: bool = False
     ref: str | None = None  # ex.: "tx:<uuid>": o canal devolve o id da mensagem enviada
+    responder: bool = False  # abre a resposta sozinha (sem ser uma pergunta registrada)
+    substitui: bool = False  # resposta a um botão: troca a mensagem tocada (telas de ajuste)
 
 
 @dataclass(slots=True)

@@ -170,3 +170,39 @@ def test_arquivo_de_audio_formato_e_falha_do_canal() -> None:
     # Sem baixador (ex.: testes antigos), áudio é ignorado.
     sem, _ = adaptador.para_entrada(mensagem(voice={"file_id": "V"}), BOT)  # type: ignore[misc]
     assert sem.audio is None
+
+
+class _ApiAnota:
+    def __init__(self, falha: str | None = None) -> None:
+        self.chamadas: list[tuple[str, dict[str, Any]]] = []
+        self.falha = falha
+
+    def call(self, metodo: str, **params: Any) -> Any:
+        self.chamadas.append((metodo, params))
+        if self.falha and metodo == "editMessageText":
+            from telegrana.channels.telegram.api import TelegramError
+
+            raise TelegramError(self.falha)
+        return {"message_id": 99}
+
+
+def test_tela_de_ajuste_troca_a_mensagem_tocada() -> None:
+    from telegrana.core.mensagens import Resultado
+
+    origem = adaptador.Origem(42, message_id=7, callback_id="cb1")
+    r = Resultado(saidas=[Saida("tela nova", botoes=((Botao("ok", "x:1"),),), substitui=True)])
+    api = _ApiAnota()
+    falhas, _ = adaptador.executa(api, r, origem, BOT)  # type: ignore[arg-type]
+    assert falhas == 0
+    assert [m for m, _ in api.chamadas] == ["answerCallbackQuery", "editMessageText"]
+    assert api.chamadas[1][1]["message_id"] == 7
+    # Tocar duas vezes no mesmo: o Telegram responde "not modified" e isso não é falha.
+    api = _ApiAnota(falha="editMessageText: HTTP 400 Bad Request: message is not modified")
+    assert adaptador.executa(api, r, origem, BOT)[0] == 0  # type: ignore[arg-type]
+
+
+def test_mensagem_que_abre_a_resposta() -> None:
+    assert adaptador.teclado(Saida("✏️ responda", responder=True)) == {
+        "force_reply": True,
+        "input_field_placeholder": "Responda aqui",
+    }

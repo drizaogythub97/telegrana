@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
 from typing import Any
 
 import psycopg
@@ -156,9 +157,11 @@ def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     if not _primeira_vez(_conexao(settings), update_id):
         log.info("update.repetido", extra={"update_id": update_id})
         return webhook.resposta(200)
+    inicio = time.monotonic()
     try:
         acao = _processa(update, settings, _telegram(settings))
-        log.info("update.processado", extra={"update_id": update_id, "acao": acao})
+        ms = round((time.monotonic() - inicio) * 1000)
+        log.info("update.processado", extra={"update_id": update_id, "acao": acao, "ms": ms})
     except (TelegramError, psycopg.Error, KeyError, TypeError, ValueError) as exc:
         # 200 mesmo assim: evita reenvio em laço; o update já foi marcado como processado.
         # Só o tipo do erro vai para o log (a mensagem pode conter dado do usuário).

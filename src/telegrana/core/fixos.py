@@ -10,7 +10,7 @@ from __future__ import annotations
 import calendar
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -298,8 +298,9 @@ def _tela_lembretes(f: Fixo) -> Saida:
                 horario("evening", "🌙 Noite"),
                 horario("both", "🌅🌙 Ambos"),
             ),
-            (Botao("✔️ Pronto", f"fi:ed:{i}"),),
+            (Botao("✔️ Pronto", f"fi:pr:{i}"),),
         ),
+        substitui=True,
     )
 
 
@@ -337,15 +338,16 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
         if f is None:
             return r.diz(t.FIXO_SUMIU)
         emojis = _rotulos_categorias(cur)
-        if acao == "ed":
-            r.saidas.append(cartao(f, emojis))
+        if acao in {"ed", "pr"}:
+            saida = cartao(f, emojis)
+            r.saidas.append(replace(saida, substitui=acao == "pr"))  # "Pronto": volta ao cartão
             return r
         if acao == "va":
             return r.diz(f"{t.PERGUNTAS['fi_valor']}\n{MARCA} {f.nome}", pergunta="fi_valor")
         if acao == "di":
             return r.diz(f"{t.PERGUNTAS['fi_dia']}\n{MARCA} {f.nome}", pergunta="fi_dia")
         if acao == "lb":
-            r.saidas.append(_tela_lembretes(f))
+            r.saidas.append(_tela_lembretes(f))  # substitui=True: o cartão vira a tela
             return r
         if acao in _ALTERNA:
             atual = {"tb": f.antes, "to": f.no_dia, "ta": f.depois}[acao]
@@ -372,7 +374,8 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
         else:
             return r.diz(t.USE_OS_BOTOES)
         novo = por_id(cur, f.id)
-        r.saidas.append(cartao(novo or f, emojis, titulo=t.FIXO_ATUALIZADO))
+        atualizado = cartao(novo or f, emojis, titulo=t.FIXO_ATUALIZADO)
+        r.saidas.append(replace(atualizado, substitui=True))  # o cartão tocado se atualiza
     return r
 
 

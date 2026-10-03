@@ -190,11 +190,14 @@ def test_fixo_por_frase_e_ajustes(ana: Pessoa) -> None:
     assert "dia 10" in criado.texto
     ana.toca("Ajustar")
     ana.espera("Fixo")
-    ana.toca("Lembretes")
-    ana.espera("Lembretes de Aluguel")
+    ana.toca("Lembretes")  # o cartão vira a tela de lembretes (mesma mensagem)
     ana.toca("Véspera")
     ana.toca("Ambos")
-    assert "às 09:00 e às 20:00" in ana.espera("Lembretes de Aluguel").texto
+    ana.toca("Ambos")  # tocar de novo não muda nada (e não pode dar erro)
+    tela = next(m for m in ana._recebidas() if "Lembretes de Aluguel" in m.texto)
+    assert "Lembrete no dia e todo dia depois, às 09:00 e às 20:00" in tela.texto
+    ana.toca("Pronto")
+    assert "Fixo" in next(m for m in ana._recebidas() if m.id == tela.id).texto
     ana.diz("/fixos")
     assert "Aluguel" in ana.espera("Seus fixos").texto
 

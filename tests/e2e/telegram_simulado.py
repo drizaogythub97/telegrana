@@ -124,7 +124,7 @@ class TelegramSimulado:
         try:
             resultado = getattr(self, f"_{metodo}")(corpo)
         except RecusaDoTelegram as exc:
-            if "chat not found" in str(exc):
+            if "chat not found" in str(exc) or "not modified" in str(exc):
                 return httpx.Response(400, json={"ok": False, "description": str(exc)})
             raise
         return httpx.Response(200, json={"ok": True, "result": resultado})
@@ -166,6 +166,22 @@ class TelegramSimulado:
         _valida_teclado(c.get("reply_markup"))
         msg.teclado = c.get("reply_markup") or None
         return True
+
+    def _editMessageText(self, c: dict[str, Any]) -> dict[str, Any]:
+        msg = self.mensagens.get(int(c["message_id"]))
+        if msg is None or msg.chat != int(c["chat_id"]):
+            raise RecusaDoTelegram("Bad Request: message to edit not found")
+        if c.get("parse_mode") != "HTML":
+            raise RecusaDoTelegram("o bot deveria mandar HTML")
+        texto = texto_puro(c["text"])
+        teclado = c.get("reply_markup")
+        _valida_teclado(teclado)
+        if texto == msg.texto and teclado == msg.teclado:
+            raise RecusaDoTelegram("Bad Request: message is not modified")
+        self.mensagens[msg.id] = MensagemDoBot(
+            msg.id, msg.chat, c["text"], texto, teclado, msg.protegida
+        )
+        return {"message_id": msg.id, "chat": {"id": msg.chat, "type": "private"}, "text": texto}
 
     def _deleteMessage(self, c: dict[str, Any]) -> bool:
         return True
