@@ -83,7 +83,7 @@ def test_limite_vira_erro_com_espera() -> None:
     with pytest.raises(ErroIA) as info:
         groq.extrai("x", CATS, date(2026, 10, 1))
     assert info.value.limite
-    assert info.value.espera == 7.0
+    assert info.value.espera == pytest.approx(7.0, abs=0.5)  # relógio real
 
 
 @pytest.mark.parametrize(
