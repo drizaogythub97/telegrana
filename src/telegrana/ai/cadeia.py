@@ -9,6 +9,7 @@ Usada pela extração (`ai/groq.py`) e pela transcrição (`ai/whisper.py`).
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -24,6 +25,7 @@ ESPERA_CURTA = 6.0
 FORA_INDISPONIVEL = 600.0  # 403/404: modelo bloqueado na organização ou retirado
 
 T = TypeVar("T")
+log = logging.getLogger("telegrana.ia")
 
 
 class ErroIA(ErroExtracao):
@@ -67,9 +69,13 @@ class Cadeia:
         for modelo in self.modelos:
             if self._fora_ate.get(modelo, 0.0) > agora:
                 continue
+            inicio = time.monotonic()
             try:
-                return chamada(modelo), modelo
+                resultado = chamada(modelo), modelo
+                _mede(modelo, inicio, "ok")
+                return resultado
             except ErroIA as exc:
+                _mede(modelo, inicio, "limite" if exc.limite else "erro")
                 ultimo_erro = exc
                 if exc.limite:
                     self._fora_ate[modelo] = agora + (exc.espera or FORA_SEM_PRAZO)
@@ -82,3 +88,9 @@ class Cadeia:
         restante = [t - agora for m, t in self._fora_ate.items() if m in self.modelos]
         espera = max(1.0, min(restante)) if restante else None
         raise ErroIA("limite do Groq em todos os modelos", limite=True, espera=espera)
+
+
+def _mede(modelo: str, inicio: float, resultado: str) -> None:
+    """Uma linha por chamada: modelo, tempo e resultado (nada do conteúdo)."""
+    ms = round((time.monotonic() - inicio) * 1000)
+    log.info("ia.chamada", extra={"modelo": modelo, "ms": ms, "resultado": resultado})

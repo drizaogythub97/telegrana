@@ -100,7 +100,7 @@ _FORMAS = (
 )
 LIMITE_PALAVRAS = 9
 _VAZIAS = frozenset(
-    {"no", "na", "de", "do", "da", "em", "o", "a", "um", "uma", "reais", "real"}
+    {"no", "na", "de", "do", "da", "em", "o", "a", "um", "uma", "reais", "real", "r", "rs"}
     | {"hoje", "hj", "ontem", "anteontem", "dia", "agora", "agr"}
 )
 _PAGAMENTO = re.compile(

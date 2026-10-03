@@ -178,7 +178,7 @@ def teclado(saida: Saida) -> dict[str, Any] | None:
             "one_time_keyboard": True,
             "resize_keyboard": True,
         }
-    if saida.pergunta:
+    if saida.pergunta or saida.responder:
         return {"force_reply": True, "input_field_placeholder": "Responda aqui"}
     if saida.tirar_teclado:
         return {"remove_keyboard": True}
@@ -202,7 +202,29 @@ def executa(
     """
     falhas = 0
     refs: list[tuple[str, str]] = []
-    if origem.callback_id:
+    saidas = list(resultado.saidas)
+    troca = next((s for s in saidas if s.substitui), None) if origem.callback_id else None
+    if troca is not None and origem.message_id is not None:
+        # Telas de ajuste (ex.: lembretes de um fixo): a mesma mensagem muda de lugar.
+        saidas.remove(troca)
+        try:
+            api.call(
+                "answerCallbackQuery", callback_query_id=origem.callback_id, text=resultado.aviso
+            )
+            api.call(
+                "editMessageText",
+                chat_id=origem.chat_id,
+                message_id=origem.message_id,
+                text=html_de(troca.texto),
+                parse_mode="HTML",
+                reply_markup=teclado(troca) or {"inline_keyboard": []},
+                link_preview_options={"is_disabled": True},
+            )
+        except TelegramError as exc:
+            if "not modified" not in str(exc):  # tocar duas vezes no mesmo: nada muda
+                falhas += 1
+                log.warning("telegram.editar_falhou", extra={"erro": str(exc)[:120]})
+    elif origem.callback_id:
         try:
             api.call(
                 "answerCallbackQuery", callback_query_id=origem.callback_id, text=resultado.aviso
@@ -224,7 +246,7 @@ def executa(
         except TelegramError as exc:
             falhas += 1
             log.warning("telegram.apagar_falhou", extra={"erro": str(exc)[:120]})
-    for saida in resultado.saidas:
+    for saida in saidas:
         try:
             enviada = api.call(
                 "sendMessage",

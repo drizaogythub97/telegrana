@@ -54,7 +54,7 @@ Resources:
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
-        SystemLogLevel: WARN
+        SystemLogLevel: INFO  # relatório de duração e de partida a frio (sem conteúdo)
         LogGroup: !Ref BotLogGroup
       # AuthType NONE: o Telegram não assina com IAM; a autenticação é o segredo do
       # cabeçalho X-Telegram-Bot-Api-Secret-Token (PLANO 8.1). O SAM cria as permissões

@@ -1,0 +1,53 @@
+# Roteiro de testes no celular (bot de dev)
+
+> Criado em 03/10/2026 (S3 + S4.1). Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
+> Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
+
+## A — Texto
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| A1 | ✍️ `mercado 45,90 no pix` | ✅ Gasto registrado · 🛒 Mercado · R$ 45,90 · ⚡ Pix · hoje (sem linha 📝) |
+| A2 | Responder ao recibo do A1: ✍️ `foi 54,90 no débito` | ✏️ Corrigido · R$ 54,90 · 💳 Débito |
+| A3 | No recibo corrigido: 🗑️ Apagar; depois ↩️ Desfazer | "Apagado…" e depois "Lançamento de volta" + recibo |
+
+## B — Categoria ambígua e regra aprendida
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| B1 | ✍️ `bar 40` | Pergunta a categoria: 🎮 Lazer · 🍽️ Alimentação fora · ➕ Criar «Bar» · ✖️ Cancelar |
+| B2 | Tocar 🎮 Lazer | Recibo em Lazer + "Quer que eu lembre: «bar» é sempre Lazer?" → tocar ✅ Sempre |
+| B3 | ✍️ `bar 25` | Registra direto em 🎮 Lazer, sem perguntar |
+
+## C — Áudio
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| C1 | 🎙️ "gastei trinta reais de pão hoje" | "digitando…", depois pergunta a categoria (pão é ambíguo); ao escolher, recibo com a linha 🎙️ «…» |
+| C2 | 🎙️ "paguei cento e vinte reais de luz no boleto" | 💡 Contas da casa · R$ 120,00 · 🧾 Boleto, com 🎙️ «…» |
+| C3 | 🎙️ "gastei no mercado" | "💬 Quanto foi?" (o Telegram já abre a resposta) |
+| C4 | Responder à pergunta do C3 com 🎙️ "quarenta e cinco" | Recibo 🛒 Mercado · R$ 45,00 |
+| C5 | 🎙️ "oi, tudo bem?" | "🎙️ Ouvi: «…»" e uma saudação |
+
+## D — Correções (o que falhou em 02/10)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| D1 | ✍️ `mercado 50 no pix` | Recibo 🛒 Mercado · R$ 50,00 |
+| D2 | **Responder ao recibo do D1** com 🎙️ "na verdade foi na padaria, não no mercado" | ✏️ Corrigido · 🍽️ Alimentação fora (pela regra «padaria» de 02/10), R$ 50,00 mantido |
+| D3 | No mesmo recibo, tocar ✏️ Corrigir; **responder à mensagem que aparecer** com 🎙️ "foi sessenta reais" | ✏️ Corrigido · R$ 60,00 |
+| D4 | Sem responder a nada: 🎙️ "na verdade foi ontem" | ✏️ Corrigido no último lançamento, com a data de ontem |
+| D5 | Responder a um recibo com ✍️ `na verdade foi na academia` | Pergunta a categoria (sem a atual) com ➕ Criar «Academia» e 🔎 Outra → tocar Criar → Corrigido com 🏋️ Academia |
+
+## E — Fixos (S4.1)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| E1 | ✍️ `aluguel 1500 todo dia 10` | 🔁 Fixo cadastrado · 🏠 Aluguel · R$ 1.500,00 · dia 10 · lembrete na véspera, no dia e todo dia depois, às 09:00 (sem recibo de gasto) |
+| E2 | ✍️ `netflix 55,90` → no recibo, tocar 🔁 Sim, todo mês | 🔁 Fixo cadastrado · Netflix · dia de hoje |
+| E3 | 🎙️ "paguei a internet cento e vinte reais, todo dia cinco" | Recibo do pagamento **e** 🔁 Fixo cadastrado · Internet · R$ 120,00 (estimado) · dia 5 |
+| E4 | `/fixos` → tocar Aluguel → 💰 Valor → responder `1600` | ✅ Fixo atualizado · R$ 1.600,00 |
+| E5 | No Aluguel: 🔔 Lembretes → desmarcar Véspera → tocar 🌅🌙 Ambos → ✔️ Pronto | "Lembrete no dia e todo dia depois, às 09:00 e às 20:00" |
+| E6 | No Netflix: 🗑️ Apagar → 🗑️ Apagar de vez | "Fixo apagado"; o lançamento do E2 continua |
+
+## F — Limites e ajuda
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| F1 | 🎙️ áudio com **mais de 2 minutos** | Recusa ("passa de 2 minutos") sem transcrever |
+| F2 | `/ajuda` | Explica como registrar (texto ou áudio) e lista `/fixos` |
