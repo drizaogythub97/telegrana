@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 import pytest
 
-from telegrana.core import lembretes
+from telegrana.core import lembretes, valores
 from telegrana.core import textos as t
 from telegrana.core.contexto import FUSO
 from telegrana.core.fixos import Fixo
@@ -123,3 +123,21 @@ def test_so_a_agenda_manda_lembretes() -> None:
     assert rotinas._momento({"momento": "2026-10-09T09:00"}, "prod") is None  # simular: só dev
     simulado = rotinas._momento({"momento": "2026-10-09T09:00"}, "dev")
     assert simulado == datetime(2026, 10, 9, 9, 0, tzinfo=FUSO)
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("187,40", 18740),
+        ("foi 187", 18700),
+        ("R$ 187,40", 18740),
+        ("cento e oitenta e sete e quarenta", 18740),
+        ("paguei 190", 19000),
+        ("a luz deu 187", 18700),  # "luz" é o nome do fixo
+        ("mercado 50", None),  # outra coisa: lançamento novo
+        ("uber 12 ontem", None),
+        ("oi", None),
+    ],
+)
+def test_so_valor(texto: str, esperado: int | None) -> None:
+    assert valores.so_valor(texto, frozenset({"luz"})) == esperado

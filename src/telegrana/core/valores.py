@@ -204,6 +204,26 @@ def interpreta(texto: str | None) -> Valor:
     return Valor(centavos)
 
 
+_NUMERAIS = frozenset(
+    {*_UNIDADES, *_DEZENAS, *_CENTENAS, "e", "com", "mil", "k", "milhao", "milhoes", "centavos"}
+)
+_SO_VALOR = frozenset({"paguei", "recebi", "caiu", "veio", "a", "o", "da", "de", "do", "conta"})
+
+
+def so_valor(texto: str, aceitas: frozenset[str] = frozenset()) -> int | None:
+    """Centavos se a mensagem é SÓ um valor ("187,40", "foi 187", "cento e oitenta reais",
+    "a luz deu 187" com "luz" em `aceitas`); None se diz mais alguma coisa ("mercado 50")."""
+    valor = interpreta(texto)
+    if valor.centavos is None:
+        return None
+    limpo = _RUIDO.sub(" ", _sem_acento(texto.lower()).replace("r$", " "))
+    palavras = re.sub(r"[^\w\s]", " ", limpo).split()
+    permitidas = _NUMERAIS | _SO_VALOR | aceitas
+    if all(p.isdigit() or p in permitidas for p in palavras):
+        return valor.centavos
+    return None
+
+
 def em_reais(centavos: int) -> str:
     """12345 → "R$ 123,45"; 150000 → "R$ 1.500,00"."""
     reais, cents = divmod(centavos, 100)

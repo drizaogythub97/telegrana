@@ -30,6 +30,7 @@ from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.contexto import Contexto, agora
 from telegrana.core.fixos import Fixo
+from telegrana.core.interpretacao import normaliza
 from telegrana.core.lancamentos import _recibo
 from telegrana.core.mensagens import Botao, Entrada, Resultado, Saida, seguro
 from telegrana.core.repositorio import Pessoa
@@ -282,11 +283,15 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
         f = fixos.por_id(cur, fixo_id) if fixo_id else None  # RLS: outra conta não acha
         if f is None:
             return r.diz(t.FIXO_SUMIU)
+        limpa_valor(cur, p.user_id)
         if acao == "pg":
             return _paga(cur, p, f, vencimento, f.centavos, hoje, r)
         if acao == "ov":
             if _ja_resolvido(cur, f, vencimento):
                 return r.diz(_ja(f, vencimento))
+            # A resposta a ESTA pergunta paga o vencimento; e, por 10 minutos, a próxima
+            # mensagem que for só um valor também, mesmo sem responder (Telegram Web, 05/10).
+            marca_valor(cur, p, f, vencimento)
             return r.diz(
                 f"{t.PERGUNTAS['lm_valor']}\n{MARCA} {f.nome} · {vencimento:%d/%m/%Y}",
                 pergunta="lm_valor",
@@ -306,6 +311,7 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, hoje: date, r: Resulta
     if not nome or vencimento is None:
         return r.diz(t.LEMBRETE_INVALIDO)
     with db.account_context(conn, p.account_id) as cur:
+        limpa_valor(cur, p.user_id)
         f = fixos.por_nome(cur, nome)
         if f is None:
             return r.diz(t.FIXO_SUMIU)
@@ -316,6 +322,64 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, hoje: date, r: Resulta
                 pergunta="lm_valor",
             )
         return _paga(cur, p, f, vencimento, valor.centavos, hoje, r)
+
+
+# ---------------------------------------------------------------------------
+# "Outro valor" sem responder: a próxima mensagem que for só um valor
+# ---------------------------------------------------------------------------
+MINUTOS_VALOR_PENDENTE = 10
+
+
+def marca_valor(cur: Any, p: Pessoa, f: Fixo, vencimento: date) -> None:
+    limpa_valor(cur, p.user_id)
+    lrepo.cria_rascunho(
+        cur,
+        p.account_id,
+        p.user_id,
+        {"fixo": str(f.id), "venc": vencimento.isoformat()},
+        "lembrete",
+    )
+
+
+def limpa_valor(cur: Any, user_id: uuid.UUID) -> None:
+    cur.execute(
+        "delete from telegrana.pending_entries where user_id = %s and pendencia = 'lembrete'",
+        (user_id,),
+    )
+
+
+def _valor_pendente(cur: Any, user_id: uuid.UUID) -> tuple[uuid.UUID, date] | None:
+    row = cur.execute(
+        "select data->>'fixo', data->>'venc' from telegrana.pending_entries"
+        " where user_id = %s and pendencia = 'lembrete'"
+        " and created_at > now() - make_interval(mins => %s)"
+        " order by created_at desc limit 1",
+        (user_id, MINUTOS_VALOR_PENDENTE),
+    ).fetchone()
+    try:
+        return (uuid.UUID(str(row[0])), date.fromisoformat(str(row[1]))) if row else None
+    except ValueError:
+        return None
+
+
+def valor_sem_responder(conn: db.Connection, p: Pessoa, texto: str) -> Resultado | None:
+    """Depois do ✏️ Outro valor: se esta mensagem é só um valor, paga aquele vencimento.
+    None = não havia pergunta aberta ou a mensagem diz outra coisa (segue como lançamento).
+    A marca vale para UMA mensagem."""
+    with db.account_context(conn, p.account_id) as cur:
+        achado = _valor_pendente(cur, p.user_id)
+        if achado is None:
+            return None
+        limpa_valor(cur, p.user_id)
+        f = fixos.por_id(cur, achado[0])
+        if f is None:
+            return None
+        nome = frozenset(normaliza(f.nome).split())
+        centavos = valores.so_valor(texto, nome)
+        if centavos is None:
+            return None
+        r = Resultado(rotulo="lembrete.valor.pendente", conta=p.account_id)
+        return _paga(cur, p, f, achado[1], centavos, agora().date(), r)
 
 
 def _ja(f: Fixo, vencimento: date) -> str:
