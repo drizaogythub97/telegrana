@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 02/10/2026 · **S0, S1 e S2 encerradas** · lançamentos por texto **e áudio** no ar em dev e prod · **S3 (Áudio)**: S3.1 mesclada (PR #36, `d197494`); falta o roteiro com voz de verdade e o encerramento.
+> Atualizado em 05/10/2026 · **S0, S1, S2 e S3 encerradas** · texto e **áudio** no ar em dev e prod · **S4 (fixos e lembretes) em andamento**: S4.1 (fixos) em prod; próxima: **S4.2 — lembretes**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -17,18 +17,19 @@ A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (
 
 ### S4 — em andamento (D043)
 
-- **S4.1 — fixos** (branch `feat/s4.1-fixos`): `core/fixos.py` + migração **0006** (`fixed_items` isolada; `transactions.fixed_item_id`). Nasce pelo "Sim, todo mês" do recibo (cria na hora, com ⚙️ Ajustar e ↩️ Desfazer), por frase com recorrência ("aluguel 1500 todo dia 10" só cadastra; "paguei a internet 120 todo dia 5" lança e cadastra) e é gerido em `/fixos` (valor, dia, lembretes, fixo/estimado, pausar, apagar). Testes: `tests/unit/test_fixos.py` (calendário, recorrência, fixo x estimado), `tests/integration/test_fixos.py` (5, inclui isolamento), isolamento (fixo não aponta para categoria/forma de outra conta; lançamento não aponta para fixo de outra conta) e E2E (fixo por frase + ajustes).
+- **S4.1 — fixos** (PR #41, `4b6c4f2`, em prod; ajustes nos PRs #43–#45): `core/fixos.py` + migração **0006** (`fixed_items` isolada; `transactions.fixed_item_id`). Nasce pelo "Sim, todo mês" do recibo (cria na hora, com ⚙️ Ajustar e ↩️ Desfazer), por frase com recorrência ("aluguel 1500 todo dia 10" só cadastra; "paguei a internet 120 todo dia 5" lança e cadastra) e é gerido em `/fixos` (valor, dia, lembretes, fixo/estimado, pausar, apagar). Testes: `tests/unit/test_fixos.py` (calendário, recorrência, fixo x estimado), `tests/integration/test_fixos.py` (5, inclui isolamento), isolamento (fixo não aponta para categoria/forma de outra conta; lançamento não aponta para fixo de outra conta) e E2E (fixo por frase + ajustes).
 - **S4.2 — lembretes (próxima)**: rotina das 09:00 e 20:00 calcula o que vence por conta (as contas com fixos ativos precisam vir de uma função SECURITY DEFINER que devolve só ids — a rotina não vê dados financeiros fora do `account_context`), envia pelo Telegram (a Lambda `rotinas` ainda não fala com o Telegram: precisa do token no SSM e do adaptador), grava `reminder_sends` (ISOLADA, única por fixo + vencimento + regra + horário), botões ✅ Paguei/Recebi, ✏️ Outro valor, ⏭️ Pular este mês (lançamento com `source = 'fixed'` e `fixed_item_id`), "todo dia depois" até pagar/pular, testes de calendário (meses curtos, virada de mês, fuso America/Sao_Paulo).
 
-### S3 — em andamento (D041)
+### S3 — encerrada em 05/10/2026 (D041, D042; PRs #36–#40, #43–#45)
 
 - **S3.1 — áudio no bot** (PR #36, `d197494`, em prod): `voice`/`audio` do Telegram → `Entrada.audio` (duração, tamanho, formato, `baixar()` fornecido pelo canal) → `core/lancamentos.trata`: limites **antes** de baixar (≤ 2 min, ≤ 20 MB; `core/audio.py`) → download em memória (`TelegramAPI.baixa_arquivo`, para em 20 MB; o link com token nunca sai dali) → `ai/whisper.py` (cadeia `whisper-large-v3` → `whisper-large-v3-turbo`, `language=pt`, prompt com vocabulário) → a transcrição segue **como texto** (perguntas, correção de recibo, tudo). Recibo com "🎙️ «transcrição resumida»"; áudio que não vira recibo recebe "🎙️ Ouvi: «…»". "Digitando…" enquanto ouve. `ai/cadeia.py` agora é comum à extração e à transcrição. Migração **0005**: `ai_usage.audio_seconds` (medidor em segundos; aviso ao admin em 70% de 28.800 s/dia por modelo).
 - **Avaliação dos áudios** (`scripts/avaliar_ia.py --audio [--modelo-audio ...]`; cache das transcrições): **whisper-large-v3: 100%** em intenção, valor, tipo, data e categoria nos 11 áudios reais; WER médio 14,9% (pior 25%), sem efeito no resultado. O workflow do CI ganhou o passo de áudio.
 - **`whisper-large-v3-turbo` liberado** na allowlist pelo agente (Chrome, autorizado pelo Adriano em 02/10/2026) e avaliado: **100%**, WER 14,3%. A cadeia de áudio tem os dois modelos.
 - **Testes**: unitários (Whisper, download, adaptador) + `tests/integration/test_audio.py` (10, Postgres real, transcritor falso: recibo, limites antes de baixar, falhas, eco, pergunta e correção por áudio, medidor) + E2E 18 (novo: áudio com "digitando…", recibo, correção, eco, recusa > 2 min; a Bot API simulada ganhou `getFile`, download e `sendChatAction`).
 
-- **S3.2 — correções pela IA** (D042; branch `feat/s3.2-correcao-ia`): o roteiro de voz do Adriano mostrou que o leitor de correções por código não entendia "foi na padaria, não foi no mercado". Agora a correção vai à IA (`Groq.corrige` → `CorrecaoIA`, prompt `REGRAS_CORRECAO` com o resumo do lançamento) e o código aplica: valor/data só se estiverem na frase, regra aprendida primeiro, ambíguo vira pergunta sem a categoria negada + "➕ Criar «…»" (`tx:nc`) + "🔎 Outra". Sem IA: o leitor por código (agora com as regras aprendidas). `tests/integration/test_correcao.py` (9). Não há ainda conjunto de avaliação de correções: juntar frases reais do Adriano quando aparecerem.
-- **Roteiro de voz (02/10/2026, Adriano)**: gasto por áudio ✅, correção de valor por áudio ✅, correção de categoria por áudio ❌ → corrigida na S3.2. Os outros itens do roteiro (pão com pergunta de categoria, valor por extenso, responder pergunta de valor com áudio, "oi") ainda não foram gravados.
+- **S3.2 — correções pela IA** (D042; PR #38, `5c7abd7`): o roteiro de voz do Adriano mostrou que o leitor de correções por código não entendia "foi na padaria, não foi no mercado". Agora a correção vai à IA (`Groq.corrige` → `CorrecaoIA`, prompt `REGRAS_CORRECAO` com o resumo do lançamento) e o código aplica: valor/data só se estiverem na frase, regra aprendida primeiro, ambíguo vira pergunta sem a categoria negada + "➕ Criar «…»" (`tx:nc`) + "🔎 Outra". Sem IA: o leitor por código (agora com as regras aprendidas). `tests/integration/test_correcao.py` (9). Não há ainda conjunto de avaliação de correções: juntar frases reais do Adriano quando aparecerem.
+- **Correção, do jeito que a pessoa faz** (PRs #40, #44, #45): responder ao recibo **ou** à mensagem do ✏️ Corrigir corrige aquele lançamento; depois de tocar ✏️ Corrigir, a próxima mensagem (10 min, uma só, migração **0007**) também; frases que só podem ser correção ("na verdade", "na vdd", "não era", "errei", "corrige", "o certo é") vão direto para o **último lançamento mexido** (criado ou corrigido) nas últimas 24 h.
+- **Roteiros** (`docs/ROTEIRO-TESTES.md`): 02, 03 e 05/10/2026 — áudio pelo Adriano no celular, texto pelo agente no Telegram Web. Tudo certo na última rodada (05/10), inclusive correção por áudio sem responder. Do roteiro saíram: "r pao" na descrição, saudação "texto ou áudio", telas de ajuste que se atualizam (`Saida.substitui` → `editMessageText`), ✏️ Corrigir que abre a resposta (`Saida.responder`), medição de tempo (`ia.chamada`, `update.processado` com `ms`; IA ~0,9 s, mensagem 0,9–1,5 s).
 
 ### S2 — encerrada em 02/10/2026 (D036–D040; PRs #30, #33, #34)
 
@@ -148,19 +149,34 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #32 | (fechado) | S2.2 — incorporado ao #33 |
 | #33 | `93fdb3e` | **S2.2 + S2.3**: IA de extração, lançamentos no bot, atalho, medidor, cadeia de modelos (D037–D040) |
 | #34 | `be2df4b` | qwen na cadeia + ajustes do roteiro de validação (D040) |
-| #35 | (este) | encerramento da S2 |
+| #35 | `8f2087f` | encerramento da S2 |
+| #36 | `d197494` | **S3.1**: lançamentos por áudio (D041) |
+| #37 | `a7d12fa` | docs: turbo liberado e avaliado |
+| #38 | `5c7abd7` | **S3.2**: correções interpretadas pela IA (D042) |
+| #39 | `9bf7cac` | IA: espera curta no limite por minuto; CI sem disputar a cota |
+| #40 | `0809ab0` | correção: responder ao ✏️ Corrigir; último das 24 h |
+| #41 | `4b6c4f2` | **S4.1**: fixos (D043) |
+| #42 | `8eef743` | test: espera do limite com tolerância |
+| #43 | `3ba18c0` | ajustes do roteiro de 03/10 |
+| #44 | `c8370ff` | correção pendente depois do ✏️ Corrigir (migração 0007) |
+| #45 | `aab6f07` | correção sem responder: último mexido e frases de correção |
+| #46 | (este) | encerramento da S3 |
 
-## Ponto de partida exato da próxima sessão (fechar a S3)
+## Ponto de partida exato da próxima sessão (S4.2 — lembretes)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`.
-2. A S3.1 já está em prod (PR #36, `d197494`; o 1º deploy falhou por rede GitHub→Neon e passou na reexecução: `gh run rerun <id> --failed`).
-3. O turbo já foi liberado e avaliado (100%).
-4. **Roteiro** no bot de dev (celular com depuração Wi-Fi, ou Telegram Web do Adriano, abrindo **só** o chat do bot de dev): áudio "gastei 30 reais de pão hoje" (pergunta a categoria + recibo com 🎙️), áudio com valor por extenso, áudio respondendo à pergunta de valor, responder ao recibo com áudio corrigindo, áudio que não é lançamento ("oi"), áudio > 2 min (recusa). Conferir no CloudWatch o tempo de resposta e que não há erro.
-5. Encerrar a S3 com o protocolo. Próxima: **S4 — Fixos e lembretes** (o "é fixo?" já grava `transactions.recurring`).
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (se der **400 Bad Request**, fechar a aba velha e rodar de novo; persistindo, `aws login --profile telegrana --remote` numa janela anônima).
+2. **S4.2 — lembretes** (D043; PLANO 4.3 e 4.4):
+   - Migração 0008: `reminder_sends` ISOLADA (`account_id`, `fixed_item_id`, `due_date`, `rule` before/on_day/after, `slot` morning/evening, `sent_at`; única por fixo + vencimento + regra + horário) e o registro do mês resolvido (pago/pulado) — ex.: `fixed_occurrences` (`fixed_item_id`, `due_date`, `status` paid/skipped, `transaction_id`), única por fixo + vencimento.
+   - Função SECURITY DEFINER que devolve **só** os ids das contas com fixos ativos (a rotina não vê dados fora do `account_context`); blindada como as outras (search_path fixo, sem PUBLIC).
+   - Motor puro (`core/lembretes.py`): dado hoje, o horário (09:00/20:00 America/Sao_Paulo) e os fixos, quais lembretes cabem — véspera, no dia, "todo dia depois" até pago/pulado; dia 31 em mês curto (`fixos.vencimento`); virada de mês/ano. Testes de calendário.
+   - Lambda `rotinas`: hoje só limpa; passa a mandar mensagens. Precisa do token do bot (SSM, já existe) e do adaptador do Telegram — o núcleo devolve `Saida`s e o canal envia (núcleo agnóstico).
+   - Botões no lembrete: ✅ Paguei/Recebi (lançamento `source = 'fixed'`, `fixed_item_id`, valor do fixo), ✏️ Outro valor (pergunta o valor), ⏭️ Pular este mês. Tudo idempotente (toque duplo, rotina repetida).
+   - E2E: simular a rotina chamando o motor com uma data fixa.
+3. Seguir o protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (`docs/ROTEIRO-TESTES.md`, acrescentar o bloco de lembretes) → encerramento.
 
 ## Pendências do Adriano
 
-- **Roteiro de voz no bot de dev** (S3): gravar os 5 áudios do Ponto de partida (ou ligar a depuração Wi-Fi para o agente acompanhar).
+- Autorizar os limites do projeto `telegrana-dev` no Groq (o agente faz pelo Chrome): ~4 mil tokens/min e ~50 mil/dia por modelo, para testes e CI nunca ocuparem a cota da produção (D038 item 2, D040).
 
 - **Quando a família começar a usar a produção** (D038 item 2): tetos do projeto `telegrana-dev` por modelo (~50 mil) e parar de usar a chave de produção nas avaliações locais.
 
