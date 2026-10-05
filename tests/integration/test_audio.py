@@ -151,3 +151,31 @@ def test_medidor_conta_segundos_e_avisa_o_admin(
             " where model = 'whisper-large-v3'"
         ).fetchone()
     assert uso == (2, 0, 80)
+
+
+def test_audio_responde_perguntas_do_fixo_e_do_lembrete(
+    bot: Bot, conn: db.Connection, banco: Banco, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Respondendo à pergunta com áudio (o celular abre a resposta sozinho): 05/10/2026."""
+    from datetime import datetime
+
+    from telegrana.core import lembretes
+    from telegrana.core.contexto import FUSO
+
+    de = conta(bot)
+    bot(de, texto="aluguel 1500 todo dia 10")
+    r = bot(de, pergunta="fi_dia", contexto="🔁 Aluguel", audio=audio("dia doze"))
+    assert textos_de(r)[0] == t.OUVI.format(trecho="dia doze")
+    assert "dia 12" in textos_de(r)[1]
+
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute("update telegrana.fixed_items set created_at = '2026-09-20 12:00-03'")
+    monkeypatch.setattr(lembretes, "agora", lambda: datetime(2026, 10, 13, 10, tzinfo=FUSO))
+    r = bot(
+        de,
+        pergunta="lm_valor",
+        contexto="🔔 Aluguel · 12/10/2026",
+        audio=audio("mil quinhentos e cinquenta"),
+    )
+    assert "R$ 1.550,00" in textos_de(r)[0]  # o recibo já é a resposta (sem "Ouvi")
+    assert lancamentos_de(banco, de)[0][1] == 155000

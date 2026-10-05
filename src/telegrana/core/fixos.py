@@ -393,11 +393,21 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
                 return r.diz(f"{t.PERGUNTAS['fi_valor']}\n{MARCA} {f.nome}", pergunta="fi_valor")
             atualiza(cur, f.id, "amount_cents", valor.centavos)
         else:
-            achado = re.search(r"\b(\d{1,2})\b", e.texto)
-            dia = int(achado.group(1)) if achado else 0
+            dia = _dia_dito(e.texto)
             if not 1 <= dia <= 31:
                 return r.diz(f"{t.PERGUNTAS['fi_dia']}\n{MARCA} {f.nome}", pergunta="fi_dia")
             atualiza(cur, f.id, "day_of_month", dia)
         novo = por_id(cur, f.id)
         r.saidas.append(cartao(novo or f, _rotulos_categorias(cur), titulo=t.FIXO_ATUALIZADO))
     return r
+
+
+def _dia_dito(texto: str) -> int:
+    """ "10", "dia 10", "dia doze" (áudio) → dia do mês; 0 se não entendeu."""
+    achado = re.search(r"\b(\d{1,2})\b", texto)
+    if achado:
+        return int(achado.group(1))
+    palavras = re.sub(r"[^\w\s]|\bdia\b", " ", texto, flags=re.IGNORECASE)  # "Dia doze."
+    valor = valores.interpreta(palavras)
+    centavos = valor.centavos or 0
+    return centavos // 100 if centavos % 100 == 0 else 0
