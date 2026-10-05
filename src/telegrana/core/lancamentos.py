@@ -38,6 +38,11 @@ from telegrana.infra import db
 
 ORDEM = ("valor", "categoria", "data", "confirmar_valor", "duvida")
 PERGUNTAS = frozenset({"lc_valor", "lc_data"})
+# Frase que só pode ser correção ("na verdade foi ontem"): vai direto para a correção do
+# último lançamento, sem depender de a IA classificar a intenção (03/10/2026).
+_PARECE_CORRECAO = re.compile(
+    r"\b(na verdade|na vdd|nao era|errei|corrig\w*|o certo e|era pra ser|era para ser)\b"
+)
 PREFIXOS = ("lc:", "tx:", "rg:", "fx:")
 LIMITE_DIARIO_TOKENS = 200_000  # por modelo, por organização, no plano gratuito (D038, D040)
 ALERTA_COTA = 0.7
@@ -149,6 +154,11 @@ def _mensagem(
     conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa, *, origem: str = "text"
 ) -> Resultado:
     hoje = agora().date()
+    if _PARECE_CORRECAO.search(normaliza(e.texto)):
+        with db.account_context(conn, p.account_id) as cur:
+            alvo = repo.ultimo(cur, p.user_id)
+        r = Resultado(rotulo="lancamento.correcao.frase", conta=p.account_id)
+        return _corrige(conn, ctx, p, alvo.id if alvo else None, e.texto, r)
     with db.account_context(conn, p.account_id) as cur:
         cats = repo.categorias(cur)
         regras = repo.regras(cur, cats)
