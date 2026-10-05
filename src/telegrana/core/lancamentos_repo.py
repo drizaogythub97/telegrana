@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
+from telegrana.core import cartoes
 from telegrana.core.interpretacao import CategoriaConta, Regra
 from telegrana.infra import db
 
@@ -67,12 +68,17 @@ class Lancamento:
     criado: datetime
     origem: str = "text"  # text | audio | fixed | invoice
     texto_original: str | None = None  # mensagem ou transcrição (do próprio usuário)
+    compra: uuid.UUID | None = None  # compra no cartão: o lançamento é a 1ª parcela
+    fatura: date | None = None  # vencimento da fatura da 1ª parcela
 
 
+# Compra no cartão aparece como UM lançamento: o total das parcelas e a data da compra.
 _SELECT_LANC = (
-    "select id, kind, amount_cents, category_id, payment_method_id, to_payment_method_id,"
-    " cash_on, description, status, installments, recurring, deleted_at is not null,"
-    " created_at, source, original_text from telegrana.transactions"
+    "select x.id, x.kind, coalesce((select sum(y.amount_cents)::bigint from telegrana.transactions y"
+    " where y.purchase_id = x.purchase_id), x.amount_cents), x.category_id,"
+    " x.payment_method_id, x.to_payment_method_id, x.occurred_on, x.description, x.status,"
+    " x.installments, x.recurring, x.deleted_at is not null, x.created_at, x.source,"
+    " x.original_text, x.purchase_id, x.invoice_on from telegrana.transactions x"
 )
 
 
@@ -165,6 +171,7 @@ def ultimo(cur: Any, user_id: uuid.UUID, minutos: int = 24 * 60) -> Lancamento |
     está falando quando diz "na verdade foi ontem" logo depois de uma correção."""
     row = cur.execute(
         _SELECT_LANC + " where user_id = %s and deleted_at is null"
+        " and (installment_no is null or installment_no = 1)"
         " and greatest(created_at, updated_at) > now() - make_interval(mins => %s)"
         " order by greatest(created_at, updated_at) desc limit 1",
         (user_id, minutos),
@@ -184,6 +191,19 @@ _CAMPOS = {
 
 
 def atualiza(cur: Any, tx_id: uuid.UUID, campo: str, valor: object) -> None:
+    if campo not in _CAMPOS:
+        raise ValueError(f"campo inválido: {campo}")
+    row = cur.execute(
+        "select purchase_id, kind from telegrana.transactions where id = %s", (tx_id,)
+    ).fetchone()
+    if row and row[0] is not None:
+        cartoes.atualiza_compra(cur, row[0], campo, valor)  # vale para todas as parcelas
+        return
+    if campo == "payment_method_id" and row and row[1] == "expense":
+        cartao = cartoes.da_forma(cur, valor)  # type: ignore[arg-type]
+        if cartao is not None:  # "foi no Nubank": vira compra nas faturas do cartão
+            cartoes.converte(cur, tx_id, cartao)
+            return
     sql = _CAMPOS[campo]  # lista fixa: nada vem de fora
     if campo == "cash_on":
         cur.execute(sql, (valor, valor, tx_id))
@@ -252,6 +272,19 @@ def rascunho_mais_recente(
         (user_id, pendencia),
     ).fetchone()
     return (uuid.UUID(str(row[0])), dict(row[1])) if row else None
+
+
+def pendencia_recente(cur: Any, user_id: uuid.UUID, minutos: int = 10) -> str | None:
+    """A pendência do rascunho mais recente (para a resposta mandada sem "Responder")."""
+    row = cur.execute(
+        "select pendencia from telegrana.pending_entries"
+        " where user_id = %s and expires_at > now()"
+        " and pendencia in ('valor', 'cartao', 'cartao_dias')"
+        " and created_at > now() - make_interval(mins => %s)"
+        " order by created_at desc limit 1",
+        (user_id, minutos),
+    ).fetchone()
+    return str(row[0]) if row else None
 
 
 def apaga_rascunho(cur: Any, rascunho_id: uuid.UUID) -> None:

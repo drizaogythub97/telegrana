@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
-from telegrana.core import atalho, datas, fixos, valores
+from telegrana.core import atalho, cartoes, datas, fixos, valores
 from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
@@ -36,8 +36,15 @@ from telegrana.core.mensagens import ADMIN, Botao, Entrada, ErroCanal, Resultado
 from telegrana.core.repositorio import Pessoa
 from telegrana.infra import db
 
-ORDEM = ("valor", "categoria", "data", "confirmar_valor", "duvida")
-PERGUNTAS = frozenset({"lc_valor", "lc_data"})
+ORDEM = ("valor", "categoria", "data", "confirmar_valor", "duvida", "cartao", "cartao_dias")
+PERGUNTAS = frozenset({"lc_valor", "lc_data", "lc_cartao", "lc_cartao_dias"})
+_PERGUNTA_DA_PENDENCIA = {
+    "valor": "lc_valor",
+    "data": "lc_data",
+    "cartao": "lc_cartao",
+    "cartao_dias": "lc_cartao_dias",
+}
+MINUTOS_RESPOSTA_SOLTA = 10
 # Frase que só pode ser correção ("na verdade foi ontem"): vai direto para a correção do
 # último lançamento, sem depender de a IA classificar a intenção (03/10/2026).
 _PARECE_CORRECAO = re.compile(
@@ -94,9 +101,38 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
             e.texto,
             Resultado(rotulo="lancamento.correcao.pendente", conta=p.account_id),
         )
+    elif (solta := _resposta_solta(conn, e, p)) is not None:
+        r = solta
     else:
         r = _mensagem(conn, ctx, e, p, origem="audio" if ouvido else "text")
     return _com_eco(r, ouvido, avisos)
+
+
+def _resposta_solta(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado | None:
+    """Resposta a uma pergunta do bot mandada SEM "Responder" (no Telegram Web a resposta não
+    abre sozinha): vale se veio em até 10 min e tem a cara da resposta (só um valor; só um
+    nome de cartão; os dois dias da fatura). Senão, segue como mensagem nova."""
+    with db.account_context(conn, p.account_id) as cur:
+        pendencia = repo.pendencia_recente(cur, p.user_id, MINUTOS_RESPOSTA_SOLTA)
+    texto = e.texto.strip()
+    if pendencia == "valor":
+        cabe = valores.so_valor(texto) is not None
+    elif pendencia == "cartao":
+        cabe = (
+            len(texto.split()) <= 3
+            and not re.search(r"\d", texto)
+            and bool(cartoes.chave(texto))
+            and cartoes.nome_valido(texto) is not None
+        )
+    elif pendencia == "cartao_dias":
+        cabe = cartoes.dois_dias(texto) is not None
+    else:
+        cabe = False
+    if not cabe or pendencia is None:
+        return None
+    r = _resposta(conn, replace(e, pergunta=_PERGUNTA_DA_PENDENCIA[pendencia]), p)
+    r.rotulo += ".solta"
+    return r
 
 
 def _transcreve(
@@ -237,6 +273,7 @@ def _dados(prop: Proposta, texto: str, origem: str = "text") -> dict[str, Any]:
         "sugestoes": list(prop.sugestoes),
         "nova": prop.nova_sugerida,
         "forma": prop.forma,
+        "cartao": prop.cartao,
         "parcelas": prop.parcelas,
         "descricao": seguro(prop.descricao or "", 80) or None,
         "fixo": prop.pode_ser_fixo,
@@ -270,11 +307,62 @@ def _processa(
     r: Resultado,
 ) -> None:
     if not dados["pendencias"]:
+        falta = _falta_cartao(cur, dados)
+        if falta is not None:
+            dados["pendencias"] = [falta]
+    if not dados["pendencias"]:
         _registra(cur, p, dados, cats, formas, hoje, r)
         return
     pendencia = dados["pendencias"][0]
     rascunho_id = repo.cria_rascunho(cur, p.account_id, p.user_id, dados, pendencia)
-    r.saidas.append(_pergunta(rascunho_id, pendencia, dados, cats))
+    if pendencia in {"cartao", "cartao_dias"}:
+        r.saidas.append(_pergunta_cartao(cur, rascunho_id, pendencia, dados, cats))
+    else:
+        r.saidas.append(_pergunta(rascunho_id, pendencia, dados, cats))
+
+
+def _falta_cartao(cur: Any, dados: dict[str, Any]) -> str | None:
+    """Gasto no crédito: em qual cartão (D045)? Citado e cadastrado → ele; citado e novo →
+    pergunta os dias da fatura; não citado → o único cartão, ou pergunta qual."""
+    if (
+        dados["tipo"] != "expense"
+        or dados.get("forma") != "credito"
+        or dados.get("cartao_id")
+        or dados.get("destino") == "fixo"
+    ):
+        return None
+    achado = cartoes.citado(cur, dados.get("cartao"))
+    if achado is not None:
+        dados["cartao_id"] = str(achado.id)
+        return None
+    nome = cartoes.nome_para(dados.get("cartao"))
+    if nome is not None:
+        dados["cartao_nome"] = nome
+        return "cartao_dias"
+    todos = cartoes.lista(cur)
+    if len(todos) == 1:
+        dados["cartao_id"] = str(todos[0].id)
+        return None
+    return "cartao"
+
+
+def _pergunta_cartao(
+    cur: Any,
+    rascunho_id: uuid.UUID,
+    pendencia: str,
+    dados: dict[str, Any],
+    cats: list[repo.Categoria],
+) -> Saida:
+    if pendencia == "cartao_dias":
+        return cartoes.pergunta_dias(dados["cartao_nome"], "lc_cartao_dias")
+    todos = cartoes.lista(cur)
+    if not todos:
+        return Saida(t.PERGUNTAS["lc_cartao"], pergunta="lc_cartao")
+    d = seg.curto(rascunho_id)
+    botoes = [Botao(f"{cartoes.EMOJI} {c.nome[:24]}", f"lc:k:{d}:{seg.curto(c.id)}") for c in todos]
+    linhas: list[tuple[Botao, ...]] = [tuple(botoes[i : i + 2]) for i in range(0, len(botoes), 2)]
+    linhas.append((Botao("➕ Outro cartão", f"lc:kn:{d}"), Botao("✖️ Cancelar", f"lc:x:{d}")))
+    return Saida(t.PERGUNTA_CARTAO.format(resumo=_resumo(dados, cats)), botoes=tuple(linhas))
 
 
 def _por_chave(cats: list[repo.Categoria], chave: str | None) -> repo.Categoria | None:
@@ -364,11 +452,42 @@ def _registra(
         destino = formas.get("savings")
         forma = forma if forma is not None and forma.kind != "savings" else None
     data = date.fromisoformat(dados["data"]) if dados.get("data") else hoje
-    tx_id = repo.grava(
+    cartao = cartoes.por_id(cur, uuid.UUID(dados["cartao_id"])) if dados.get("cartao_id") else None
+    if cartao is not None and tipo == "expense":
+        tx_id = cartoes.grava_compra(
+            cur,
+            p,
+            cartao,
+            total=dados["centavos"],
+            parcelas=dados.get("parcelas") or 1,
+            compra=data,
+            categoria_id=cat.id if cat else None,
+            descricao=dados.get("descricao"),
+            origem=dados.get("origem") or "text",
+            texto_original=dados.get("texto", ""),
+        )
+    else:
+        tx_id = _grava_comum(cur, p, dados, cat, forma, destino, data)
+    tx = repo.lancamento(cur, tx_id)
+    if tx is None:
+        raise RuntimeError("lançamento recém-gravado não encontrado")
+    return _depois_de_gravar(cur, p, dados, cats, tx, cat, hoje, r)
+
+
+def _grava_comum(
+    cur: Any,
+    p: Pessoa,
+    dados: dict[str, Any],
+    cat: repo.Categoria | None,
+    forma: repo.Forma | None,
+    destino: repo.Forma | None,
+    data: date,
+) -> uuid.UUID:
+    return repo.grava(
         cur,
         p.account_id,
         p.user_id,
-        tipo=tipo,
+        tipo=dados["tipo"],
         centavos=dados["centavos"],
         categoria_id=cat.id if cat else None,
         forma_id=forma.id if forma else None,
@@ -380,9 +499,19 @@ def _registra(
         texto_original=dados.get("texto", ""),
         parcelas=dados.get("parcelas"),
     )
-    tx = repo.lancamento(cur, tx_id)
-    if tx is None:
-        raise RuntimeError("lançamento recém-gravado não encontrado")
+
+
+def _depois_de_gravar(
+    cur: Any,
+    p: Pessoa,
+    dados: dict[str, Any],
+    cats: list[repo.Categoria],
+    tx: repo.Lancamento,
+    cat: repo.Categoria | None,
+    hoje: date,
+    r: Resultado,
+) -> uuid.UUID:
+    tx_id = tx.id
     r.saidas.append(_recibo(cur, tx, cats, hoje, perguntar_fixo=bool(dados.get("fixo"))))
     if dados.get("vira_fixo") and tx.tipo != "transfer":
         r.saidas.append(_fixo_do_lancamento(cur, p, tx, cats, dados.get("fixo_dia")))
@@ -398,6 +527,15 @@ def _registra(
             ),
         )
     return tx_id
+
+
+def _parcelas(tx: repo.Lancamento) -> str:
+    n = tx.parcelas or 1
+    if tx.compra is None:
+        return f"{n}x"
+    partes = cartoes.divide(tx.centavos, n)
+    texto = f"{n}x de {valores.em_reais(partes[-1])}"
+    return texto if partes[0] == partes[-1] else f"{texto} (1ª {valores.em_reais(partes[0])})"
 
 
 def _quando(d: date, hoje: date) -> str:
@@ -421,7 +559,10 @@ def _recibo(
     forma = repo.forma_por_id(cur, tx.forma_id)
     destino = repo.forma_por_id(cur, tx.destino_id)
     if titulo is None:
-        titulo = t.PREVISTO if tx.status == "planned" else t.REGISTRADO[tx.tipo]
+        if tx.compra is not None:
+            titulo = t.COMPRA_CREDITO
+        else:
+            titulo = t.PREVISTO if tx.status == "planned" else t.REGISTRADO[tx.tipo]
     valor = valores.em_reais(tx.centavos)
     if tx.tipo == "transfer":
         linha_principal = f"{destino.emoji} {destino.nome} · {valor}" if destino else valor
@@ -429,9 +570,12 @@ def _recibo(
         linha_principal = f"{cat.rotulo} · {valor}" if cat else valor
     detalhes = [f"{forma.emoji} {forma.nome}"] if forma else []
     if tx.parcelas and tx.parcelas > 1:
-        detalhes.append(f"{tx.parcelas}x")
+        detalhes.append(_parcelas(tx))
     detalhes.append(_quando(tx.data, hoje))
     linhas = [titulo, linha_principal, " · ".join(detalhes)]
+    if tx.compra is not None and tx.fatura is not None:
+        qual = "1ª parcela" if (tx.parcelas or 1) > 1 else "Entra"
+        linhas.append(f"🧾 {qual} na fatura que vence {tx.fatura:%d/%m}")
     if tx.origem == "audio" and tx.texto_original:
         linhas.append(f"🎙️ «{seguro(aud.resumo(tx.texto_original), 120)}»")
     elif tx.descricao:
@@ -605,6 +749,13 @@ def _botao_rascunho(
         dados["categoria"], dados["perguntou_categoria"] = cat.chave, True
     elif tipo == "ok" and pendencia in {"confirmar_valor", "duvida"}:
         pass
+    elif tipo == "k" and len(partes) == 4 and pendencia == "cartao":
+        escolhido = cartoes.por_id(cur, seg.longo(partes[3]) or uuid.UUID(int=0))
+        if escolhido is None:
+            return r.diz(t.CARTAO_SUMIU)
+        dados["cartao_id"] = str(escolhido.id)
+    elif tipo == "kn" and pendencia == "cartao":
+        return r.diz(t.PERGUNTAS["lc_cartao"], pergunta="lc_cartao")
     else:
         return r.diz(t.USE_OS_BOTOES)
     return _avanca(cur, p, rascunho_id, dados, pendencia, cats, hoje, r)
@@ -627,8 +778,10 @@ def _avanca(
 
 
 def _resposta(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
-    pendencia = "valor" if e.pergunta == "lc_valor" else "data"
+    pendencia = {v: k for k, v in _PERGUNTA_DA_PENDENCIA.items()}[e.pergunta or "lc_data"]
     r = Resultado(rotulo=f"lancamento.resposta.{pendencia}", conta=p.account_id)
+    if pendencia in {"cartao", "cartao_dias"}:
+        return _resposta_cartao(conn, e, p, pendencia, r)
     hoje = agora().date()
     with db.account_context(conn, p.account_id) as cur:
         achado = repo.rascunho_mais_recente(cur, p.user_id, pendencia)
@@ -649,6 +802,38 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
                 return r.diz(t.PERGUNTAS["lc_data"], pergunta="lc_data")
             dados["data"], dados["futura"] = quando.dia.isoformat(), quando.futura
         return _avanca(cur, p, rascunho_id, dados, pendencia, cats, hoje, r)
+
+
+def _resposta_cartao(
+    conn: db.Connection, e: Entrada, p: Pessoa, pendencia: str, r: Resultado
+) -> Resultado:
+    hoje = agora().date()
+    with db.account_context(conn, p.account_id) as cur:
+        achado = repo.rascunho_mais_recente(cur, p.user_id, pendencia)
+        if achado is None:
+            return r.diz(t.RASCUNHO_SUMIU)
+        rascunho_id, dados = achado
+        cats = repo.categorias(cur)
+        if pendencia == "cartao":
+            nome = cartoes.nome_valido(e.texto)
+            if nome is None or not cartoes.chave(nome):
+                return r.diz(t.CARTAO_NOME_RUIM).diz(t.PERGUNTAS["lc_cartao"], pergunta="lc_cartao")
+            dados["cartao"] = nome  # cadastrado → usa; novo → pergunta os dias (_falta_cartao)
+            return _avanca(cur, p, rascunho_id, dados, pendencia, cats, hoje, r)
+        dias = cartoes.dois_dias(e.texto)
+        if dias is None:
+            r.diz(t.DIAS_NAO_ENTENDI)
+            r.saidas.append(cartoes.pergunta_dias(dados["cartao_nome"], "lc_cartao_dias"))
+            return r
+        cartao, _novo = cartoes.cria(cur, p, dados["cartao_nome"], *dias)
+        if cartao is None:
+            return r.diz(t.CARTAO_NOME_EXISTE.format(nome=dados["cartao_nome"]))
+        dados["cartao_id"] = str(cartao.id)
+        _avanca(cur, p, rascunho_id, dados, pendencia, cats, hoje, r)
+        oferta = cartoes.oferta_antigas(cur, cartao)
+        if oferta is not None:
+            r.saidas.append(oferta)
+        return r
 
 
 # ---------------------------------------------------------------------------
