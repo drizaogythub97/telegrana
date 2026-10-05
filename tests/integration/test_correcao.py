@@ -62,6 +62,7 @@ class IACorretora(IAFalsa):
             "a IA inventou": correcao(valor_texto="99"),  # não está na frase
             "tá certo": correcao(entendeu=False),
             "uber 12": correcao(valor_texto="12"),
+            "Na verdade foi ontem.": correcao(data_texto="ontem"),
         }
         self.vistos: list[str] = []
 
@@ -127,7 +128,7 @@ def test_correcao_por_mensagem_sem_responder_ao_recibo(bot: Bot, banco: Banco) -
     de = conta(bot)
     bot(de, texto="mercado 30")
     r = bot(de, texto="na verdade foi na padaria")
-    assert r.rotulo == "lancamento.correcao.ia.ia"
+    assert r.rotulo == "lancamento.correcao.frase.ia"
     assert t.PERGUNTA_CATEGORIA_CORRECAO.format(resumo="R$ 30,00") == r.saidas[0].texto
 
 
@@ -233,3 +234,25 @@ def test_marca_de_corrigir_expira(bot: Bot, banco: Banco) -> None:
     r = bot(de, texto="uber 12")
     assert r.saidas[0].texto.startswith(t.REGISTRADO["expense"])
     assert len(lancamentos_de(banco, de)) == 2
+
+
+def test_frase_de_correcao_vai_para_o_ultimo_mexido_mesmo_criado_ha_dias(
+    bot: Bot, banco: Banco
+) -> None:
+    de = conta(bot)
+    bot(de, texto="mercado 50 no pix")
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute(
+            "update telegrana.transactions set created_at = now() - interval '3 days',"
+            " updated_at = now() - interval '3 days'"
+        )
+    # Ninguém mexeu nas últimas 24 h: não há o que corrigir.
+    r = bot(de, texto="Na verdade foi ontem.")
+    assert r.saidas[0].texto == t.NADA_PARA_CORRIGIR
+    # Corrigido agora (updated_at), ele volta a ser "o último": a frase corrige ELE, sem
+    # passar pela classificação da IA (que não conhece esta frase na IAFalsa).
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute("update telegrana.transactions set updated_at = now()")
+    r = bot(de, texto="Na verdade foi ontem.")
+    assert r.rotulo == "lancamento.correcao.frase.ia"
+    assert r.saidas[0].texto.startswith(t.CORRIGIDO)

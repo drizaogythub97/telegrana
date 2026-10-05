@@ -161,10 +161,12 @@ def lancamento(cur: Any, tx_id: uuid.UUID) -> Lancamento | None:
 
 
 def ultimo(cur: Any, user_id: uuid.UUID, minutos: int = 24 * 60) -> Lancamento | None:
+    """O último lançamento MEXIDO (criado ou corrigido) nas últimas 24 h: é dele que a pessoa
+    está falando quando diz "na verdade foi ontem" logo depois de uma correção."""
     row = cur.execute(
         _SELECT_LANC + " where user_id = %s and deleted_at is null"
-        " and created_at > now() - make_interval(mins => %s)"
-        " order by created_at desc limit 1",
+        " and greatest(created_at, updated_at) > now() - make_interval(mins => %s)"
+        " order by greatest(created_at, updated_at) desc limit 1",
         (user_id, minutos),
     ).fetchone()
     return Lancamento(*row) if row else None
