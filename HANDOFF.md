@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 05/10/2026 · **S0, S1, S2 e S3 encerradas** · texto e **áudio** no ar em dev e prod · **S4 (fixos e lembretes) em andamento**: S4.1 (fixos) em prod; próxima: **S4.2 — lembretes**.
+> Atualizado em 05/10/2026 · **S0 a S4 encerradas** · texto, áudio, **fixos e lembretes** no ar em dev e prod · próxima: **S5 — cartão de crédito**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,17 +8,21 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D043. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D044. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
 
-### S4 — em andamento (D043)
+### S4 — encerrada em 05/10/2026 (D043, D044; PRs #41, #43–#45, #47, #48, #50)
 
 - **S4.1 — fixos** (PR #41, `4b6c4f2`, em prod; ajustes nos PRs #43–#45): `core/fixos.py` + migração **0006** (`fixed_items` isolada; `transactions.fixed_item_id`). Nasce pelo "Sim, todo mês" do recibo (cria na hora, com ⚙️ Ajustar e ↩️ Desfazer), por frase com recorrência ("aluguel 1500 todo dia 10" só cadastra; "paguei a internet 120 todo dia 5" lança e cadastra) e é gerido em `/fixos` (valor, dia, lembretes, fixo/estimado, pausar, apagar). Testes: `tests/unit/test_fixos.py` (calendário, recorrência, fixo x estimado), `tests/integration/test_fixos.py` (5, inclui isolamento), isolamento (fixo não aponta para categoria/forma de outra conta; lançamento não aponta para fixo de outra conta) e E2E (fixo por frase + ajustes).
-- **S4.2 — lembretes (próxima)**: rotina das 09:00 e 20:00 calcula o que vence por conta (as contas com fixos ativos precisam vir de uma função SECURITY DEFINER que devolve só ids — a rotina não vê dados financeiros fora do `account_context`), envia pelo Telegram (a Lambda `rotinas` ainda não fala com o Telegram: precisa do token no SSM e do adaptador), grava `reminder_sends` (ISOLADA, única por fixo + vencimento + regra + horário), botões ✅ Paguei/Recebi, ✏️ Outro valor, ⏭️ Pular este mês (lançamento com `source = 'fixed'` e `fixed_item_id`), "todo dia depois" até pagar/pular, testes de calendário (meses curtos, virada de mês, fuso America/Sao_Paulo).
+- **S4.2 — lembretes** (D044; PR #47, `70f4314`; ajustes nos PRs #48 e #50; em prod): motor puro `core/lembretes.py` — por fixo ativo e no horário escolhido (09:00/20:00 São Paulo), **no máximo um** lembrete: "vence hoje", "vence amanhã" ou "venceu em dd/mm…" todo dia depois, até ✅ Paguei/Recebi ou ⏭️ Pular, e só até o próximo vencimento. Fixo cadastrado depois do vencimento não cobra aquele mês. Migração **0008**: `fixed_occurrences` (mês resolvido: pago/pulado + lançamento; única por fixo + vencimento) e `reminder_sends` (único por fixo + dia + horário; gravado **antes** de enviar; apagado com 60 dias), ambas ISOLADAS; `accounts_with_reminders()` (SECURITY DEFINER, só ids). ✅ Paguei lança `source = 'fixed'` ligado ao fixo e mostra o recibo de sempre; ✏️ Outro valor pergunta o valor — e, por 10 min, a próxima mensagem que for **só um valor** paga aquele vencimento mesmo sem responder (migração **0009**, PR #48); lançamento já ligado ao fixo no mesmo mês (ou até 7 dias antes) também resolve.
+- **Lambda `rotinas`**: só manda lembretes quando quem chama é a agenda (`{"origem": "agenda"}` no Scheduler); a verificação do deploy invoca com `{}` e só limpa. **Em dev** aceita `{"momento": "2026-10-19T09:00"}` para simular outro dia/horário (comando em "Comandos úteis").
+- **Áudio respondendo a perguntas** (PR #50): resposta por áudio a qualquer pergunta de fora dos lançamentos (valor do lembrete, valor/dia do fixo, nome) é transcrita em `conta.trata` antes de seguir; o dia do fixo aceita "dia doze".
+- **Roteiro G** (`docs/ROTEIRO-TESTES.md`, 05/10/2026, agente pelo Telegram Web + áudio do Adriano): G1–G6 certos depois dos PRs #48 e #50; do roteiro saíram também a descrição com acentos ("Condominio" → "condomínio") e o "Outro valor" sem responder.
+- **Testes**: `tests/unit/test_lembretes.py` (calendário: meses curtos, viradas de mês/ano, horário, resolução, mensagem, só a agenda lembra, `so_valor`), `tests/integration/test_lembretes.py` (rotina, botões, idempotência, Outro valor sem responder, isolamento), isolamento (tabelas novas + função), E2E pela rotina (`rotinas.lembra` com a Bot API simulada). CI: 467+ testes.
 
 ### S3 — encerrada em 05/10/2026 (D041, D042; PRs #36–#40, #43–#45)
 
@@ -103,7 +107,7 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | AWS | **conta nova** (30/09/2026), **plano FREE**, **US$ 200 de créditos até 30/09/2027**; usuário IAM `adriano-dev` (MFA, AdministratorAccess + SignInLocalDevelopmentAccess, sem access keys); MFA na root; sem Organizations | perfil `telegrana` via `aws login --profile telegrana` (sessão ≤ 12 h; quem renova é o Adriano) |
 | AWS — base | stack `telegrana-bootstrap` (`deploy/bootstrap.yaml`): orçamentos `telegrana-gasto-zero` (US$ 0,01) e `telegrana-teto-mensal` (US$ 1; créditos contam), SNS `telegrana-orcamento-estourado` (e-mail + Lambda) e `telegrana-avisos` (e-mail), Lambda `telegrana-kill-switch` (zera a concorrência das `telegrana-*`), OIDC do GitHub + papel `telegrana-github-deploy` (só `main`, **sem permissões ainda**) | e-mails de alerta confirmados |
 | Neon | projeto `telegrana` (`aws-us-east-1`, **Postgres 18**), branches `production` e `dev` **sem expiração**; nada criado dentro do banco | `NEON_OWNER_URL_PROD`, `NEON_OWNER_URL_DEV` (papel dono, conexão direta), `NEON_API_KEY` (**Project-scoped**), `NEON_PROJECT_ID` — tudo no `.env.local` |
-| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `whisper-large-v3`, `whisper-large-v3-turbo` (qwen e turbo liberados em 02/10/2026); projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (teto de 150 mil tokens/dia no gpt-oss-20b desde 01/10/2026; Whisper 800 req/dia e 10.800 s/dia). **Limites do plano gratuito são por modelo e por organização** (D040) | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
+| Groq | Global ZDR ligado; allowlist: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `whisper-large-v3`, `whisper-large-v3-turbo` (qwen e turbo liberados em 02/10/2026); projetos `telegrana-prod` (limites cheios) e `telegrana-dev` (desde 05/10/2026: **4 mil tokens/min, 50 mil tokens/dia e 400 req/dia** em cada modelo de texto; Whisper v3 e turbo com 800 req/dia e 10.800 s/dia — D044). **Limites do plano gratuito são por modelo e por organização** (D040) | `GROQ_API_KEY_PROD`, `GROQ_API_KEY_DEV` |
 | Telegram | produção **@TelegranaAppBot**, dev **@TelegranaAppDevBot** (fora de grupos, sem webhook); app de testes "Telegrana Testes" no my.telegram.org; admin = o Adriano | `TELEGRAM_BOT_TOKEN_{PROD,DEV}`, `TELEGRAM_BOT_USERNAME_{PROD,DEV}`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_TELEGRAM_ID` |
 | Celular | Samsung Galaxy A54 (SM-A546E), **Android 16**, pareado por adb Wi-Fi, Telegram instalado | reconectar: `adb mdns services` → `adb connect IP:PORTA` |
 | Avaliação da IA | 11 áudios reais do Adriano + `audios.txt` conferido; `mensagens.txt` com 61 frases humanizadas escritas pelo agente | `tests/eval/data/` (**fora do Git**) |
@@ -160,25 +164,29 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #43 | `3ba18c0` | ajustes do roteiro de 03/10 |
 | #44 | `c8370ff` | correção pendente depois do ✏️ Corrigir (migração 0007) |
 | #45 | `aab6f07` | correção sem responder: último mexido e frases de correção |
-| #46 | (este) | encerramento da S3 |
+| #46 | `9075f4f` | encerramento da S3 |
+| #47 | `70f4314` | **S4.2**: lembretes dos fixos (D044) |
+| #48 | `d41d2bc` | "Outro valor" sem responder (migração 0009); descrição com acentos |
+| #49 | `ef21e11` | Dependabot: boto3, mypy, ruff (dev) |
+| #50 | `18a088f` | áudio respondendo às perguntas do lembrete e do fixo |
+| #51 | (este) | encerramento da S4 |
 
-## Ponto de partida exato da próxima sessão (S4.2 — lembretes)
+## Ponto de partida exato da próxima sessão (S5 — cartão de crédito)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (se der **400 Bad Request**, fechar a aba velha e rodar de novo; persistindo, `aws login --profile telegrana --remote` numa janela anônima).
-2. **S4.2 — lembretes** (D043; PLANO 4.3 e 4.4):
-   - Migração 0008: `reminder_sends` ISOLADA (`account_id`, `fixed_item_id`, `due_date`, `rule` before/on_day/after, `slot` morning/evening, `sent_at`; única por fixo + vencimento + regra + horário) e o registro do mês resolvido (pago/pulado) — ex.: `fixed_occurrences` (`fixed_item_id`, `due_date`, `status` paid/skipped, `transaction_id`), única por fixo + vencimento.
-   - Função SECURITY DEFINER que devolve **só** os ids das contas com fixos ativos (a rotina não vê dados fora do `account_context`); blindada como as outras (search_path fixo, sem PUBLIC).
-   - Motor puro (`core/lembretes.py`): dado hoje, o horário (09:00/20:00 America/Sao_Paulo) e os fixos, quais lembretes cabem — véspera, no dia, "todo dia depois" até pago/pulado; dia 31 em mês curto (`fixos.vencimento`); virada de mês/ano. Testes de calendário.
-   - Lambda `rotinas`: hoje só limpa; passa a mandar mensagens. Precisa do token do bot (SSM, já existe) e do adaptador do Telegram — o núcleo devolve `Saida`s e o canal envia (núcleo agnóstico).
-   - Botões no lembrete: ✅ Paguei/Recebi (lançamento `source = 'fixed'`, `fixed_item_id`, valor do fixo), ✏️ Outro valor (pergunta o valor), ⏭️ Pular este mês. Tudo idempotente (toque duplo, rotina repetida).
-   - E2E: simular a rotina chamando o motor com uma data fixa.
-3. Seguir o protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (`docs/ROTEIRO-TESTES.md`, acrescentar o bloco de lembretes) → encerramento.
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (ver Gotchas > AWS se der 400 ou se nenhuma aba abrir).
+2. **Antes de codar, perguntar ao Adriano de uma vez** (PLANO 4.5 deixa em aberto): (a) os cartões dele (nome, dia de fechamento e de vencimento — só os nomes e dias, nada de número de cartão); (b) o que fazer com as compras no crédito já lançadas desde a S2 (hoje são `transactions` com forma Crédito e `installments`, gravadas como gasto realizado na data da compra): migrar para parcelas na fatura do cartão ou deixar como estão; (c) se "no crédito" sem dizer o cartão deve perguntar qual (quando houver mais de um) ou usar o principal.
+3. **S5 — proposta de divisão** (registrar numa D045 com o que o Adriano decidir):
+   - **S5.1 — cartões e compras**: migração 0010 com `cards` (ISOLADA: nome único por conta, fechamento, vencimento, limite opcional, forma de pagamento ligada) e `card_installments` (ISOLADA: compra, número/total, valor em centavos — resto na 1ª parcela —, fatura de destino calculada pelo fechamento); "tênis 600 em 3x no Nubank" vira compra + parcelas (compromisso, não gasto realizado: **regime de caixa**); `/cartoes` para cadastrar e editar (mesmo padrão de `/fixos`); a IA/atalho já devolvem forma e parcelas — falta o nome do cartão.
+   - **S5.2 — fatura**: fechamento automático pela rotina (mesma Lambda), lembrete do vencimento reaproveitando `core/lembretes.py` (o item passa a ser fixo **ou** fatura), ✅ Paguei a fatura (total ou outro valor) → cada item vira gasto realizado na data do pagamento com a própria categoria; pagamento parcial → "Saldo anterior" na próxima; juros/multa em 💸 Encargos; estorno.
+   - **S5.3 — E2E, roteiro (bloco H) e produção.**
+   - Testes de borda obrigatórios (PLANO): compra no dia do fechamento, fechamento 31 em mês curto, 12x atravessando o ano, centavos da divisão, pagamento parcial, estorno de compra parcelada, isolamento de cartão/parcela entre contas.
+4. Seguir o protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (agente por texto no Telegram Web; áudios com o Adriano) → encerramento.
 
 ## Pendências do Adriano
 
-- Autorizar os limites do projeto `telegrana-dev` no Groq (o agente faz pelo Chrome): ~4 mil tokens/min e ~50 mil/dia por modelo, para testes e CI nunca ocuparem a cota da produção (D038 item 2, D040).
+- **Decidir se troca a senha do papel dono da branch de testes do Neon** (a da `TELEGRANA_TEST_DATABASE_URL`): em 05/10/2026 uma falha de teste imprimiu essa URL na saída do pytest local (só na sessão do agente; nada em Git, log ou CI). O `repr` foi corrigido; a troca pode ser feita pelo agente via API do Neon, gravando direto no `.env.local`.
 
-- **Quando a família começar a usar a produção** (D038 item 2): tetos do projeto `telegrana-dev` por modelo (~50 mil) e parar de usar a chave de produção nas avaliações locais.
+- **Quando a família começar a usar a produção** (D038 item 2): parar de usar a chave de produção nas avaliações locais (os tetos do `telegrana-dev` já estão aplicados desde 05/10/2026).
 
 - Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
 - Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
@@ -197,6 +205,7 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - O `uv` não está no PATH do Git Bash: use `~/AppData/Roaming/Python/Python314/Scripts/uv.exe`.
 
 **IA e Groq (S2)**
+- Com os tetos de dev (D044), a avaliação do CI (cadeia, sem cache, ~90 mil tokens) cabe **uma vez por dia**: a segunda rodada sai INCONCLUSIVA por cota. Não é check obrigatório; refaça no dia seguinte (`workflow_dispatch`).
 - **Limites por modelo E por organização** (dev + prod juntos): 200 mil tokens/dia, 1.000 req/dia, 8 mil tokens/min por modelo no plano gratuito. A Política de Uso Aceitável do Groq **proíbe** criar outras contas ou organizações para somar limites — não proponha isso. A folga vem da cadeia de modelos (D040).
 - Uma avaliação completa gasta ~45–50 mil tokens do modelo avaliado. Use o **cache** (padrão) e `--casos` enquanto ajusta; `--sem-cache` só quando quiser medir a variação do modelo.
 - Desde o PR #36 o CI avalia a **cadeia** (`--modelo cadeia`), como o bot: fica inconclusivo só se todos os modelos esgotarem. Local, use `--modelo <um>` (com cache) para comparar modelos.
@@ -279,6 +288,19 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - Páginas que usam `alert()` travam a extensão: sobrescrever `window.alert` antes de enviar formulários (my.telegram.org).
 - **Telegram Web** (`web.telegram.org/a/`, logado na conta do Adriano): abrir **só** o chat do bot de dev; o primeiro clique na lista às vezes abre outro chat (o layout muda ao carregar) — confira o título antes de digitar. Responder a uma mensagem: botão direito → "Reply" (o menu demora a aparecer; tire uma captura antes de clicar). Os testes ficam na conta de dev do Adriano.
 - GitHub Advanced Security e Groq não atualizam a página depois de um clique: confirmar pela API/texto antes de clicar de novo. Campos numéricos do Groq formatam "8.000": digitar o número cru e conferir o valor salvo.
+
+**Lembretes e rotina (S4)**
+- Testar lembretes em dev sem esperar o dia: `aws lambda invoke --function-name telegrana-dev-rotinas --payload '{"momento": "2026-10-19T09:00"}' --cli-binary-format raw-in-base64-out --profile telegrana saida.json` (só dev; grava `reminder_sends` com a data simulada, então aquele dia/horário real não repete o lembrete em dev).
+- A verificação do deploy invoca a `rotinas` com `{}`: ela **não** pode mandar mensagem a ninguém — só a agenda (`{"origem": "agenda"}`) lembra.
+- **Telegram Web não abre a resposta sozinho** (force reply): todo fluxo que pergunta algo precisa funcionar também com a resposta solta (marca de 10 min, como no ✏️ Corrigir e no ✏️ Outro valor). No celular a resposta abre sozinha — e aí a resposta chega como `pergunta`, inclusive por áudio (transcrito em `conta.trata`).
+
+**GitHub Actions (05/10/2026)**
+- Job parado em `queued` por muitos minutos com o GitHub "operacional": `gh run cancel <run>` e `gh run rerun <run> --job <id do job>`. PR cujo CI não disparou: `gh pr close <n>` + `gh pr reopen <n>`.
+
+**AWS e Windows**
+- `aws login --profile telegrana --remote` **não abre aba**: imprime o link e espera o código. O painel de terminal do app falha na integração; abra uma janela própria: `Start-Process pwsh -ArgumentList '-NoExit','-NoProfile','-Command','aws login --profile telegrana --remote'`. A tela pede o ID da conta (está no `login_session` do perfil em `~/.aws/config`).
+- No Git Bash, caminhos como `/aws/lambda/...` viram caminhos do Windows: prefixe `MSYS_NO_PATHCONV=1` (ex.: `aws logs filter-log-events --log-group-name /aws/lambda/telegrana-dev-bot ...`).
+- Testes com o Neon de testes podem levar 10+ min (rede lenta em 05/10/2026); o CI usa Postgres local e roda tudo em segundos. A fixture `Banco` não mostra as URLs no `repr` (uma falha de teste não pode imprimir senha).
 
 ## Comandos úteis
 
