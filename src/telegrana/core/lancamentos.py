@@ -65,6 +65,13 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
             return transcrito
         ouvido, avisos = transcrito
         e = replace(e, texto=ouvido, audio=None)  # daqui em diante, igual ao texto
+    if e.pergunta is None and not e.resposta_a and e.texto.strip():
+        # Tocou ✏️ Outro valor num lembrete e mandou só o valor, sem responder.
+        from telegrana.core import lembretes  # import tardio: lembretes usa o recibo daqui
+
+        pago = lembretes.valor_sem_responder(conn, p, e.texto)
+        if pago is not None:
+            return _com_eco(pago, ouvido, avisos)
     pendente = None
     if e.pergunta not in PERGUNTAS and e.texto.strip():
         with db.account_context(conn, p.account_id) as cur:

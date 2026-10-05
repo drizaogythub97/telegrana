@@ -109,6 +109,29 @@ def test_vespera_no_dia_paguei_e_nao_repete(
     assert rotina(conn, de, "2026-10-17") == []
 
 
+def test_outro_valor_sem_responder(
+    bot: Bot, conn: db.Connection, banco: Banco, hoje: Callable[[str], None]
+) -> None:
+    """Telegram Web não abre a resposta sozinho: a próxima mensagem que é só o valor vale."""
+    de = conta(bot)
+    bot(de, texto="luz 200 todo dia 15")
+    bot(de, texto="agua 90 todo dia 15")
+    fixos_cadastrados_em_setembro(banco, de)
+    hoje("2026-10-16")
+    luz, agua = sorted(rotina(conn, de, "2026-10-16"), key=lambda s: "Luz" not in s.texto)
+    toca(bot, de, luz, "lm:ov:")
+    r = bot(de, texto="a luz deu 187,40")
+    assert r.rotulo == "lembrete.valor.pendente"
+    assert "R$ 187,40" in r.saidas[0].texto
+    # Mensagem que não é só um valor segue como lançamento (e a marca some).
+    toca(bot, de, agua, "lm:ov:")
+    r = bot(de, texto="mercado 50")
+    assert r.saidas[0].texto.startswith(t.REGISTRADO["expense"])
+    r = bot(de, texto="95")  # a marca valia para UMA mensagem
+    assert r.rotulo != "lembrete.valor.pendente"
+    assert [x[1] for x in lancamentos_de(banco, de)] == [18740, 5000]
+
+
 def test_pular_este_mes_e_volta_no_seguinte(
     bot: Bot, conn: db.Connection, banco: Banco, hoje: Callable[[str], None]
 ) -> None:

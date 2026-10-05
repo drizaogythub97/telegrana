@@ -55,7 +55,7 @@
 | G2 | O agente roda **20/10 às 09:00**; tocar ✅ Paguei | Os botões somem; recibo ✅ Gasto registrado · R$ 21,90 · 📝 Spotify |
 | G3 | Tocar ✅ Paguei no lembrete do G1 (véspera) | "👍 Spotify de outubro já está resolvido." (não lança de novo) |
 | G4 | ✍️ `luz 200 todo dia 15`; o agente roda **16/10 às 09:00** | ⏰ **Luz** venceu em 15/10 e ainda não está marcado como pago · Valor estimado: R$ 200,00 |
-| G5 | Tocar ✏️ Outro valor; responder 🎙️ "cento e oitenta e sete e quarenta" | Recibo 💡 Contas da casa · R$ 187,40 |
+| G5 | Tocar ✏️ Outro valor; mandar (respondendo ou não) 🎙️ "cento e oitenta e sete e quarenta" | Recibo 💡 Contas da casa · R$ 187,40 |
 | G6 | ✍️ `condomínio 450 todo dia 18`; o agente roda **18/10 às 09:00**; tocar ⏭️ Pular este mês | "⏭️ Pronto, Condomínio de outubro ficou de fora…"; rodando **19/10**, nada chega |
 
 ## F — Limites e ajuda
