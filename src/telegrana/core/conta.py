@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from telegrana.core import categorias, fixos, lancamentos, lembretes
@@ -54,6 +55,15 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
                 registra_aceites(cur, ctx, p)
             return Resultado(rotulo="conta.termos.aceitos").diz("✅ Obrigado! Tudo certo.")
         return Resultado(saidas=[tela_termos(ctx, mudaram=True)], rotulo="conta.termos.pendentes")
+    if e.audio is not None and e.pergunta is not None and e.pergunta not in lancamentos.PERGUNTAS:
+        # Resposta por áudio a uma pergunta de fora dos lançamentos (valor do lembrete, valor
+        # e dia do fixo...): ouve primeiro e segue como se fosse texto (05/10/2026).
+        transcrito = lancamentos._transcreve(conn, ctx, e, p)
+        if isinstance(transcrito, Resultado):
+            return transcrito
+        ouvido, avisos = transcrito
+        r = trata(conn, ctx, replace(e, texto=ouvido, audio=None), p)
+        return lancamentos._com_eco(r, ouvido, avisos)
 
     r = Resultado(rotulo=f"conta.{e.comando or e.acao or e.pergunta or 'mensagem'}")
     if e.contato_alheio:
