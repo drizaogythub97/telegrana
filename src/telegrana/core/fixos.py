@@ -393,7 +393,7 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
                 return r.diz(f"{t.PERGUNTAS['fi_valor']}\n{MARCA} {f.nome}", pergunta="fi_valor")
             atualiza(cur, f.id, "amount_cents", valor.centavos)
         else:
-            dia = _dia_dito(e.texto)
+            dia = dia_dito(e.texto)
             if not 1 <= dia <= 31:
                 return r.diz(f"{t.PERGUNTAS['fi_dia']}\n{MARCA} {f.nome}", pergunta="fi_dia")
             atualiza(cur, f.id, "day_of_month", dia)
@@ -402,7 +402,7 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
     return r
 
 
-def _dia_dito(texto: str) -> int:
+def dia_dito(texto: str) -> int:
     """ "10", "dia 10", "dia doze" (áudio) → dia do mês; 0 se não entendeu."""
     achado = re.search(r"\b(\d{1,2})\b", texto)
     if achado:

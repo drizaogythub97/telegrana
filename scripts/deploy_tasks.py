@@ -114,6 +114,7 @@ COMANDOS = [
     ("meus_dados", "O que está guardado sobre você"),
     ("categorias", "Ver, criar e editar suas categorias"),
     ("fixos", "Contas e ganhos de todo mês, com lembretes"),
+    ("cartoes", "Seus cartões de crédito e faturas"),
     ("corrigir_nome", "Corrigir o seu nome"),
     ("termos", "Termos de uso e política de privacidade"),
     ("codigo_novo", "Gerar um novo código de recuperação"),

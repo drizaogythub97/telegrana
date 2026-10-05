@@ -45,6 +45,7 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "fixed_items": ("id", "account_id = %(conta)s"),
     "fixed_occurrences": ("id", "account_id = %(conta)s"),
     "reminder_sends": ("id", "account_id = %(conta)s"),
+    "cards": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -146,6 +147,16 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
         cur.execute(
             "insert into telegrana.fixed_occurrences (account_id, fixed_item_id, due_date, status)"
             " select %s, id, current_date, 'skipped' from telegrana.fixed_items",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.payment_methods (account_id, kind, name, emoji)"
+            " values (%s, 'credit', 'Nubank', '💳')",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.cards (account_id, payment_method_id, closing_day, due_day)"
+            " select %s, id, 3, 10 from telegrana.payment_methods where name = 'Nubank'",
             (conta.account_id,),
         )
         cur.execute(
@@ -548,3 +559,27 @@ def test_contas_com_lembrete_so_devolve_ids(app: db.Connection, cenario: Cenario
         ids = {r[0] for r in cursor.fetchall()}
     assert colunas == ["o_account_id"]
     assert {cenario.a.account_id, cenario.b.account_id} <= ids
+
+
+def test_cartao_e_parcela_nao_apontam_para_outra_conta(
+    app: db.Connection, cenario: Cenario
+) -> None:
+    with db.account_context(app, cenario.b.account_id) as cur:
+        forma_b = cur.execute(
+            "select id from telegrana.payment_methods where kind = 'credit' limit 1"
+        ).fetchone()[0]
+        tx_b = cur.execute("select id from telegrana.transactions limit 1").fetchone()[0]
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):  # noqa: SIM117
+        with db.account_context(app, cenario.a.account_id) as cur:
+            cur.execute(
+                "insert into telegrana.cards (account_id, payment_method_id, closing_day, due_day)"
+                " values (%s, %s, 1, 10)",
+                (cenario.a.account_id, forma_b),
+            )
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):  # noqa: SIM117
+        with db.account_context(app, cenario.a.account_id) as cur:
+            cur.execute(
+                "update telegrana.transactions set purchase_id = %s, installment_no = 1,"
+                " invoice_on = current_date",
+                (tx_b,),
+            )

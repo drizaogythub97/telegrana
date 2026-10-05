@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 
-from telegrana.core import categorias, fixos, lancamentos, lembretes
+from telegrana.core import cartoes, categorias, fixos, lancamentos, lembretes
 from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
@@ -83,6 +83,12 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
         or e.pergunta in fixos.PERGUNTAS
     ):
         return fixos.trata(conn, ctx, e, p)
+    if (
+        e.comando == "cartoes"
+        or (e.acao or "").startswith(cartoes.PREFIXO)
+        or e.pergunta in cartoes.PERGUNTAS
+    ):
+        return cartoes.trata(conn, ctx, e, p)
     if (e.acao or "").startswith(lembretes.PREFIXO) or e.pergunta in lembretes.PERGUNTAS:
         return lembretes.trata(conn, ctx, e, p)
     if (

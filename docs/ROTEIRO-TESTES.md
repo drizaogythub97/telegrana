@@ -1,6 +1,6 @@
 # Roteiro de testes no celular (bot de dev)
 
-> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) em 05/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
 > "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
 > Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
 
@@ -57,6 +57,17 @@
 | G4 | ✍️ `luz 200 todo dia 15`; o agente roda **16/10 às 09:00** | ⏰ **Luz** venceu em 15/10 e ainda não está marcado como pago · Valor estimado: R$ 200,00 |
 | G5 | Tocar ✏️ Outro valor; mandar (respondendo ou não) 🎙️ "cento e oitenta e sete e quarenta" | Recibo 💡 Contas da casa · R$ 187,40 |
 | G6 | ✍️ `condomínio 450 todo dia 18`; o agente roda **18/10 às 09:00**; tocar ⏭️ Pular este mês | "⏭️ Pronto, Condomínio de outubro ficou de fora…"; rodando **19/10**, nada chega |
+
+## H — Cartões (S5.1)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| H1 | ✍️ `tênis 600 em 3x no nubank` | "📅 Cartão novo! Em que dia a fatura fecha e em que dia vence?" (2ª linha 💳 Nubank) |
+| H2 | Responder (ou mandar solto) 🎙️ "fecha dia três e vence dia dez" | 💳 Compra no crédito registrada · R$ 600,00 · 💳 Nubank · 3x de R$ 200,00 · 🧾 1ª parcela na fatura que vence … |
+| H3 | Se houver compras no crédito antigas: tocar ✅ Sim, mover | "Pronto: N compra(s) foram para as faturas do Nubank" |
+| H4 | `/cartoes` → ➕ Novo cartão → `Inter` → `fecha 25, vence 5` | 💳 Cartão cadastrado · Inter · fecha dia 25 · vence dia 5 |
+| H5 | ✍️ `farmácia 80 no crédito` → tocar 💳 Inter | Pergunta qual cartão (Nubank, Inter, ➕ Outro cartão); recibo no Inter |
+| H6 | Responder ao recibo do H2 com ✍️ `foi 900` | ✏️ Corrigido · 3x de R$ 300,00 |
+| H7 | Responder ao mesmo recibo com 🎙️ "na verdade foi no pix" | ✏️ Corrigido · R$ 900,00 · ⚡ Pix · sem parcelas |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |

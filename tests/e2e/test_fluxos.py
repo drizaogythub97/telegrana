@@ -238,6 +238,17 @@ def test_lembrete_do_fixo_pela_rotina(mundo: Mundo, ana: Pessoa, banco: Banco) -
     assert not [x for x in novas if "Spotify" in x], novas
 
 
+def test_compra_parcelada_cadastra_o_cartao(ana: Pessoa) -> None:
+    ana.diz("tênis 600 em 3x no nubank")
+    ana.espera("Cartão novo")
+    ana.responde("fecha 3, vence 10")
+    recibo = ana.espera("Compra no crédito registrada")
+    assert "3x de R$ 200,00" in recibo.texto
+    assert "1ª parcela na fatura que vence" in recibo.texto
+    ana.diz("/cartoes")
+    assert "Nubank" in ana.espera("Seus cartões").texto
+
+
 def test_categorias(ana: Pessoa) -> None:
     ana.diz("/categorias")
     lista = ana.espera("Suas categorias")

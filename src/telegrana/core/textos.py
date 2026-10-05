@@ -22,6 +22,12 @@ PERGUNTAS = {
     "fi_dia": "📅 Em que dia do mês ele vence? (de 1 a 31)",
     # Lembretes (a 2ª linha diz qual fixo e qual vencimento: "🔔 <nome> · dd/mm/aaaa")
     "lm_valor": "💬 Qual foi o valor desta vez?",
+    # Cartões (a 2ª linha diz qual cartão: "💳 <nome>")
+    "lc_cartao": "💳 Em qual cartão foi? Me diga o nome (ex.: Nubank).",
+    "lc_cartao_dias": "📅 Cartão novo! Em que dia a fatura fecha e em que dia vence? (ex.: fecha 3, vence 10)",
+    "ct_nome": "💳 Qual é o nome do cartão? (ex.: Nubank, Inter)",
+    "ct_dias": "📅 Em que dia a fatura fecha e em que dia vence? (ex.: fecha 3, vence 10)",
+    "ct_renomear": "✏️ Qual é o novo nome deste cartão?",
 }
 
 
@@ -164,6 +170,7 @@ AJUDA = (
     "/corrigir_nome — corrigir o seu nome\n"
     "/categorias — ver, criar e editar suas categorias\n"
     "/fixos — contas e ganhos que se repetem todo mês, com lembretes\n"
+    "/cartoes — seus cartões de crédito (fechamento e vencimento da fatura)\n"
     "/termos — termos de uso, privacidade e versão aceita\n"
     "/codigo_novo — gerar um novo código de recuperação\n"
     "/apagar_conta — apagar tudo, definitivamente"
@@ -308,6 +315,33 @@ LEMBRETE_VALOR = {"fixed": "Valor: {valor}", "estimated": "Valor estimado: {valo
 LEMBRETE_PULADO = "⏭️ Pronto, {nome} de {mes} ficou de fora. No próximo mês eu lembro de novo."
 LEMBRETE_JA_RESOLVIDO = "👍 {nome} de {mes} já está resolvido."
 LEMBRETE_INVALIDO = "Esse lembrete é antigo. Veja seus fixos em /fixos."
+# Cartões (S5.1, D045)
+COMPRA_CREDITO = "💳 **Compra no crédito registrada**"
+PERGUNTA_CARTAO = "💳 Em qual cartão foi **{resumo}**?"
+CARTOES_TITULO = "💳 **Seus cartões**"
+CARTOES_VAZIO = (
+    "💳 Você ainda não tem cartões. Toque em ➕ Novo cartão, ou registre uma compra no "
+    "crédito (ex.: «tênis 600 em 3x no Nubank») que eu cadastro o cartão na hora."
+)
+CARTAO_TITULO = "💳 **Cartão**"
+CARTAO_CRIADO = "💳 **Cartão cadastrado**"
+CARTAO_JA_EXISTE = "💳 **Esse cartão já existe**"
+CARTAO_ATUALIZADO = "✅ **Cartão atualizado**"
+CARTAO_SUMIU = "Esse cartão não existe mais. Veja seus cartões em /cartoes."
+CARTAO_APAGAR_CONFIRMA = "🗑️ Apagar o cartão **{nome}**?"
+CARTAO_APAGADO = "🗑️ Cartão apagado."
+CARTAO_DESATIVADO = (
+    "⏸️ O {nome} tem lançamentos, então ficou só desativado (as compras e parcelas continuam)."
+)
+CARTAO_NOME_RUIM = "Mande só o nome do cartão, com até 30 letras (ex.: Nubank)."
+CARTAO_NOME_EXISTE = "Já existe uma forma de pagamento chamada «{nome}». Escolha outro nome."
+DIAS_NAO_ENTENDI = "Não entendi os dias. Mande assim: «fecha 3, vence 10»."
+MOVER_ANTIGAS = (
+    "💳 Você tem {n} compra(s) no crédito registradas antes dos cartões. Coloco no {nome}? "
+    "Elas viram parcelas nas faturas certas e só contam como gasto quando a fatura for paga."
+)
+ANTIGAS_MOVIDAS = "✅ Pronto: {n} compra(s) foram para as faturas do {nome}."
+ANTIGAS_FICAM = "👍 Ficam como estão."
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (
