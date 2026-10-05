@@ -73,22 +73,26 @@ def lembra(
     }
 
 
-def _momento(event: dict[str, Any], env: str) -> datetime:
-    """Agora, em São Paulo. Só em dev dá para simular outro momento (roteiro de testes):
-    `{"momento": "2026-10-09T09:00"}`."""
-    simulado = event.get("momento") if isinstance(event, dict) else None
+def _momento(event: dict[str, Any], env: str) -> datetime | None:
+    """Quando lembrar. Só o Scheduler (`{"origem": "agenda"}`) dispara lembretes: a
+    verificação do deploy invoca com `{}` e não pode mandar mensagem a ninguém. Em dev dá
+    para simular outro momento (roteiro de testes): `{"momento": "2026-10-09T09:00"}`."""
+    simulado = event.get("momento")
     if env == "dev" and isinstance(simulado, str):
         return datetime.fromisoformat(simulado).replace(tzinfo=FUSO)
-    return agora()
+    return agora() if event.get("origem") == "agenda" else None
 
 
 def handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     settings = config.load_settings()
-    api = TelegramAPI(settings.telegram_bot_token)
-    momento = _momento(event, settings.env)
+    momento = _momento(event if isinstance(event, dict) else {}, settings.env)
+    enviados: dict[str, int] = {}
     with db.connect(settings.database_url, application_name="telegrana-rotinas") as conn:
-        enviados = lembra(conn, api, momento, settings.admin_telegram_id)
-        log.info("rotinas.lembretes", extra={**enviados, "horario": lembretes.horario_de(momento)})
+        if momento is not None:
+            api = TelegramAPI(settings.telegram_bot_token)
+            enviados = lembra(conn, api, momento, settings.admin_telegram_id)
+            horario = lembretes.horario_de(momento)
+            log.info("rotinas.lembretes", extra={**enviados, "horario": horario})
         resultado = limpa(conn)
     log.info("rotinas.limpeza", extra=resultado)
     return {**enviados, **resultado}

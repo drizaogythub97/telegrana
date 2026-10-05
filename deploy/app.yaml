@@ -148,6 +148,8 @@ Resources:
       Target:
         Arn: !GetAtt RotinasFunction.Arn
         RoleArn: !GetAtt SchedulerRole.Arn
+        # Só a agenda manda lembretes (a verificação do deploy invoca com {} e só limpa).
+        Input: '{"origem": "agenda"}'
         RetryPolicy:
           MaximumRetryAttempts: 2
 

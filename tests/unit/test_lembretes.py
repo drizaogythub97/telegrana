@@ -12,6 +12,7 @@ from telegrana.core import lembretes
 from telegrana.core import textos as t
 from telegrana.core.contexto import FUSO
 from telegrana.core.fixos import Fixo
+from telegrana.entrypoints import rotinas
 
 ALUGUEL = Fixo(
     uuid.uuid4(), "expense", "Aluguel", None, 150000, "fixed", 10, None,
@@ -114,3 +115,11 @@ def test_mensagem_do_lembrete() -> None:
         t.LEMBRETE[("income", "after")].format(nome="Salário", data="05/10", emoji="")
     )
     assert s.botoes[0][0].rotulo == "✅ Recebi"
+
+
+def test_so_a_agenda_manda_lembretes() -> None:
+    assert rotinas._momento({}, "prod") is None  # verificação do deploy: só limpa
+    assert rotinas._momento({"origem": "agenda"}, "prod") is not None
+    assert rotinas._momento({"momento": "2026-10-09T09:00"}, "prod") is None  # simular: só dev
+    simulado = rotinas._momento({"momento": "2026-10-09T09:00"}, "dev")
+    assert simulado == datetime(2026, 10, 9, 9, 0, tzinfo=FUSO)
