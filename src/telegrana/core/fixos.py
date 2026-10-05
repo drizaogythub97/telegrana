@@ -75,6 +75,7 @@ class Fixo:
     depois: bool
     horario: str  # morning | evening | both
     ativo: bool
+    desde: date | None = None  # dia em que foi cadastrado (lembrete "depois" não volta antes)
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +139,8 @@ def descreve_lembretes(f: Fixo) -> str:
 # ---------------------------------------------------------------------------
 _SELECT = (
     "select id, kind, name, category_id, amount_cents, amount_kind, day_of_month,"
-    " payment_method_id, remind_before, remind_on_day, remind_after, remind_slot, active"
+    " payment_method_id, remind_before, remind_on_day, remind_after, remind_slot, active,"
+    " (created_at at time zone 'America/Sao_Paulo')::date"
     " from telegrana.fixed_items"
 )
 _CAMPOS = {

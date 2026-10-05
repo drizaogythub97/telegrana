@@ -1,6 +1,6 @@
 # Roteiro de testes no celular (bot de dev)
 
-> Criado em 03/10/2026 (S3 + S4.1). Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) em 05/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
 > "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
 > Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
 
@@ -45,6 +45,18 @@
 | E4 | `/fixos` → tocar Aluguel → 💰 Valor → responder `1600` | ✅ Fixo atualizado · R$ 1.600,00 |
 | E5 | No Aluguel: 🔔 Lembretes → desmarcar Véspera → tocar 🌅🌙 Ambos → ✔️ Pronto | "Lembrete no dia e todo dia depois, às 09:00 e às 20:00" |
 | E6 | No Netflix: 🗑️ Apagar → 🗑️ Apagar de vez | "Fixo apagado"; o lançamento do E2 continua |
+
+## G — Lembretes (S4.2)
+> O agente dispara a rotina de dev simulando o dia (`{"momento": ...}`); você só confere e toca. Os seus outros fixos (Aluguel, Internet…) também podem mandar lembrete nesses dias simulados: é o esperado.
+
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| G1 | ✍️ `spotify 21,90 todo dia 20`; o agente roda a rotina como se fosse **19/10 às 09:00** | 📱 **Spotify** vence amanhã (20/10) · Valor: R$ 21,90 · ✅ Paguei · ✏️ Outro valor · ⏭️ Pular este mês |
+| G2 | O agente roda **20/10 às 09:00**; tocar ✅ Paguei | Os botões somem; recibo ✅ Gasto registrado · R$ 21,90 · 📝 Spotify |
+| G3 | Tocar ✅ Paguei no lembrete do G1 (véspera) | "👍 Spotify de outubro já está resolvido." (não lança de novo) |
+| G4 | ✍️ `luz 200 todo dia 15`; o agente roda **16/10 às 09:00** | ⏰ **Luz** venceu em 15/10 e ainda não está marcado como pago · Valor estimado: R$ 200,00 |
+| G5 | Tocar ✏️ Outro valor; responder 🎙️ "cento e oitenta e sete e quarenta" | Recibo 💡 Contas da casa · R$ 187,40 |
+| G6 | ✍️ `condomínio 450 todo dia 18`; o agente roda **18/10 às 09:00**; tocar ⏭️ Pular este mês | "⏭️ Pronto, Condomínio de outubro ficou de fora…"; rodando **19/10**, nada chega |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |

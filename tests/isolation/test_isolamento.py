@@ -43,6 +43,8 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "pending_entries": ("id", "account_id = %(conta)s"),
     "message_refs": ("message_id", "account_id = %(conta)s"),
     "fixed_items": ("id", "account_id = %(conta)s"),
+    "fixed_occurrences": ("id", "account_id = %(conta)s"),
+    "reminder_sends": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -107,6 +109,9 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             " phone_hmac = %s where id = %s",
             (hashlib.sha256(external_id.encode()).digest(), conta.user_id),
         )
+        cur.execute(
+            "update telegrana.accounts set status = 'active' where id = %s", (conta.account_id,)
+        )
         cur.execute("select telegrana.seed_account_defaults(%s)", (conta.account_id,))
         cur.execute(
             "insert into telegrana.transactions (account_id, user_id, kind, amount_cents,"
@@ -137,6 +142,17 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             " select %s, %s, 'expense', 'Aluguel', id, 150000, 'fixed', 10"
             " from telegrana.categories where code = 'moradia'",
             (conta.account_id, conta.user_id),
+        )
+        cur.execute(
+            "insert into telegrana.fixed_occurrences (account_id, fixed_item_id, due_date, status)"
+            " select %s, id, current_date, 'skipped' from telegrana.fixed_items",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.reminder_sends (account_id, fixed_item_id, due_date, rule,"
+            " sent_on, slot) select %s, id, current_date, 'on_day', current_date, 'morning'"
+            " from telegrana.fixed_items",
+            (conta.account_id,),
         )
     return conta
 
@@ -352,6 +368,7 @@ def test_funcoes_security_definer_sao_blindadas(migrator: db.Connection) -> None
         "purge_stale_onboarding",
         "admin_list_users",
         "purge_account_temporaries",
+        "accounts_with_reminders",
     }
     for nome, config, publico in funcoes:
         assert config, f"{nome}: sem configuração"
@@ -521,3 +538,13 @@ def test_lancamento_nao_aponta_para_fixo_de_outra_conta(
     with pytest.raises(psycopg.errors.ForeignKeyViolation):  # noqa: SIM117
         with db.account_context(app, cenario.a.account_id) as cur:
             cur.execute("update telegrana.transactions set fixed_item_id = %s", (fixo_b,))
+
+
+def test_contas_com_lembrete_so_devolve_ids(app: db.Connection, cenario: Cenario) -> None:
+    """A rotina atravessa contas só para saber QUEM tem lembrete; o resto é com RLS."""
+    with app.transaction():
+        cursor = app.execute("select * from telegrana.accounts_with_reminders()")
+        colunas = [c.name for c in cursor.description or []]
+        ids = {r[0] for r in cursor.fetchall()}
+    assert colunas == ["o_account_id"]
+    assert {cenario.a.account_id, cenario.b.account_id} <= ids
