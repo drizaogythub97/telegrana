@@ -60,6 +60,13 @@ def test_parcelas_viram_credito() -> None:
     assert (item.parcelas, item.forma_pagamento, item.valor_texto) == (4, "credito", "480")
 
 
+def test_descricao_mantem_os_acentos() -> None:
+    extracao = atalho.tenta("condomínio 450 todo dia 18")
+    assert extracao is not None
+    descricao = extracao.lancamentos[0].descricao or ""
+    assert descricao.split()[0] == "condomínio"  # "todo" sai depois, no nome do fixo
+
+
 def test_data_da_frase() -> None:
     assert proposta("gasolina 100 ontem").data == date(2026, 9, 30)
 

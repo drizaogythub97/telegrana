@@ -214,7 +214,9 @@ def _monta(texto: str, palavras: list[str], valor_texto: str | None) -> Extracao
         for p in sem_parcelas
         if p not in descartar and not _PAGAMENTO.fullmatch(p) and not p[0].isdigit()
     ]
-    descricao = " ".join(uteis)[:40] or None
+    # Com os acentos de quem escreveu ("condomínio", não "condominio").
+    original = {normaliza(w): w for w in re.findall(r"[^\W_]+", texto.lower())}
+    descricao = " ".join(original.get(p, p) for p in uteis)[:40] or None
     item = LancamentoIA(
         tipo="ganho" if ganho else "gasto",
         valor_texto=valor_texto,
