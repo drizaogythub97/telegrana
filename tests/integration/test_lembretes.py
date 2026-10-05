@@ -121,14 +121,14 @@ def test_outro_valor_sem_responder(
     luz, agua = sorted(rotina(conn, de, "2026-10-16"), key=lambda s: "Luz" not in s.texto)
     toca(bot, de, luz, "lm:ov:")
     r = bot(de, texto="a luz deu 187,40")
-    assert r.rotulo == "lembrete.valor.pendente"
+    assert r.rotulo == "lembrete.valor.solta"  # pergunta aberta (conta._resposta_solta)
     assert "R$ 187,40" in r.saidas[0].texto
     # Mensagem que não é só um valor segue como lançamento (e a marca some).
     toca(bot, de, agua, "lm:ov:")
     r = bot(de, texto="mercado 50")
     assert r.saidas[0].texto.startswith(t.REGISTRADO["expense"])
     r = bot(de, texto="95")  # a marca valia para UMA mensagem
-    assert r.rotulo != "lembrete.valor.pendente"
+    assert not r.rotulo.startswith("lembrete.valor")
     assert [x[1] for x in lancamentos_de(banco, de)] == [18740, 5000]
 
 
