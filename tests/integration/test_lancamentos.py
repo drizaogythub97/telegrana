@@ -270,10 +270,12 @@ def test_pergunta_se_e_fixo(bot: Bot, banco: Banco) -> None:
 
 def test_parcelado_no_credito(bot: Bot, banco: Banco) -> None:
     de = conta(bot)
-    r = bot(de, texto="tenis 480 em 4x")
-    assert "💳 Crédito · 4x" in r.saidas[0].texto
-    assert lancamentos_de(banco, de)[0][3] == "credit"
-    assert lancamentos_de(banco, de)[0][7] == 4
+    r = bot(de, texto="tenis 480 em 4x")  # parcelado = crédito; sem cartão: pergunta qual (D045)
+    assert r.saidas[0].pergunta == "lc_cartao"
+    r = bot(de, pergunta="lc_cartao", texto="Nubank")
+    r = bot(de, pergunta="lc_cartao_dias", contexto="💳 Nubank", texto="fecha 3 vence 10")
+    assert "💳 Nubank · 4x de R$ 120,00" in r.saidas[0].texto
+    assert [(x[3], x[4], x[7]) for x in lancamentos_de(banco, de)] == [("credit", "planned", 4)] * 4
 
 
 def test_ia_fora_do_ar_e_limite(bot: Bot, ia: IAFalsa) -> None:
