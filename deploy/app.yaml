@@ -90,7 +90,7 @@ Resources:
     Properties:
       FunctionName: !Sub "telegrana-${Env}-rotinas"
       CodeUri: ../.build/lambda
-      Description: Limpezas de retenção; lembretes e resumos a partir da S4.
+      Description: Lembretes dos fixos (S4.2) e limpezas de retenção; resumos na S6.
       Handler: telegrana.entrypoints.rotinas.handler
       Timeout: 60
       LoggingConfig:

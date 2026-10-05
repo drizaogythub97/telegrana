@@ -20,6 +20,8 @@ PERGUNTAS = {
     # Fixos (a 2ª linha diz qual fixo: "🔁 <nome>")
     "fi_valor": "💰 Qual é o novo valor deste fixo?",
     "fi_dia": "📅 Em que dia do mês ele vence? (de 1 a 31)",
+    # Lembretes (a 2ª linha diz qual fixo e qual vencimento: "🔔 <nome> · dd/mm/aaaa")
+    "lm_valor": "💬 Qual foi o valor desta vez?",
 }
 
 
@@ -293,6 +295,19 @@ FIXO_APAGAR_CONFIRMA = (
 FIXO_APAGADO = "🗑️ Fixo apagado."
 FIXO_DESFEITO = "↩️ Pronto, não é mais um fixo."
 FIXO_NAO = "👍 Anotado."
+# Lembretes (S4.2): {emoji} {nome} {quando}; a 2ª linha é o valor.
+LEMBRETE = {
+    ("expense", "before"): "{emoji} **{nome}** vence amanhã ({data})",
+    ("expense", "on_day"): "{emoji} **{nome}** vence hoje",
+    ("expense", "after"): "⏰ **{nome}** venceu em {data} e ainda não está marcado como pago",
+    ("income", "before"): "{emoji} **{nome}** cai amanhã ({data})",
+    ("income", "on_day"): "{emoji} **{nome}** cai hoje",
+    ("income", "after"): "⏰ **{nome}** era para ter caído em {data} e ainda não está marcado",
+}
+LEMBRETE_VALOR = {"fixed": "Valor: {valor}", "estimated": "Valor estimado: {valor}"}
+LEMBRETE_PULADO = "⏭️ Pronto, {nome} de {mes} ficou de fora. No próximo mês eu lembro de novo."
+LEMBRETE_JA_RESOLVIDO = "👍 {nome} de {mes} já está resolvido."
+LEMBRETE_INVALIDO = "Esse lembrete é antigo. Veja seus fixos em /fixos."
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (

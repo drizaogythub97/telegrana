@@ -11,6 +11,10 @@ import re
 
 import pytest
 
+from telegrana.core.contexto import agora
+from telegrana.entrypoints import bot, rotinas
+from telegrana.infra import db
+from tests.conftest import Banco
 from tests.e2e.conftest import ADMIN_ID, Mundo, Pessoa
 
 pytestmark = [pytest.mark.e2e, pytest.mark.integration]
@@ -210,6 +214,28 @@ def test_netflix_pergunta_se_e_fixo_e_ia_fora_do_ar(ana: Pessoa) -> None:
     # Sem chave do Groq no E2E: o que o atalho não entende vira um pedido educado.
     ana.diz("comprei umas coisinhas pra casa")
     ana.espera("Não consegui entender agora")
+
+
+def test_lembrete_do_fixo_pela_rotina(mundo: Mundo, ana: Pessoa, banco: Banco) -> None:
+    hoje = agora()
+    ana.diz(f"spotify 21,90 todo dia {hoje.day}")
+    ana.espera("Fixo cadastrado")
+    assert bot._api is not None
+    with db.connect(banco.app) as conn:
+        # A rotina das 09:00 de hoje (o Scheduler chama o handler; aqui, a mesma função).
+        enviados = rotinas.lembra(conn, bot._api, hoje.replace(hour=9), ADMIN_ID)
+        assert enviados["lembretes_nao_entregues"] == 0
+        assert enviados["contas_com_falha"] == 0
+        lembrete = ana.espera("Spotify vence hoje")
+        assert "Valor: R$ 21,90" in lembrete.texto
+        ana.toca("Paguei")
+        recibo = ana.espera("Gasto registrado")
+        assert "R$ 21,90" in recibo.texto
+        assert not lembrete.botoes(), "o toque tira os botões do lembrete"
+        rotinas.lembra(conn, bot._api, hoje.replace(hour=9), ADMIN_ID)  # repetida
+        rotinas.lembra(conn, bot._api, hoje.replace(hour=20), ADMIN_ID)  # pago: nada mais
+    novas = [m.texto for m in ana._recebidas() if m.id > ana.lidas]
+    assert not [x for x in novas if "Spotify" in x], novas
 
 
 def test_categorias(ana: Pessoa) -> None:

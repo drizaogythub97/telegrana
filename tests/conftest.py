@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import secrets
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -39,9 +39,10 @@ def _url_de_teste() -> str:
 
 @dataclass(frozen=True)
 class Banco:
-    admin: str  # dono do banco descartável
-    migrator: str
-    app: str
+    # repr=False: uma falha de teste não pode imprimir as URLs (têm senha) na saída do pytest.
+    admin: str = field(repr=False)  # dono do banco descartável
+    migrator: str = field(repr=False)
+    app: str = field(repr=False)
 
 
 @pytest.fixture(scope="session")
