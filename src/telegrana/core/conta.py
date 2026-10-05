@@ -5,17 +5,46 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 
-from telegrana.core import cartoes, categorias, fixos, lancamentos, lembretes
+from telegrana.core import cartoes, categorias, datas, fixos, lancamentos, lembretes, valores
+from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.cadastro import registra_aceites, saida_codigo, tela_termos, valida_nome
 from telegrana.core.contexto import Contexto, data_br
-from telegrana.core.mensagens import ADMIN, Botao, Entrada, Resultado, seguro
+from telegrana.core.interpretacao import normaliza
+from telegrana.core.mensagens import ADMIN, Botao, Entrada, Resultado, Saida, seguro
 from telegrana.infra import db
 
 _CANCELAR = Botao("Cancelar", "cancelar")
 ACOES_APAGAR = frozenset({"apagar:1", "apagar:2"})
+_VALORES = frozenset({"lc_valor", "fi_valor", "lm_valor"})
+_NOMES = frozenset({"lc_cartao", "ct_nome", "ct_renomear"})
+_DIAS_DA_FATURA = frozenset({"lc_cartao_dias", "ct_dias"})
+# Perguntas que aceitam a resposta solta (sem "Responder"), se ela tiver a cara da resposta.
+SOLTAS = _VALORES | _NOMES | _DIAS_DA_FATURA | {"lc_data", "fi_dia"}
+
+
+def cabe(pergunta: str, texto: str, contexto: str = "") -> bool:
+    """A mensagem solta tem a cara da resposta a esta pergunta? Na dúvida, não: segue como
+    mensagem nova (um gasto mandado logo depois de uma pergunta não pode virar resposta)."""
+    palavras = texto.split()
+    if pergunta in _VALORES:
+        return valores.so_valor(texto, frozenset(normaliza(contexto).split())) is not None
+    if pergunta in _NOMES:
+        return (
+            0 < len(palavras) <= 3
+            and not any(c.isdigit() for c in texto)
+            and bool(cartoes.chave(texto))
+            and cartoes.nome_valido(texto) is not None
+        )
+    if pergunta in _DIAS_DA_FATURA:
+        return cartoes.dois_dias(texto) is not None
+    if pergunta == "lc_data":
+        return 0 < len(palavras) <= 4 and datas.expressao_em(texto) is not None
+    if pergunta == "fi_dia":
+        return 0 < len(palavras) <= 4 and 1 <= fixos.dia_dito(texto) <= 31
+    return False
 
 
 def apagar(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Resultado:
@@ -55,6 +84,9 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
                 registra_aceites(cur, ctx, p)
             return Resultado(rotulo="conta.termos.aceitos").diz("✅ Obrigado! Tudo certo.")
         return Resultado(saidas=[tela_termos(ctx, mudaram=True)], rotulo="conta.termos.pendentes")
+    solta = _resposta_solta(conn, ctx, e, p)
+    if solta is not None:
+        return solta
     if e.audio is not None and e.pergunta is not None and e.pergunta not in lancamentos.PERGUNTAS:
         # Resposta por áudio a uma pergunta de fora dos lançamentos (valor do lembrete, valor
         # e dia do fixo...): ouve primeiro e segue como se fosse texto (05/10/2026).
@@ -137,6 +169,36 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
     if e.comando is not None:
         return r.diz(t.AJUDA)
     return lancamentos.trata(conn, ctx, e, p)
+
+
+def _resposta_solta(
+    conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa
+) -> Resultado | None:
+    """Pergunta aberta + mensagem solta com cara de resposta = resposta (05/10/2026)."""
+    with db.account_context(conn, p.account_id) as cur:
+        aberta = lrepo.abre_pergunta(cur, p.user_id)  # some a cada mensagem: vale para uma
+    solta = e.pergunta is None and not e.resposta_a and e.comando is None and e.acao is None
+    if aberta is None or not solta or e.telefone is not None:
+        return None
+    pergunta, contexto = aberta
+    ouvido: str | None = None
+    avisos: list[Saida] = []
+    texto = e.texto
+    if e.audio is not None:
+        transcrito = lancamentos._transcreve(conn, ctx, e, p)
+        if isinstance(transcrito, Resultado):
+            return transcrito
+        ouvido, avisos = transcrito
+        texto = ouvido
+    if cabe(pergunta, texto, contexto):
+        resposta = replace(e, pergunta=pergunta, contexto=contexto, texto=texto, audio=None)
+        r = trata(conn, ctx, resposta, p)
+        r.rotulo += ".solta"
+    elif ouvido is not None:
+        r = trata(conn, ctx, replace(e, texto=ouvido, audio=None), p)  # já ouvido: segue
+    else:
+        return None
+    return lancamentos._com_eco(r, ouvido, avisos)
 
 
 def _atualiza_telefone(

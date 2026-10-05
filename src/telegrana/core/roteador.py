@@ -7,6 +7,7 @@ IA (regra de ouro 4). Admin = `Contexto.admin_id`.
 from __future__ import annotations
 
 from telegrana.core import admin, cadastro, conta
+from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import textos as t
 from telegrana.core.contexto import Contexto
@@ -36,4 +37,15 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada) -> Resultado:
             return conta.apagar(conn, ctx, e, pessoa)
     if pessoa.status == "onboarding":
         return cadastro.passo(conn, ctx, e, pessoa)
-    return conta.trata(conn, ctx, e, pessoa)
+    r = conta.trata(conn, ctx, e, pessoa)
+    pergunta = next((s for s in reversed(r.saidas) if s.pergunta in conta.SOLTAS), None)
+    if pergunta is not None and pergunta.pergunta is not None:
+        # No Telegram Web/Desktop a resposta não abre sozinha: a próxima mensagem solta com
+        # cara de resposta também vale (conta._resposta_solta).
+        linhas = pergunta.texto.replace("**", "").splitlines()
+        contexto = linhas[1].strip() if len(linhas) > 1 else ""
+        with db.account_context(conn, pessoa.account_id) as cur:
+            lrepo.marca_pergunta(
+                cur, pessoa.account_id, pessoa.user_id, pergunta.pergunta, contexto
+            )
+    return r

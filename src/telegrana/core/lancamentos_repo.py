@@ -274,6 +274,37 @@ def rascunho_mais_recente(
     return (uuid.UUID(str(row[0])), dict(row[1])) if row else None
 
 
+# ---------------------------------------------------------------------------
+# Pergunta aberta: a próxima mensagem solta pode ser a resposta (Telegram Web/Desktop)
+# ---------------------------------------------------------------------------
+def marca_pergunta(
+    cur: Any, account_id: uuid.UUID, user_id: uuid.UUID, pergunta: str, contexto: str
+) -> None:
+    cur.execute(
+        "delete from telegrana.pending_entries where user_id = %s and pendencia = 'pergunta'",
+        (user_id,),
+    )
+    cria_rascunho(
+        cur, account_id, user_id, {"pergunta": pergunta, "contexto": contexto[:200]}, "pergunta"
+    )
+
+
+def abre_pergunta(cur: Any, user_id: uuid.UUID, minutos: int = 10) -> tuple[str, str] | None:
+    """A pergunta aberta (e a apaga: vale para UMA mensagem, respondendo ou não)."""
+    row = cur.execute(
+        "select data->>'pergunta', coalesce(data->>'contexto', '')"
+        " from telegrana.pending_entries where user_id = %s and pendencia = 'pergunta'"
+        " and created_at > now() - make_interval(mins => %s)"
+        " order by created_at desc limit 1",
+        (user_id, minutos),
+    ).fetchone()
+    cur.execute(
+        "delete from telegrana.pending_entries where user_id = %s and pendencia = 'pergunta'",
+        (user_id,),
+    )
+    return (str(row[0]), str(row[1])) if row and row[0] else None
+
+
 def pendencia_recente(cur: Any, user_id: uuid.UUID, minutos: int = 10) -> str | None:
     """A pendência do rascunho mais recente (para a resposta mandada sem "Responder")."""
     row = cur.execute(
