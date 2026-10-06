@@ -209,7 +209,14 @@ def _mensagem(
         return faturas.pede_pagamento(conn, p, e.texto)
     if faturas.parece_estorno(e.texto):
         return faturas.estorno(conn, p, e.texto)
-    from telegrana.core import relatorios  # tardio: relatorios → lembretes → este módulo
+    from telegrana.core import exportacao, relatorios  # tardio: → lembretes → este módulo
+
+    if exportacao.pede_arquivo(e.texto) and (
+        relatorios.parece_consulta(e.texto)
+        or not any(c.isdigit() for c in e.texto)
+        or re.search(r"\b(20\d{2})\b", e.texto)
+    ):  # "me manda os gastos de setembro em PDF", "planilha do ano"
+        return exportacao.por_frase(conn, ctx, p, e.texto)
 
     # "liste compra a compra" logo depois de um relatório detalha ESSE relatório; "liste meus
     # gastos de transporte" traz assunto novo e é um relatório novo (abaixo).

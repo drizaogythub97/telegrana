@@ -9,6 +9,8 @@ de 64 bytes, chat inexistente, contato compartilhado sem o teclado de contato.
 
 from __future__ import annotations
 
+import email
+import email.policy
 import html
 import itertools
 import json
@@ -45,6 +47,23 @@ class _ValidaHTML(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         self.texto.append(data)
+
+
+def _multipart(tipo: str, conteudo: bytes) -> dict[str, Any]:
+    """multipart/form-data → {campo: texto} e {arquivo: (nome, tipo, bytes)}."""
+    mensagem = email.message_from_bytes(
+        f"Content-Type: {tipo}\r\n\r\n".encode() + conteudo, policy=email.policy.HTTP
+    )
+    campos: dict[str, Any] = {}
+    for parte in mensagem.iter_parts():  # type: ignore[attr-defined]
+        nome = parte.get_param("name", header="content-disposition")
+        arquivo = parte.get_filename()
+        dados = parte.get_payload(decode=True) or b""
+        if arquivo:
+            campos[nome] = (arquivo, parte.get_content_type(), dados)
+        else:
+            campos[nome] = dados.decode()
+    return campos
 
 
 def texto_puro(texto_html: str) -> str:
@@ -84,6 +103,7 @@ class MensagemDoBot:
     texto: str
     teclado: dict[str, Any] | None
     protegida: bool
+    documento: tuple[str, str, bytes] | None = None  # (nome, tipo MIME, conteúdo)
 
     def botoes(self) -> list[dict[str, str]]:
         if not self.teclado or "inline_keyboard" not in self.teclado:
@@ -119,7 +139,12 @@ class TelegramSimulado:
             self.chamadas.append("download")
             return httpx.Response(200, content=self.arquivos[file_id])
         metodo = request.url.path.rsplit("/", 1)[-1]
-        corpo = json.loads(request.content or b"{}")
+        tipo = request.headers.get("content-type", "")
+        corpo = (
+            _multipart(tipo, request.content)
+            if tipo.startswith("multipart/")
+            else json.loads(request.content or b"{}")
+        )
         self.chamadas.append(metodo)
         try:
             resultado = getattr(self, f"_{metodo}")(corpo)
@@ -152,6 +177,27 @@ class TelegramSimulado:
         )
         self.mensagens[msg.id] = msg
         return {"message_id": msg.id, "chat": {"id": chat, "type": "private"}, "text": texto}
+
+    def _sendDocument(self, c: dict[str, Any]) -> dict[str, Any]:
+        chat = int(c["chat_id"])
+        if chat not in self.chats:
+            raise RecusaDoTelegram("Bad Request: chat not found")
+        nome, tipo, conteudo = c["document"]
+        if not conteudo or len(conteudo) > 50 * 1024 * 1024:
+            raise RecusaDoTelegram("arquivo vazio ou acima de 50 MB")
+        legenda = c.get("caption", "")
+        if legenda and c.get("parse_mode") != "HTML":
+            raise RecusaDoTelegram("o bot deveria mandar HTML")
+        texto = texto_puro(legenda) if legenda else ""
+        if len(texto) > 1024:
+            raise RecusaDoTelegram(f"legenda com {len(texto)} caracteres")
+        teclado = json.loads(c["reply_markup"]) if c.get("reply_markup") else None
+        _valida_teclado(teclado)
+        msg = MensagemDoBot(
+            self.proximo_id(), chat, legenda, texto, teclado, False, (nome, tipo, conteudo)
+        )
+        self.mensagens[msg.id] = msg
+        return {"message_id": msg.id, "chat": {"id": chat, "type": "private"}}
 
     def _answerCallbackQuery(self, c: dict[str, Any]) -> bool:
         if c["callback_query_id"] not in self.callbacks_abertos:

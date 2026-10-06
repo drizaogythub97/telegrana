@@ -474,6 +474,17 @@ def parece_consulta(frase: str) -> bool:
 
 
 def consulta(conn: db.Connection, ctx: Contexto, p: Pessoa, frase: str) -> Resultado:
+    pedido, r = interpreta(conn, ctx, p, frase)
+    if pedido is None:
+        return r.diz(t.PERIODO_NAO_ENTENDI)
+    with db.account_context(conn, p.account_id) as cur:
+        return _responde(cur, p, _sem_redundancia(pedido), r)
+
+
+def interpreta(
+    conn: db.Connection, ctx: Contexto, p: Pessoa, frase: str
+) -> tuple[Pedido | None, Resultado]:
+    """A frase vira `Pedido`: IA validada pelo código, ou o leitor do código."""
     r = Resultado(rotulo="relatorio.consulta", conta=p.account_id)
     hoje = agora().date()
     with db.account_context(conn, p.account_id) as cur:
@@ -492,10 +503,7 @@ def consulta(conn: db.Connection, ctx: Contexto, p: Pessoa, frase: str) -> Resul
             r.rotulo += ".ia_limite" if exc.limite else ".ia_falhou"
     if pedido is None:
         pedido = do_codigo(frase, cats, cards, hoje)
-    if pedido is None:
-        return r.diz(t.PERIODO_NAO_ENTENDI)
-    with db.account_context(conn, p.account_id) as cur:
-        return _responde(cur, p, _sem_redundancia(pedido), r)
+    return pedido, r
 
 
 def _conta_uso(
@@ -740,6 +748,19 @@ def mensal(cur: Any, hoje: date) -> str:
     return "\n".join(corpo)
 
 
+def _resumo_da_rotina(cur: Any, tipo: str, texto_: str, hoje: date, destino: str) -> Saida:
+    """O fechamento do mês vai com o PDF anexo (S7, D048); o semanal, só texto."""
+    if tipo != "monthly":
+        return Saida(texto_, destino=destino)
+    from telegrana.core import exportacao  # tardio: exportacao usa este módulo
+
+    ano, mes = periodos._soma_meses(hoje.year, hoje.month, -1)
+    periodo = periodos.mes_inteiro(ano, mes)
+    pedido = Pedido("saldo", periodo.inicio, periodo.fim, periodo.rotulo, agrupar="nenhum")
+    anexo = exportacao.arquivo(cur, pedido, hoje, "pdf")
+    return Saida(texto_[:1000], destino=destino, arquivo=anexo)
+
+
 def da_rotina(conn: db.Connection, canal: str, momento: datetime) -> tuple[list[Saida], int]:
     """Resumo semanal (domingo, 20:00) e fechamento do mês (dia 1, 09:00), um por período."""
     hoje, horario = momento.date(), lembretes.horario_de(momento)
@@ -768,7 +789,7 @@ def da_rotina(conn: db.Connection, canal: str, momento: datetime) -> tuple[list[
                         (account_id, tipo, inicio),
                     ).fetchone()
                     if row is not None:  # gravado antes de enviar: nunca repete
-                        saidas.append(Saida(gera(cur, hoje), destino=destino))
+                        saidas.append(_resumo_da_rotina(cur, tipo, gera(cur, hoje), hoje, destino))
             except psycopg.Error as exc:
                 falhas += 1
                 log.error("relatorios.conta_falhou", extra={"erro": type(exc).__name__})

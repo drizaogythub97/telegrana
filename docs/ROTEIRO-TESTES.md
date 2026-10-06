@@ -1,6 +1,6 @@
 # Roteiro de testes no celular (bot de dev)
 
-> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026; I (fatura) e J (relatórios) em 06/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026; I (fatura), J (relatórios) e K (exportação) em 06/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
 > "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
 > Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
 
@@ -92,6 +92,16 @@
 | J6 | ✍️ `/fatura` | A fatura a pagar de cada cartão, com os botões |
 | J8 | Depois do J3: 🎙️ "liste compra a compra o que deu esse total" (ou tocar 📋 Ver lançamentos) | Cada compra de mercado do mês: data · descrição · valor · forma, e o total |
 | J7 | O agente roda a rotina no domingo 20:00 e no dia 1 09:00 (dev) | 🗓️ Sua semana… e 📆 Fechamento de … |
+
+## K — Exportação (S7)
+> Abrir os arquivos **no celular** (validação visual da S7).
+
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| K1 | `/exportar` → 📄 Este mês · PDF | 📎 PDF · outubro/2026 com o arquivo `telegrana-2026-10.pdf`: logo, faixa azul→verde, cards Entrou/Saiu/Saldo, barras por categoria, tabela de lançamentos |
+| K2 | `/exportar` → 📊 Este mês · Planilha | `telegrana-2026-10.xlsx` com as abas Resumo, Por categoria, Lançamentos (com filtro) e Compromissos; valores em R$ |
+| K3 | 🎙️ "me manda os gastos de setembro em PDF" | PDF de setembro só com gastos |
+| K4 | O agente roda a rotina no dia 1 09:00 (dev) | 📆 Fechamento de … com o PDF anexo |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |
