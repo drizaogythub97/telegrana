@@ -50,6 +50,16 @@ class Entrada:
 
 
 @dataclass(frozen=True, slots=True)
+class Arquivo:
+    """Arquivo gerado para a pessoa (PDF, XLSX). Só em memória: nunca vai a disco nem a log.
+    O nome não leva dado pessoal (ex.: "telegrana-2026-10.pdf")."""
+
+    nome: str
+    tipo: str  # tipo MIME
+    conteudo: bytes = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True, slots=True)
 class Botao:
     rotulo: str
     acao: str | None = None
@@ -68,6 +78,7 @@ class Saida:
     ref: str | None = None  # ex.: "tx:<uuid>": o canal devolve o id da mensagem enviada
     responder: bool = False  # abre a resposta sozinha (sem ser uma pergunta registrada)
     substitui: bool = False  # resposta a um botão: troca a mensagem tocada (telas de ajuste)
+    arquivo: Arquivo | None = None  # o texto vira a legenda do arquivo (até 1024 caracteres)
 
 
 @dataclass(slots=True)

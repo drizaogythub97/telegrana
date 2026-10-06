@@ -60,6 +60,39 @@ class TelegramAPI:
             raise TelegramError(f"{method}: HTTP {resposta.status_code} {descricao}".strip())
         return corpo.get("result")
 
+    def envia_documento(
+        self,
+        chat_id: int,
+        nome: str,
+        conteudo: bytes,
+        tipo: str,
+        *,
+        legenda: str | None = None,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> Any:
+        """sendDocument (multipart), com legenda em HTML."""
+        campos: dict[str, str] = {"chat_id": str(chat_id), "parse_mode": "HTML"}
+        if legenda:
+            campos["caption"] = legenda
+        if reply_markup:
+            campos["reply_markup"] = json.dumps(reply_markup)
+        try:
+            resposta = self._client.post(
+                self._prefix + "sendDocument",
+                data=campos,
+                files={"document": (nome, conteudo, tipo)},
+                timeout=httpx.Timeout(30.0, connect=5.0),
+            )
+            corpo = resposta.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise TelegramError(
+                f"sendDocument: falha de comunicação ({type(exc).__name__})"
+            ) from None
+        if not isinstance(corpo, dict) or not corpo.get("ok"):
+            descricao = str(corpo.get("description", ""))[:200] if isinstance(corpo, dict) else ""
+            raise TelegramError(f"sendDocument: HTTP {resposta.status_code} {descricao}".strip())
+        return corpo.get("result")
+
     def baixa_arquivo(self, file_id: str, limite: int) -> bytes:
         """getFile + download em memória, parando se passar de `limite` bytes.
 

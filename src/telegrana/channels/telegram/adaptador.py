@@ -247,6 +247,20 @@ def executa(
             falhas += 1
             log.warning("telegram.apagar_falhou", extra={"erro": str(exc)[:120]})
     for saida in saidas:
+        if saida.arquivo is not None:
+            try:
+                api.envia_documento(
+                    destino(saida, origem, admin_id),
+                    saida.arquivo.nome,
+                    saida.arquivo.conteudo,
+                    saida.arquivo.tipo,
+                    legenda=html_de(saida.texto)[:1024] if saida.texto else None,
+                    reply_markup=teclado(saida),
+                )
+            except TelegramError as exc:
+                falhas += 1
+                log.warning("telegram.documento_falhou", extra={"erro": str(exc)[:120]})
+            continue
         try:
             enviada = api.call(
                 "sendMessage",

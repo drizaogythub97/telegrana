@@ -9,6 +9,7 @@ from telegrana.core import (
     cartoes,
     categorias,
     datas,
+    exportacao,
     faturas,
     fixos,
     lancamentos,
@@ -131,6 +132,8 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
         or e.pergunta in cartoes.PERGUNTAS
     ):
         return cartoes.trata(conn, ctx, e, p)
+    if e.comando == "exportar" or (e.acao or "").startswith(exportacao.PREFIXO):
+        return exportacao.trata(conn, ctx, e, p)
     if e.comando in relatorios.COMANDOS or (e.acao or "").startswith(relatorios.PREFIXO):
         return relatorios.trata(conn, ctx, e, p)
     if (e.acao or "").startswith(faturas.PREFIXO) or e.pergunta in faturas.PERGUNTAS:

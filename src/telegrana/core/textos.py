@@ -174,6 +174,7 @@ AJUDA = (
     "/corrigir_nome — corrigir o seu nome\n"
     "/resumo — o mês até agora: entradas, saídas e onde mais gastou\n"
     "/fatura — as faturas em aberto dos seus cartões\n"
+    "/exportar — PDF ou planilha do mês, do mês passado ou do ano\n"
     "/categorias — ver, criar e editar suas categorias\n"
     "/fixos — contas e ganhos que se repetem todo mês, com lembretes\n"
     "/cartoes — seus cartões de crédito (fechamento e vencimento da fatura)\n"
@@ -408,6 +409,12 @@ SEMANAL_NADA_VENCE = "Nada vence nos próximos 7 dias. 👍"
 MENSAL_TITULO = "📆 **Fechamento de {periodo}**"
 MENSAL_COMPARA = "{seta} {pct}% de gastos em relação a {mes}."
 SEM_FATURA_ABERTA = "🧾 Nenhuma fatura em aberto."
+# Exportação (S7, D048)
+EXPORTAR_TITULO = (
+    "📤 **Exportar**: escolha o período e o formato. Também dá para pedir: «me manda os "
+    "gastos de setembro em PDF» ou «planilha do ano»."
+)
+EXPORTACAO_LEGENDA = "📎 {nome} · {periodo}"
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (
