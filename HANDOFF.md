@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 06/10/2026 · **S0 a S5 encerradas** · texto, áudio, fixos, lembretes e **cartão de crédito com fatura** no ar em dev e prod · próxima: **S6 — relatórios em texto**.
+> Atualizado em 06/10/2026 · **S0 a S6 encerradas** · texto, áudio, fixos, lembretes, cartão com fatura e **relatórios em texto** no ar em dev e prod · próxima: **S7 — exportação (XLSX e PDF)**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,22 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D046. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D047. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S6 — encerrada em 06/10/2026 (D047; PRs #57–#61)
+
+- **Consultas em linguagem natural** (PR #57, `38afa3b`): "quanto gastei de mercado este mês?", "meus gastos dos últimos 3 meses, mês a mês", "quanto sobrou?". A IA devolve `ConsultaIA` (esquema estrito: tipo, `periodo_texto` copiado, categorias, termo, forma, cartão, agrupar, limite, visão — `Groq.consulta`, `REGRAS_CONSULTA`); o código valida (período em `core/periodos.py`; só categorias e cartões da conta; categoria escrita na frase vale se a IA a esquecer) e monta o SQL em `core/relatorios.py` com `psycopg.sql` só com fragmentos fixos e parâmetros. Sem IA: `relatorios.do_codigo`. Atalho sem a IA de extração: "quanto gastei/gostei/ganhei/sobrou…", "meus gastos", "relatório", "extrato", "liste meus gastos…".
+- **Visões** (regime de caixa): realizado (padrão, `status = 'done'` por `cash_on`), pela data da compra (`occurred_on`), compromissos (`planned`). Compra no cartão em aberto no período → aviso + "💳 Incluir compras no cartão".
+- **Ver os lançamentos** (PR #59, pedido do Adriano): todo relatório com valor tem "📋 Ver lançamentos"; "liste compra a compra"/"quais foram"/"detalhe" logo depois (30 min) detalham AQUELE relatório (rascunho `consulta`); "liste minhas compras de X" já vem item a item (`agrupar = lancamento`).
+- **`/resumo`** (entrou, saiu, saldo, top 5 categorias com %, interruptores dos resumos) e **`/fatura`**. **Rotina**: resumo semanal (domingo 20:00, desligado por padrão) e fechamento do mês (dia 1, 09:00, ligado), um por período (`summary_sends`); migração **0013**.
+- **Roteiro J** (06/10/2026): tudo certo; ajustes que saíram dele: saldo não se divide por categoria (#58), semanal sem fixos já resolvidos (#58), categoria escrita na frase vale ("gostei" do Whisper, #60), categoria única sem "· 100%" (#61).
+- **Limites do Groq de dev** aumentados a pedido do Adriano (06/10/2026): 6 mil tokens/min, 100 mil/dia, 600 pedidos/dia por modelo de texto.
+- **Testes**: `tests/unit/test_periodos.py` (20 períodos), `test_consulta_ia.py` (contrato), `tests/integration/test_relatorios.py` (números conferidos contra os dados inseridos, IA validada, lista, resumos, isolamento), isolamento 104, E2E 23.
 
 ### S5 — encerrada em 06/10/2026 (D045, D046; PRs #52–#55)
 
@@ -182,16 +192,25 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #53 | `1b40729` | pergunta do bot aceita a resposta solta (migração 0011) |
 | #54 | `e2c568d` | **S5.2**: fatura — pagamento, avisos e estorno (D046) |
 | #55 | `490f635` | ✔️ Pronto dos lembretes do cartão volta ao cartão |
-| #56 | (este) | encerramento da S5 |
+| #56 | `853400b` | encerramento da S5 |
+| #57 | `38afa3b` | **S6**: relatórios em texto (D047) |
+| #58 | `1d51e32` | saldo sem divisão por categoria; semanal sem fixos resolvidos |
+| #59 | `0b4e312` | ver os lançamentos de um relatório |
+| #60 | `7031c3e` | categoria escrita na frase vale quando a IA a esquece |
+| #61 | `b0d21b6` | categoria única mostra só o total |
+| #62 | (este) | encerramento da S6 |
 
-## Ponto de partida exato da próxima sessão (S6 — relatórios em texto)
+## Ponto de partida exato da próxima sessão (S7 — exportação XLSX e PDF)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (ver Gotchas > AWS: 400 → `--remote` em janela anônima; a tela pede o ID da conta).
-2. **S6 (PLANO seção 6 e 12)**: `ReportSpec` (Pydantic: período, tipo, categorias, formas, agrupamento, ordenação, **visão realizado / compromissos / por data da compra**, formato texto) interpretado pela IA (intenção `consulta` já existe e hoje responde "em breve"); **SQL montado pelo código** a partir de listas permitidas (a IA nunca escreve SQL); `/resumo` (mês atual), `/fatura` (atalho para a fatura aberta de cada cartão — hoje só há "paguei a fatura…" e `/cartoes` → 🧾 Faturas); resumo semanal (domingo 20:00) e fechamento do mês (dia 1, 09:00) pela rotina, desligáveis por conta.
-   - **Regime de caixa já pronto nos dados**: realizado = `status = 'done'` por `cash_on`; compromissos = `status = 'planned'` (parcelas por `invoice_on`, lançamentos futuros); por data da compra = `occurred_on`. Transferências (`kind = 'transfer'`) não são gasto. Apagados (`deleted_at`) nunca entram.
-   - Antes de codar, perguntar ao Adriano de uma vez: o formato do `/resumo` (top categorias? comparação com o mês anterior?), o horário/conteúdo do resumo semanal e se o fechamento do mês já vai com PDF (o PDF é da S7).
-   - Testes: números conferidos contra SQL de referência; consultas em linguagem natural no conjunto de avaliação (acrescentar casos de `consulta`).
-3. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (bloco J; agente por texto no Telegram Web, áudios com o Adriano) → encerramento.
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (400 → `--remote` em janela anônima; ID da conta no `login_session` do perfil).
+2. **S7 (PLANO seção 6, "XLSX" e "PDF")**: `/exportar` e "me manda em PDF/planilha" sobre o mesmo `Pedido` de `core/relatorios.py` (a visão e os filtros já existem; o formato vira um campo novo na `ConsultaIA`/leitor do código).
+   - **XLSX** (openpyxl, já previsto no PLANO): abas Resumo, Por categoria, Lançamentos, Compromissos; moeda BRL; cabeçalho nas cores da marca (`exports/brand.py`); filtros e colunas ajustadas; **neutralizar injeção de fórmula** (prefixar `'` em texto iniciado por `=`, `+`, `-`, `@`, tab, CR).
+   - **PDF**: biblioteca leve para Lambda (avaliar `fpdf2` x `reportlab`, registrar a escolha numa D048; nada de Chromium); cabeçalho com a logo e degradê azul→verde, cards de resumo, gráfico de barras por categoria, tabela de lançamentos.
+   - Envio pelo canal: o núcleo devolve o arquivo (bytes + nome sem dado sensível) numa `Saida` nova (ex.: `arquivo`), o adaptador do Telegram usa `sendDocument`; arquivo em `/tmp`, apagado na mesma execução. A Bot API simulada do E2E precisa aceitar `sendDocument`.
+   - **Fechamento do mês** passa a ir com o PDF anexo (D047).
+   - Validação visual no celular via adb (PLANO 12, S7): abrir o XLSX e o PDF no Galaxy.
+   - Antes de codar, perguntar ao Adriano de uma vez: o que vai no PDF mensal (só o mês? com comparação?), se a planilha leva todos os lançamentos do período ou só o resumo, e se quer `/exportar` com botões de período (mês atual, mês passado, ano).
+3. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (bloco K; agente por texto no Telegram Web, áudios e celular com o Adriano) → encerramento.
 
 ## Pendências do Adriano
 
@@ -312,6 +331,11 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - `aws login --profile telegrana --remote` **não abre aba**: imprime o link e espera o código. O painel de terminal do app falha na integração; abra uma janela própria: `Start-Process pwsh -ArgumentList '-NoExit','-NoProfile','-Command','aws login --profile telegrana --remote'`. A tela pede o ID da conta (está no `login_session` do perfil em `~/.aws/config`).
 - No Git Bash, caminhos como `/aws/lambda/...` viram caminhos do Windows: prefixe `MSYS_NO_PATHCONV=1` (ex.: `aws logs filter-log-events --log-group-name /aws/lambda/telegrana-dev-bot ...`).
 - Testes com o Neon de testes podem levar 10+ min (rede lenta em 05/10/2026); o CI usa Postgres local e roda tudo em segundos. A fixture `Banco` não mostra as URLs no `repr` (uma falha de teste não pode imprimir senha).
+
+**Relatórios (S6)**
+- `relatorios._responde` guarda o último pedido num rascunho `consulta` (30 min): é dele que saem "📋 Ver lançamentos", "💳 Incluir compras no cartão" e o "liste compra a compra" seguinte. Pedido de lista com número ou assunto novo é relatório novo.
+- `lancamentos` importa `relatorios` dentro da função (ciclo `lancamentos → relatorios → lembretes → lancamentos`); conferir com `python -c "import telegrana.core.X"` módulo a módulo depois de mexer em imports.
+- Teste de consulta com data fixa: `monkeypatch.setattr(relatorios, "agora", ...)`; inserir lançamentos pelo `migrator` com `::date` nos parâmetros.
 
 **Cartões e faturas (S5)**
 - Compra no cartão = várias linhas em `transactions` ligadas por `purchase_id`; `lancamentos_repo.lancamento()` devolve a compra como UM lançamento (total das parcelas, data da compra = `occurred_on`). `Lancamento.data` agora é `occurred_on` (igual a `cash_on` para lançamentos comuns).
