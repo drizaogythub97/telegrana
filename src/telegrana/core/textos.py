@@ -386,6 +386,12 @@ VISOES = {
 }
 RELATORIO_VAZIO = "Nada encontrado nesse período."
 RELATORIO_MAIS = "…e mais {n}"
+LISTA_MAIS = "…e mais {n} lançamento(s). Peça um período menor para ver todos."
+BOTAO_VER_LANCAMENTOS = "📋 Ver lançamentos"
+SEM_RELATORIO_ANTERIOR = (
+    "Não achei um relatório recente para detalhar. Pergunte, por exemplo: «liste minhas "
+    "compras de mercado deste mês»."
+)
 RELATORIO_CARTAO_ABERTO = (
     "💳 Mais {valor} em compras no cartão desse período ainda não pagas (entram quando a "
     "fatura for paga)."

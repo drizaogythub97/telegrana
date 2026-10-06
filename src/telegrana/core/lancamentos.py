@@ -211,6 +211,12 @@ def _mensagem(
         return faturas.estorno(conn, p, e.texto)
     from telegrana.core import relatorios  # tardio: relatorios → lembretes → este módulo
 
+    # "liste compra a compra" logo depois de um relatório detalha ESSE relatório; "liste meus
+    # gastos de transporte" traz assunto novo e é um relatório novo (abaixo).
+    if relatorios.pede_lista(e.texto) and not relatorios.parece_consulta(e.texto):
+        detalhe = relatorios.detalha_ultimo(conn, p)
+        if detalhe is not None:
+            return detalhe
     if relatorios.parece_consulta(e.texto):  # "quanto gastei…": direto para o relatório
         return relatorios.consulta(conn, ctx, p, e.texto)
     if _PARECE_CORRECAO.search(normaliza(e.texto)):

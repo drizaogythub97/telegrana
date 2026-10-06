@@ -90,6 +90,7 @@
 | J4 | ✍️ `meus gastos dos últimos 3 meses, mês a mês` | Uma linha por mês e o total |
 | J5 | ✍️ `quanto sobrou este mês?` | Entrou, Saiu, Saldo |
 | J6 | ✍️ `/fatura` | A fatura a pagar de cada cartão, com os botões |
+| J8 | Depois do J3: 🎙️ "liste compra a compra o que deu esse total" (ou tocar 📋 Ver lançamentos) | Cada compra de mercado do mês: data · descrição · valor · forma, e o total |
 | J7 | O agente roda a rotina no domingo 20:00 e no dia 1 09:00 (dev) | 🗓️ Sua semana… e 📆 Fechamento de … |
 
 ## F — Limites e ajuda
