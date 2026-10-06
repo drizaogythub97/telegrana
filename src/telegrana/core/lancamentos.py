@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
-from telegrana.core import atalho, cartoes, datas, fixos, valores
+from telegrana.core import atalho, cartoes, datas, faturas, fixos, valores
 from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
@@ -45,6 +45,13 @@ _PERGUNTA_DA_PENDENCIA = {
     "cartao_dias": "lc_cartao_dias",
 }
 MINUTOS_RESPOSTA_SOLTA = 10
+# "paguei a fatura do nubank", "quero pagar a fatura": vai direto para a fatura (sem IA).
+_PAGA_FATURA = re.compile(r"\b(paguei|pagar|paga|pago|quitei|quitar)\b.*\bfatura\b")
+# "paguei a fatura da luz" é conta de consumo (lançamento comum), não fatura de cartão.
+_FATURA_DE_CONSUMO = re.compile(
+    r"\bfatura (da|de|do) (luz|agua|energia|internet|net|celular|telefone|gas|tv|claro|vivo"
+    r"|tim|oi|condominio|escola|faculdade|academia)\b"
+)
 # Frase que só pode ser correção ("na verdade foi ontem"): vai direto para a correção do
 # último lançamento, sem depender de a IA classificar a intenção (03/10/2026).
 _PARECE_CORRECAO = re.compile(
@@ -197,6 +204,11 @@ def _mensagem(
     conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa, *, origem: str = "text"
 ) -> Resultado:
     hoje = agora().date()
+    frase = normaliza(e.texto)
+    if _PAGA_FATURA.search(frase) and not _FATURA_DE_CONSUMO.search(frase):
+        return faturas.pede_pagamento(conn, p, e.texto)
+    if faturas.parece_estorno(e.texto):
+        return faturas.estorno(conn, p, e.texto)
     if _PARECE_CORRECAO.search(normaliza(e.texto)):
         with db.account_context(conn, p.account_id) as cur:
             alvo = repo.ultimo(cur, p.user_id)
@@ -237,9 +249,10 @@ def _mensagem(
             if ultimo is None:
                 return r.diz(t.NADA_PARA_APAGAR)
             return _apaga(cur, ultimo, cats, hoje, r)
+    if interp.intencao == "pagar_fatura":
+        return faturas.pede_pagamento(conn, p, e.texto)
     mensagem = {
         "consulta": t.CONSULTA_EM_BREVE,
-        "pagar_fatura": t.FATURA_EM_BREVE,
         "conversa": t.OI,
     }.get(interp.intencao, t.NAO_ENTENDI)
     return r.diz(mensagem)

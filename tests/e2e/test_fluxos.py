@@ -249,6 +249,14 @@ def test_compra_parcelada_cadastra_o_cartao(ana: Pessoa) -> None:
     assert "Nubank" in ana.espera("Seus cartões").texto
 
 
+def test_paga_a_fatura(ana: Pessoa) -> None:
+    ana.diz("paguei a fatura do nubank")
+    fatura = ana.espera("Fatura do Nubank")
+    assert "Total:" in fatura.texto
+    ana.toca("Paguei")
+    ana.espera("Fatura do Nubank paga")
+
+
 def test_categorias(ana: Pessoa) -> None:
     ana.diz("/categorias")
     lista = ana.espera("Suas categorias")

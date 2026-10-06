@@ -1,6 +1,6 @@
 # Roteiro de testes no celular (bot de dev)
 
-> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026; I (fatura) em 06/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
 > "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
 > Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
 
@@ -68,6 +68,18 @@
 | H5 | ✍️ `farmácia 80 no crédito` → tocar 💳 Inter | Pergunta qual cartão (Nubank, Inter, ➕ Outro cartão); recibo no Inter |
 | H6 | Responder ao recibo do H2 com ✍️ `foi 900` | ✏️ Corrigido · 3x de R$ 300,00 |
 | H7 | Responder ao mesmo recibo com 🎙️ "na verdade foi no pix" | ✏️ Corrigido · R$ 900,00 · ⚡ Pix · sem parcelas |
+
+## I — Fatura (S5.2)
+> O agente dispara a rotina de dev simulando o dia (fechamento e vencimento).
+
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| I1 | O agente roda a rotina no dia do fechamento do Nubank | 🧾 Fatura do Nubank fechou · vence dd/mm · Total · itens · ✅ Paguei R$ X · ✏️ Outro valor |
+| I2 | ✍️ `paguei a fatura do nubank` | A mesma fatura com os botões (não paga sozinho) |
+| I3 | ✏️ Outro valor → mandar (solto ou respondendo) 🎙️ um valor menor que o total | ✅ Pagamento parcial…; o resto vai para a fatura seguinte como «Saldo anterior» |
+| I4 | `/cartoes` → Nubank → 🧾 Faturas | A fatura seguinte com o «Saldo anterior» somado |
+| I5 | ✍️ `estorno de 80 no inter` | ↩️ Estorno de R$ 80,00 abatido de «farmácia» |
+| I6 | `/cartoes` → Inter → 🔔 Lembretes → desmarcar Depois → ✔️ Pronto | "Lembrete na véspera e no dia, às 09:00" |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |

@@ -28,6 +28,8 @@ PERGUNTAS = {
     "ct_nome": "💳 Qual é o nome do cartão? (ex.: Nubank, Inter)",
     "ct_dias": "📅 Em que dia a fatura fecha e em que dia vence? (ex.: fecha 3, vence 10)",
     "ct_renomear": "✏️ Qual é o novo nome deste cartão?",
+    # Faturas (a 2ª linha diz qual: "🧾 <cartão> · dd/mm/aaaa")
+    "fa_valor": "💬 Quanto você pagou desta fatura?",
 }
 
 
@@ -342,6 +344,36 @@ MOVER_ANTIGAS = (
 )
 ANTIGAS_MOVIDAS = "✅ Pronto: {n} compra(s) foram para as faturas do {nome}."
 ANTIGAS_FICAM = "👍 Ficam como estão."
+# Faturas (S5.2, D046)
+FATURA_TITULO = "🧾 **Fatura do {nome}** · vence {data}"
+FATURA_FECHOU = "🧾 **Fatura do {nome} fechou** · vence {data}"
+FATURA_VENCE_AMANHA = "🧾 **Fatura do {nome}** vence amanhã ({data})"
+FATURA_VENCE_HOJE = "🧾 **Fatura do {nome}** vence hoje"
+FATURA_ATRASADA = "⏰ **Fatura do {nome}** venceu em {data} e ainda não está marcada como paga"
+FATURA_MAIS = "…e mais {n} item(ns)"
+FATURA_VAZIA = "🧾 Não há fatura em aberto no {nome}."
+FATURA_JA_PAGA = "👍 A fatura do {nome} que vence {data} já está paga."
+FATURA_PAGA = (
+    "✅ **Fatura do {nome} paga**: {pago}. {n} item(ns) viraram gasto hoje, cada um na sua "
+    "categoria."
+)
+FATURA_PAGA_PARCIAL = (
+    "✅ **Pagamento parcial da fatura do {nome}**: {pago}. Cada compra virou gasto na mesma "
+    "proporção; os {resto} restantes foram para a fatura de {data} como «Saldo anterior»."
+)
+FATURA_ENCARGOS = " Os {valor} a mais entraram como 💸 Encargos e juros."
+DESCRICAO_ENCARGOS = "Juros e encargos da fatura"
+FATURAS_DO_CARTAO = "🧾 **Faturas do {nome}** (toque para ver)"
+SEM_CARTOES = "💳 Você ainda não tem cartões. Veja /cartoes."
+QUAL_FATURA = "🧾 Fatura de qual cartão?"
+ESTORNO_SEM_VALOR = "Quanto foi o estorno? Ex.: «estorno de 80 no Inter»."
+ESTORNO_SEM_COMPRA = (
+    "Não achei uma compra no cartão com parcelas em aberto para abater {valor}. Se for o "
+    "caso, apague ou corrija a compra pelo recibo."
+)
+ESTORNO_QUAL = "↩️ Estorno de {valor}: de qual compra?"
+ESTORNO_FEITO = "↩️ Estorno de {valor} abatido de «{descricao}»."
+ESTORNO_NENHUMA = "👍 Nada mudou."
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (

@@ -46,6 +46,8 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "fixed_occurrences": ("id", "account_id = %(conta)s"),
     "reminder_sends": ("id", "account_id = %(conta)s"),
     "cards": ("id", "account_id = %(conta)s"),
+    "card_invoices": ("id", "account_id = %(conta)s"),
+    "invoice_notices": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -157,6 +159,18 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
         cur.execute(
             "insert into telegrana.cards (account_id, payment_method_id, closing_day, due_day)"
             " select %s, id, 3, 10 from telegrana.payment_methods where name = 'Nubank'",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.card_invoices (account_id, card_id, due_date, total_cents,"
+            " paid_cents, paid_on) select %s, id, current_date, 100, 100, current_date"
+            " from telegrana.cards",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.invoice_notices (account_id, card_id, due_date, rule,"
+            " sent_on, slot) select %s, id, current_date, 'on_day', current_date, 'morning'"
+            " from telegrana.cards",
             (conta.account_id,),
         )
         cur.execute(
