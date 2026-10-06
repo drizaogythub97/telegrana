@@ -146,6 +146,10 @@ def test_consulta_pela_ia_e_validada_pelo_codigo(
     r = com_ia(de, texto="onde mais gastei este mês?")
     assert "🛒 Mercado · R$ 150,00" in primeira(r)
     assert "…e mais 1" in primeira(r)
+    ia.resposta = consulta_ia(tipo="saldo", agrupar="categoria")  # vira o total
+    r = com_ia(de, texto="quanto sobrou este mês?")
+    assert "🛒 Mercado" not in primeira(r)
+    assert "**Saldo: +R$ 2.820,00**" in primeira(r)
     ia.resposta = consulta_ia(periodo_texto="no tempo do onça")
     assert primeira(com_ia(de, texto="quanto gastei no tempo do onça?")).startswith("📊")
 
@@ -173,9 +177,24 @@ def test_resumo_e_preferencias(bot: Bot, com_dados: str, banco: Banco) -> None:
     assert row == (True, True)
 
 
-def test_resumos_automaticos(conn: db.Connection, bot: Bot, com_dados: str) -> None:
+def test_resumos_automaticos(conn: db.Connection, bot: Bot, com_dados: str, banco: Banco) -> None:
     de = com_dados
     bot(de, acao="rp:ws")  # liga o semanal
+    bot(de, texto="aluguel 1500 todo dia 15")  # vence na semana seguinte
+    bot(de, texto="luz 200 todo dia 14")
+    with db.connect(banco.migrator) as m, m.transaction():
+        m.execute(
+            "update telegrana.fixed_items set created_at = '2026-09-20 12:00-03'"
+            " where user_id = (select user_id from telegrana.user_channels where external_id = %s)",
+            (de,),
+        )
+        m.execute(  # a luz de outubro já foi pulada: não aparece em "vence"
+            "insert into telegrana.fixed_occurrences (account_id, fixed_item_id, due_date, status)"
+            " select account_id, id, '2026-10-14', 'skipped' from telegrana.fixed_items"
+            " where name = 'Luz' and user_id = (select user_id from telegrana.user_channels"
+            " where external_id = %s)",
+            (de,),
+        )
 
     def rotina(momento: datetime) -> list[str]:
         saidas, falhas = relatorios.da_rotina(conn, "telegram", momento)
@@ -185,6 +204,8 @@ def test_resumos_automaticos(conn: db.Connection, bot: Bot, com_dados: str) -> N
     [semana] = rotina(datetime(2026, 10, 11, 20, tzinfo=FUSO))  # domingo à noite
     assert semana.startswith(t.SEMANAL_TITULO.format(periodo="05/10 a 11/10"))
     assert "Gastos pagos: **R$ 50,00**" in semana
+    assert "15/10 · Aluguel · R$ 1.500,00" in semana
+    assert "Luz" not in semana
     assert rotina(datetime(2026, 10, 11, 20, tzinfo=FUSO)) == []  # não repete
     assert rotina(datetime(2026, 10, 12, 20, tzinfo=FUSO)) == []  # segunda: nada
     [mes] = rotina(datetime(2026, 11, 1, 9, tzinfo=FUSO))
