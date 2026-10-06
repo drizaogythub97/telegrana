@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 05/10/2026 · **S0 a S4 encerradas** · texto, áudio, **fixos e lembretes** no ar em dev e prod · próxima: **S5 — cartão de crédito**.
+> Atualizado em 06/10/2026 · **S0 a S5 encerradas** · texto, áudio, fixos, lembretes e **cartão de crédito com fatura** no ar em dev e prod · próxima: **S6 — relatórios em texto**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,20 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D044. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D046. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S5 — encerrada em 06/10/2026 (D045, D046; PRs #52–#55)
+
+- **S5.1 — cartões e compras** (PR #52, `ce897eb`): o cartão é uma forma de pagamento (`payment_methods` kind `credit`, 💳 + nome) com fechamento/vencimento em `cards` (migração **0010**, ISOLADA). Cadastro pelo bot na 1ª compra ("Cartão novo! Em que dia a fatura fecha e em que dia vence?") ou pelo `/cartoes`. Compra no crédito = N **parcelas previstas** em `transactions` (`status = 'planned'`, `purchase_id` = 1ª parcela, `installment_no`, `invoice_on` = vencimento da fatura; centavos na 1ª) — **regime de caixa**. Compra no dia do fechamento ou depois cai na fatura seguinte. Recibo da compra com total, "3x de R$ 200,00" e "🧾 1ª parcela na fatura que vence dd/mm"; correção, categoria, apagar e desfazer valem para a compra inteira (`cartoes.atualiza_compra`; "foi no pix" desfaz a compra; lançamento comum corrigido para um cartão vira compra). "No crédito" sem cartão: o único, ou pergunta qual (decisão do Adriano). Compras no crédito antigas (forma "Crédito" genérica) foram oferecidas para o 1º cartão (✅ Sim, mover).
+- **Pergunta aberta / resposta solta** (PR #53, `1b40729`, migração **0011**): toda pergunta do bot (valor, nome do cartão, dias da fatura, data, dia do fixo, valor do lembrete/fatura) vale também para a **próxima mensagem solta**, por 10 min e uma vez só, **se tiver a cara da resposta** (`conta.cabe`) — Telegram Web e Desktop não abrem o "Responder" sozinhos. O resto segue como mensagem nova.
+- **S5.2 — fatura** (PR #54, `e2c568d`; ajuste no #55): migração **0012** (`card_invoices` e `invoice_notices` ISOLADAS; lembretes no `cards`; `accounts_with_reminders()` inclui contas com cartão). `core/faturas.py`: fatura = (cartão, vencimento); ✅ Paguei R$ X / ✏️ Outro valor / "paguei a fatura do nubank (1.500)" (só mostra a fatura com botões; "fatura da luz" continua conta de consumo) → itens viram gasto realizado na data do pagamento, cada um na sua categoria; **parcial proporcional por item** com «Saldo anterior · …» na fatura seguinte; **acima do total** vira Encargos e juros; avisos pela rotina (fechou, véspera, no dia, atrasada; um por cartão por vez; 🔔 em `/cartoes`); **estorno** abate da compra original (candidatas quando há dúvida).
+- **Roteiros H e I** (`docs/ROTEIRO-TESTES.md`, 05–06/10/2026, agente pelo Telegram Web + áudio do Adriano): todos os passos certos; do roteiro saíram a resposta solta geral (#53) e o ✔️ Pronto dos lembretes do cartão (#55).
+- **Testes**: `tests/unit/test_cartoes.py` (faturas, viradas, meses curtos, divisão, dias, nomes), `tests/unit/test_faturas.py` (fechamento, rateio, avisos), `tests/integration/test_cartoes.py`, `test_faturas.py`, `test_resposta_solta.py`, isolamento (cards, card_invoices, invoice_notices, parcela não aponta para compra de outra conta), E2E 22.
 
 ### S4 — encerrada em 05/10/2026 (D043, D044; PRs #41, #43–#45, #47, #48, #50)
 
@@ -169,22 +177,24 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #48 | `d41d2bc` | "Outro valor" sem responder (migração 0009); descrição com acentos |
 | #49 | `ef21e11` | Dependabot: boto3, mypy, ruff (dev) |
 | #50 | `18a088f` | áudio respondendo às perguntas do lembrete e do fixo |
-| #51 | (este) | encerramento da S4 |
+| #51 | `611eda7` | encerramento da S4 |
+| #52 | `ce897eb` | **S5.1**: cartões de crédito e compras parceladas (D045) |
+| #53 | `1b40729` | pergunta do bot aceita a resposta solta (migração 0011) |
+| #54 | `e2c568d` | **S5.2**: fatura — pagamento, avisos e estorno (D046) |
+| #55 | `490f635` | ✔️ Pronto dos lembretes do cartão volta ao cartão |
+| #56 | (este) | encerramento da S5 |
 
-## Ponto de partida exato da próxima sessão (S5 — cartão de crédito)
+## Ponto de partida exato da próxima sessão (S6 — relatórios em texto)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (ver Gotchas > AWS se der 400 ou se nenhuma aba abrir).
-2. **Antes de codar, perguntar ao Adriano de uma vez** (PLANO 4.5 deixa em aberto): (a) os cartões dele (nome, dia de fechamento e de vencimento — só os nomes e dias, nada de número de cartão); (b) o que fazer com as compras no crédito já lançadas desde a S2 (hoje são `transactions` com forma Crédito e `installments`, gravadas como gasto realizado na data da compra): migrar para parcelas na fatura do cartão ou deixar como estão; (c) se "no crédito" sem dizer o cartão deve perguntar qual (quando houver mais de um) ou usar o principal.
-3. **S5 — proposta de divisão** (registrar numa D045 com o que o Adriano decidir):
-   - **S5.1 — cartões e compras**: migração 0010 com `cards` (ISOLADA: nome único por conta, fechamento, vencimento, limite opcional, forma de pagamento ligada) e `card_installments` (ISOLADA: compra, número/total, valor em centavos — resto na 1ª parcela —, fatura de destino calculada pelo fechamento); "tênis 600 em 3x no Nubank" vira compra + parcelas (compromisso, não gasto realizado: **regime de caixa**); `/cartoes` para cadastrar e editar (mesmo padrão de `/fixos`); a IA/atalho já devolvem forma e parcelas — falta o nome do cartão.
-   - **S5.2 — fatura**: fechamento automático pela rotina (mesma Lambda), lembrete do vencimento reaproveitando `core/lembretes.py` (o item passa a ser fixo **ou** fatura), ✅ Paguei a fatura (total ou outro valor) → cada item vira gasto realizado na data do pagamento com a própria categoria; pagamento parcial → "Saldo anterior" na próxima; juros/multa em 💸 Encargos; estorno.
-   - **S5.3 — E2E, roteiro (bloco H) e produção.**
-   - Testes de borda obrigatórios (PLANO): compra no dia do fechamento, fechamento 31 em mês curto, 12x atravessando o ano, centavos da divisão, pagamento parcial, estorno de compra parcelada, isolamento de cartão/parcela entre contas.
-4. Seguir o protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (agente por texto no Telegram Web; áudios com o Adriano) → encerramento.
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (ver Gotchas > AWS: 400 → `--remote` em janela anônima; a tela pede o ID da conta).
+2. **S6 (PLANO seção 6 e 12)**: `ReportSpec` (Pydantic: período, tipo, categorias, formas, agrupamento, ordenação, **visão realizado / compromissos / por data da compra**, formato texto) interpretado pela IA (intenção `consulta` já existe e hoje responde "em breve"); **SQL montado pelo código** a partir de listas permitidas (a IA nunca escreve SQL); `/resumo` (mês atual), `/fatura` (atalho para a fatura aberta de cada cartão — hoje só há "paguei a fatura…" e `/cartoes` → 🧾 Faturas); resumo semanal (domingo 20:00) e fechamento do mês (dia 1, 09:00) pela rotina, desligáveis por conta.
+   - **Regime de caixa já pronto nos dados**: realizado = `status = 'done'` por `cash_on`; compromissos = `status = 'planned'` (parcelas por `invoice_on`, lançamentos futuros); por data da compra = `occurred_on`. Transferências (`kind = 'transfer'`) não são gasto. Apagados (`deleted_at`) nunca entram.
+   - Antes de codar, perguntar ao Adriano de uma vez: o formato do `/resumo` (top categorias? comparação com o mês anterior?), o horário/conteúdo do resumo semanal e se o fechamento do mês já vai com PDF (o PDF é da S7).
+   - Testes: números conferidos contra SQL de referência; consultas em linguagem natural no conjunto de avaliação (acrescentar casos de `consulta`).
+3. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (bloco J; agente por texto no Telegram Web, áudios com o Adriano) → encerramento.
 
 ## Pendências do Adriano
 
-- **Decidir se troca a senha do papel dono da branch de testes do Neon** (a da `TELEGRANA_TEST_DATABASE_URL`): em 05/10/2026 uma falha de teste imprimiu essa URL na saída do pytest local (só na sessão do agente; nada em Git, log ou CI). O `repr` foi corrigido; a troca pode ser feita pelo agente via API do Neon, gravando direto no `.env.local`.
 
 - **Quando a família começar a usar a produção** (D038 item 2): parar de usar a chave de produção nas avaliações locais (os tetos do `telegrana-dev` já estão aplicados desde 05/10/2026).
 
@@ -295,12 +305,19 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - **Telegram Web não abre a resposta sozinho** (force reply): todo fluxo que pergunta algo precisa funcionar também com a resposta solta (marca de 10 min, como no ✏️ Corrigir e no ✏️ Outro valor). No celular a resposta abre sozinha — e aí a resposta chega como `pergunta`, inclusive por áudio (transcrito em `conta.trata`).
 
 **GitHub Actions (05/10/2026)**
+- Em incidente do Actions (githubstatus.com: "Incident with Actions"), os jobs ficam ~15 min na fila e são cancelados com "The job was not acquired by Runner". Esperar normalizar e `gh run rerun <run> --failed` (o CodeQL de um PR antigo pode não aceitar rerun — não é obrigatório).
 - Job parado em `queued` por muitos minutos com o GitHub "operacional": `gh run cancel <run>` e `gh run rerun <run> --job <id do job>`. PR cujo CI não disparou: `gh pr close <n>` + `gh pr reopen <n>`.
 
 **AWS e Windows**
 - `aws login --profile telegrana --remote` **não abre aba**: imprime o link e espera o código. O painel de terminal do app falha na integração; abra uma janela própria: `Start-Process pwsh -ArgumentList '-NoExit','-NoProfile','-Command','aws login --profile telegrana --remote'`. A tela pede o ID da conta (está no `login_session` do perfil em `~/.aws/config`).
 - No Git Bash, caminhos como `/aws/lambda/...` viram caminhos do Windows: prefixe `MSYS_NO_PATHCONV=1` (ex.: `aws logs filter-log-events --log-group-name /aws/lambda/telegrana-dev-bot ...`).
 - Testes com o Neon de testes podem levar 10+ min (rede lenta em 05/10/2026); o CI usa Postgres local e roda tudo em segundos. A fixture `Banco` não mostra as URLs no `repr` (uma falha de teste não pode imprimir senha).
+
+**Cartões e faturas (S5)**
+- Compra no cartão = várias linhas em `transactions` ligadas por `purchase_id`; `lancamentos_repo.lancamento()` devolve a compra como UM lançamento (total das parcelas, data da compra = `occurred_on`). `Lancamento.data` agora é `occurred_on` (igual a `cash_on` para lançamentos comuns).
+- Sem `DELETE` em `transactions`: parcela que sobra é apagada logicamente e desligada da compra.
+- "Saldo anterior" (resto do pagamento parcial) é uma linha nova `source = 'invoice'` sem `purchase_id`, na fatura seguinte.
+- Testar avisos de fatura em dev: rotina simulada no dia do fechamento (`{"momento": "2026-11-03T09:00"}` para o Nubank de dev, que fecha dia 3).
 
 ## Comandos úteis
 
