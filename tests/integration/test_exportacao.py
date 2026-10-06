@@ -93,3 +93,25 @@ def test_outra_conta_exporta_so_o_que_e_dela(bot: Bot, com_dados: str) -> None:
     wb = planilha(bot(outra, acao="ex:ma:xlsx"))
     assert wb["Resumo"]["B6"].value == 0  # type: ignore[index]
     assert list(wb["Lançamentos"].iter_rows(min_row=2)) == []  # type: ignore[index]
+
+
+def test_arquivo_e_desenhado_fora_da_transacao(
+    bot: Bot, conn: db.Connection, com_dados: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gerar o PDF leva segundos; o papel do app derruba transação parada em 10 s."""
+    from psycopg.pq import TransactionStatus
+
+    from telegrana.exports import pdf
+
+    original = pdf.gera
+    estados: list[TransactionStatus] = []
+
+    def espia(d: object) -> bytes:
+        estados.append(conn.info.transaction_status)
+        return original(d)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pdf, "gera", espia)
+    bot(com_dados, acao="ex:ma:pdf")
+    relatorios.da_rotina(conn, "telegram", datetime(2026, 11, 1, 9, tzinfo=FUSO))
+    assert estados
+    assert set(estados) == {TransactionStatus.IDLE}

@@ -748,17 +748,10 @@ def mensal(cur: Any, hoje: date) -> str:
     return "\n".join(corpo)
 
 
-def _resumo_da_rotina(cur: Any, tipo: str, texto_: str, hoje: date, destino: str) -> Saida:
-    """O fechamento do mês vai com o PDF anexo (S7, D048); o semanal, só texto."""
-    if tipo != "monthly":
-        return Saida(texto_, destino=destino)
-    from telegrana.core import exportacao  # tardio: exportacao usa este módulo
-
+def _pedido_do_mes_passado(hoje: date) -> Pedido:
     ano, mes = periodos._soma_meses(hoje.year, hoje.month, -1)
     periodo = periodos.mes_inteiro(ano, mes)
-    pedido = Pedido("saldo", periodo.inicio, periodo.fim, periodo.rotulo, agrupar="nenhum")
-    anexo = exportacao.arquivo(cur, pedido, hoje, "pdf")
-    return Saida(texto_[:1000], destino=destino, arquivo=anexo)
+    return Pedido("saldo", periodo.inicio, periodo.fim, periodo.rotulo, agrupar="nenhum")
 
 
 def da_rotina(conn: db.Connection, canal: str, momento: datetime) -> tuple[list[Saida], int]:
@@ -770,6 +763,8 @@ def da_rotina(conn: db.Connection, canal: str, momento: datetime) -> tuple[list[
     if hoje.day == 1 and horario == "morning":
         ano, mes = periodos._soma_meses(hoje.year, hoje.month, -1)
         tarefas.append(("monthly", date(ano, mes, 1), mensal))
+    from telegrana.core import exportacao  # tardio: exportacao usa este módulo
+
     saidas: list[Saida] = []
     falhas = 0
     for tipo, inicio, gera in tarefas:
@@ -788,8 +783,20 @@ def da_rotina(conn: db.Connection, canal: str, momento: datetime) -> tuple[list[
                         " values (%s, %s, %s) on conflict do nothing returning id",
                         (account_id, tipo, inicio),
                     ).fetchone()
-                    if row is not None:  # gravado antes de enviar: nunca repete
-                        saidas.append(_resumo_da_rotina(cur, tipo, gera(cur, hoje), hoje, destino))
+                    if row is None:  # gravado antes de enviar: nunca repete
+                        continue
+                    corpo = gera(cur, hoje)
+                    dados_pdf = (
+                        exportacao.dados(cur, _pedido_do_mes_passado(hoje), hoje, "pdf")
+                        if tipo == "monthly"
+                        else None
+                    )
+                # Já fora da transação: o PDF do fechamento leva segundos para ser desenhado.
+                if dados_pdf is None:
+                    saidas.append(Saida(corpo, destino=destino))
+                else:
+                    anexo = exportacao.gera(dados_pdf, _pedido_do_mes_passado(hoje), "pdf")
+                    saidas.append(Saida(corpo[:1000], destino=destino, arquivo=anexo))
             except psycopg.Error as exc:
                 falhas += 1
                 log.error("relatorios.conta_falhou", extra={"erro": type(exc).__name__})

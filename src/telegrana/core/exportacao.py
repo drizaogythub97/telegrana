@@ -93,8 +93,9 @@ def dados(cur: Any, p: Pedido, hoje: date, formato: str) -> Dados:
     )
 
 
-def arquivo(cur: Any, p: Pedido, hoje: date, formato: str) -> Arquivo:
-    d = dados(cur, p, hoje, formato)
+def gera(d: Dados, p: Pedido, formato: str) -> Arquivo:
+    """Desenha o arquivo FORA da transação do banco: gerar leva segundos, e o papel do app
+    tem 10 s de limite para transação parada (bootstrap)."""
     if formato == "xlsx":
         from telegrana.exports import xlsx  # só aqui: openpyxl não pesa na partida do bot
 
@@ -104,11 +105,11 @@ def arquivo(cur: Any, p: Pedido, hoje: date, formato: str) -> Arquivo:
     return Arquivo(d.nome_arquivo("pdf", p.inicio), pdf.TIPO, pdf.gera(d))
 
 
-def saida(cur: Any, p: Pedido, hoje: date, formato: str, destino: str | None = None) -> Saida:
+def saida(d: Dados, p: Pedido, formato: str, destino: str | None = None) -> Saida:
     legenda = t.EXPORTACAO_LEGENDA.format(
         nome={"pdf": "PDF", "xlsx": "Planilha"}[formato], periodo=p.rotulo
     )
-    return Saida(legenda, destino=destino, arquivo=arquivo(cur, p, hoje, formato))
+    return Saida(legenda, destino=destino, arquivo=gera(d, p, formato))
 
 
 # ---------------------------------------------------------------------------
@@ -154,8 +155,10 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
     if periodo is None:  # não acontece: os textos são fixos
         return r.diz(t.USE_OS_BOTOES)
     r.rotulo = f"exportacao.{partes[1]}.{partes[2]}"
+    pedido = _completo(periodo)
     with db.account_context(conn, p.account_id) as cur:
-        r.saidas.append(saida(cur, _completo(periodo), hoje, partes[2]))
+        d = dados(cur, pedido, hoje, partes[2])
+    r.saidas.append(saida(d, pedido, partes[2]))  # já fora da transação
     return r
 
 
@@ -172,5 +175,6 @@ def por_frase(conn: db.Connection, ctx: Contexto, p: Pessoa, frase: str) -> Resu
     pedido = replace(pedido, agrupar="nenhum", limite=None)
     formato = formato_da_frase(frase)
     with db.account_context(conn, p.account_id) as cur:
-        r.saidas.append(saida(cur, pedido, agora().date(), formato))
+        d = dados(cur, pedido, agora().date(), formato)
+    r.saidas.append(saida(d, pedido, formato))  # já fora da transação
     return r
