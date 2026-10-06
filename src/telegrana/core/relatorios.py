@@ -214,6 +214,13 @@ def _agrupar_saldo(tipo: str, agrupar: str) -> str:
     return "nenhum" if tipo == "saldo" and agrupar in {"categoria", "forma"} else agrupar
 
 
+def _sem_redundancia(p: Pedido) -> Pedido:
+    """Uma categoria só, dividida por categoria, daria "🛒 Mercado · 100%": vira o total."""
+    if p.agrupar == "categoria" and len(p.categorias) == 1:
+        return replace(p, agrupar="nenhum")
+    return p
+
+
 # ---------------------------------------------------------------------------
 # SQL (só fragmentos fixos; tudo que vem da pessoa vai como parâmetro)
 # ---------------------------------------------------------------------------
@@ -488,7 +495,7 @@ def consulta(conn: db.Connection, ctx: Contexto, p: Pessoa, frase: str) -> Resul
     if pedido is None:
         return r.diz(t.PERIODO_NAO_ENTENDI)
     with db.account_context(conn, p.account_id) as cur:
-        return _responde(cur, p, pedido, r)
+        return _responde(cur, p, _sem_redundancia(pedido), r)
 
 
 def _conta_uso(

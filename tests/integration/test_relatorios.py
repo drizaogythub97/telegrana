@@ -144,6 +144,8 @@ def test_consulta_pela_ia_e_validada_pelo_codigo(
     ia.resposta = consulta_ia(categorias=[])
     r = com_ia(de, texto="quanto gostei de mercado este mês?")
     assert "**Gastos com 🛒 Mercado** · outubro/2026" in primeira(r)
+    ia.resposta = consulta_ia(categorias=["mercado"], agrupar="categoria")  # sem "· 100%"
+    assert "· 100%" not in primeira(com_ia(de, texto="quanto gastei de mercado este mês?"))
     ia.resposta = consulta_ia(categorias=["Mercado"])  # pelo nome também vale
     assert "**Total: R$ 150,00**" in primeira(com_ia(de, texto="quanto gastei no mercado?"))
     ia.resposta = consulta_ia(termo="uber")
