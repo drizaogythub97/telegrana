@@ -49,7 +49,7 @@ _PEDE_LISTA = re.compile(
     r"|um a um|uma a uma|um por um|uma por uma|cada (compra|gasto|lancamento))\b"
 )
 _PARECE_CONSULTA = re.compile(
-    r"\b(quanto|qto|qnto|quantos) (que )?(eu )?(ja )?(gastei|ganhei|recebi|paguei|sobrou|entrou"
+    r"\b(quanto|qto|qnto|quantos) (que )?(eu )?(ja )?(gastei|gostei|ganhei|recebi|paguei|sobrou|entrou"
     r"|saiu|foi|gasto)\b|\b(meus|minhas) (gastos|ganhos|despesas|receitas)\b"
     r"|\brelatorio\b|\bextrato\b|\bonde (eu )?(mais )?gastei\b|\bem que (eu )?gastei\b"
     r"|\b(list\w*|detalh\w*) (os |as |meus |minhas )?(gastos|compras|lancamentos|ganhos)\b"
@@ -134,11 +134,7 @@ def do_codigo(
         if agrupar == "nenhum" and re.search(padrao, t_):
             agrupar = grupo
             break
-    validas = [c for c in cats if c.ativa]
-    escolhidas = [c for c in validas if f" {normaliza(c.nome)} " in f" {t_} "]
-    if not escolhidas:
-        chaves = {PALAVRAS[p] for p in t_.split() if p in PALAVRAS}
-        escolhidas = [c for c in validas if c.code in chaves]
+    escolhidas = categorias_no_texto(texto, cats)
     if agrupar == "nenhum" and not escolhidas and tipo != "saldo":
         agrupar = "categoria"
     periodo = _periodo(None, texto, hoje, visao)
@@ -161,6 +157,17 @@ def do_codigo(
     )
 
 
+def categorias_no_texto(texto: str, cats: list[lrepo.Categoria]) -> list[lrepo.Categoria]:
+    """Categorias da conta citadas na frase: pelo nome ("mercado") ou por palavra-chave."""
+    t_ = f" {normaliza(texto)} "
+    validas = [c for c in cats if c.ativa]
+    escolhidas = [c for c in validas if f" {normaliza(c.nome)} " in t_]
+    if not escolhidas:
+        chaves = {PALAVRAS[p] for p in t_.split() if p in PALAVRAS}
+        escolhidas = [c for c in validas if c.code in chaves]
+    return escolhidas
+
+
 def da_ia(
     c: ConsultaIA, texto: str, cats: list[lrepo.Categoria], cards: list[cartoes.Cartao], hoje: date
 ) -> Pedido | None:
@@ -169,7 +176,18 @@ def da_ia(
     if periodo is None:
         return None
     validas = {cat.chave: cat for cat in cats if cat.ativa}
-    escolhidas = [validas[k] for k in c.categorias if k in validas]
+    validas |= {normaliza(cat.nome): cat for cat in cats if cat.ativa}
+    escolhidas = list(
+        {
+            id(x): x
+            for x in (validas.get(k) or validas.get(normaliza(k)) for k in c.categorias)
+            if x
+        }.values()
+    )
+    if not escolhidas:
+        # A IA deixou passar a categoria que está ESCRITA na frase ("quanto gostei de mercado"):
+        # o que a pessoa disse vale (roteiro J, 06/10/2026).
+        escolhidas = categorias_no_texto(texto, cats)
     cartao = next((k for k in cards if c.cartao and cartoes.nome_bate(k.nome, c.cartao)), None)
     termo = normaliza(c.termo)[:30] if c.termo else None
     if termo and any(normaliza(cat.nome) == termo for cat in escolhidas):

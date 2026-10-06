@@ -140,6 +140,12 @@ def test_consulta_pela_ia_e_validada_pelo_codigo(
     assert r.rotulo == "relatorio.consulta.ia"
     assert "**Gastos com 🛒 Mercado** · setembro/2026" in primeira(r)  # "inventada" ignorada
     assert "**Total: R$ 200,00**" in primeira(r)
+    # A IA esqueceu a categoria escrita na frase (Whisper ouviu "gostei"): o código completa.
+    ia.resposta = consulta_ia(categorias=[])
+    r = com_ia(de, texto="quanto gostei de mercado este mês?")
+    assert "**Gastos com 🛒 Mercado** · outubro/2026" in primeira(r)
+    ia.resposta = consulta_ia(categorias=["Mercado"])  # pelo nome também vale
+    assert "**Total: R$ 150,00**" in primeira(com_ia(de, texto="quanto gastei no mercado?"))
     ia.resposta = consulta_ia(termo="uber")
     assert "**Total: R$ 30,00**" in primeira(com_ia(de, texto="quanto gastei de uber?"))
     ia.resposta = consulta_ia(agrupar="categoria", limite=1)
