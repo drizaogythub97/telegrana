@@ -45,6 +45,10 @@ class Cartao:
     vence: int  # dia do vencimento
     limite: int | None
     ativo: bool
+    antes: bool = True  # lembretes da fatura (como nos fixos)
+    no_dia: bool = True
+    depois: bool = True
+    horario: str = "morning"  # morning | evening | both
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +138,8 @@ def nome_valido(texto: str) -> str | None:
 # SQL (fixo, parametrizado)
 # ---------------------------------------------------------------------------
 _SELECT = (
-    "select c.id, c.payment_method_id, m.name, c.closing_day, c.due_day, c.limit_cents, m.active"
+    "select c.id, c.payment_method_id, m.name, c.closing_day, c.due_day, c.limit_cents, m.active,"
+    " c.remind_before, c.remind_on_day, c.remind_after, c.remind_slot"
     " from telegrana.cards c join telegrana.payment_methods m on m.id = c.payment_method_id"
 )
 
@@ -154,6 +159,20 @@ def da_forma(cur: Any, forma_id: uuid.UUID | None) -> Cartao | None:
         return None
     row = cur.execute(_SELECT + " where c.payment_method_id = %s", (forma_id,)).fetchone()
     return Cartao(*row) if row else None
+
+
+def no_texto(cur: Any, texto: str) -> Cartao | None:
+    """O cartão citado numa frase ("paguei a fatura do nu", "estorno de 80 no Inter")."""
+    palavras = [_APELIDOS.get(p, p) for p in normaliza(texto).split()]
+    frase = f" {' '.join(palavras)} "
+    return next(
+        (
+            c
+            for c in lista(cur)
+            if f" {' '.join(_APELIDOS.get(x, x) for x in normaliza(c.nome).split())} " in frase
+        ),
+        None,
+    )
 
 
 def citado(cur: Any, nome: str | None) -> Cartao | None:
@@ -365,6 +384,18 @@ def desfaz(cur: Any, compra_id: uuid.UUID, forma_id: uuid.UUID) -> None:
     )
 
 
+_LEMBRETES = {
+    "remind_before": "update telegrana.cards set remind_before = %s, updated_at = now() where id = %s",
+    "remind_on_day": "update telegrana.cards set remind_on_day = %s, updated_at = now() where id = %s",
+    "remind_after": "update telegrana.cards set remind_after = %s, updated_at = now() where id = %s",
+    "remind_slot": "update telegrana.cards set remind_slot = %s, updated_at = now() where id = %s",
+}
+
+
+def lembrete(cur: Any, c: Cartao, campo: str, valor: object) -> None:
+    cur.execute(_LEMBRETES[campo], (valor, c.id))  # lista fixa: nada vem de fora
+
+
 _EM_TODAS = {
     "category_id": "update telegrana.transactions set category_id = %s, updated_at = now() where purchase_id = %s",
     "description": "update telegrana.transactions set description = %s, updated_at = now() where purchase_id = %s",
@@ -435,15 +466,64 @@ def linha(c: Cartao) -> str:
     return f"{EMOJI} **{seguro(c.nome, 30)}** · fecha dia {c.fecha} · vence dia {c.vence}{pausa}"
 
 
+def descreve_lembretes(c: Cartao) -> str:
+    quando = [
+        nome
+        for ligado, nome in (
+            (c.antes, "na véspera"),
+            (c.no_dia, "no dia"),
+            (c.depois, "todo dia depois"),
+        )
+        if ligado
+    ]
+    if not quando:
+        return "🔕 Sem lembretes do vencimento (o aviso de fatura fechada continua)"
+    texto = quando[0] if len(quando) == 1 else ", ".join(quando[:-1]) + " e " + quando[-1]
+    return f"🔔 Lembrete {texto}, {fixos.HORARIOS.get(c.horario, '')}".rstrip(", ")
+
+
 def tela(c: Cartao, titulo: str = t.CARTAO_TITULO) -> Saida:
     i = seg.curto(c.id)
     return Saida(
-        f"{titulo}\n{linha(c)}",
+        f"{titulo}\n{linha(c)}\n{descreve_lembretes(c)}",
         botoes=(
+            (Botao("🧾 Faturas", f"fa:ab:{i}"), Botao("🔔 Lembretes", f"ct:lb:{i}")),
             (Botao("✏️ Nome", f"ct:no:{i}"), Botao("📅 Dias da fatura", f"ct:di:{i}")),
             (Botao("🗑️ Apagar", f"ct:ap:{i}"),),
         ),
     )
+
+
+def _tela_lembretes(c: Cartao) -> Saida:
+    i = seg.curto(c.id)
+
+    def marca(ligado: bool) -> str:
+        return "✅" if ligado else "⬜"
+
+    def horario(chave: str, rotulo: str) -> Botao:
+        return Botao(("● " if c.horario == chave else "") + rotulo, f"ct:h{chave[0]}:{i}")
+
+    return Saida(
+        f"🔔 **Lembretes da fatura do {seguro(c.nome, 30)}**\n{descreve_lembretes(c)}",
+        botoes=(
+            (
+                Botao(f"{marca(c.antes)} Véspera", f"ct:tb:{i}"),
+                Botao(f"{marca(c.no_dia)} No dia", f"ct:to:{i}"),
+                Botao(f"{marca(c.depois)} Depois", f"ct:ta:{i}"),
+            ),
+            (
+                horario("morning", "🌅 Manhã"),
+                horario("evening", "🌙 Noite"),
+                horario("both", "🌅🌙 Ambos"),
+            ),
+            (Botao("✔️ Pronto", f"ct:ed:{i}"),),
+        ),
+        substitui=True,
+    )
+
+
+_ALTERNA = {"tb": "remind_before", "to": "remind_on_day", "ta": "remind_after"}
+_HORARIO = {"hm": "morning", "he": "evening", "hb": "both"}
 
 
 def oferta_antigas(cur: Any, c: Cartao) -> Saida | None:
@@ -495,6 +575,15 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
             return r.diz(t.CARTAO_SUMIU)
         if acao == "ed":
             r.saidas.append(tela(c))
+        elif acao == "lb":
+            r.saidas.append(_tela_lembretes(c))
+        elif acao in _ALTERNA or acao in _HORARIO:
+            if acao in _ALTERNA:
+                atual = {"tb": c.antes, "to": c.no_dia, "ta": c.depois}[acao]
+                lembrete(cur, c, _ALTERNA[acao], not atual)
+            else:
+                lembrete(cur, c, "remind_slot", _HORARIO[acao])
+            r.saidas.append(_tela_lembretes(por_id(cur, c.id) or c))
         elif acao == "no":
             r.diz(f"{t.PERGUNTAS['ct_renomear']}\n{MARCA} {c.nome}", pergunta="ct_renomear")
         elif acao == "di":
@@ -534,7 +623,7 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
             r.saidas.append(pergunta_dias(novo))
             return r
         if e.pergunta == "ct_renomear":
-            c = _pelo_nome(cur, nome)
+            c = pelo_nome(cur, nome)
             novo = nome_valido(e.texto)
             if c is None:
                 return r.diz(t.CARTAO_SUMIU)
@@ -551,7 +640,7 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
             if nome:
                 r.saidas.append(pergunta_dias(nome))
             return r
-        c = _pelo_nome(cur, nome)
+        c = pelo_nome(cur, nome)
         if c is not None:
             muda_dias(cur, c, *dias)
             r.saidas.append(tela(por_id(cur, c.id) or c, titulo=t.CARTAO_ATUALIZADO))
@@ -566,5 +655,5 @@ def _resposta(conn: db.Connection, e: Entrada, p: Pessoa, r: Resultado) -> Resul
     return r
 
 
-def _pelo_nome(cur: Any, nome: str) -> Cartao | None:
+def pelo_nome(cur: Any, nome: str) -> Cartao | None:
     return next((c for c in lista(cur, ativos=False) if c.nome.lower() == nome.lower()), None)

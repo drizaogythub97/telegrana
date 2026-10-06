@@ -24,7 +24,7 @@ from typing import Any
 
 import psycopg
 
-from telegrana.core import fixos, valores
+from telegrana.core import faturas, fixos, valores
 from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
@@ -221,6 +221,7 @@ def da_conta(cur: Any, account_id: uuid.UUID, canal: str, hoje: date, horario: s
             continue
         emoji = emojis.get(f.categoria_id, fixos.MARCA) if f.categoria_id else fixos.MARCA
         saidas.append(saida(lb, emoji, destino))
+    saidas.extend(faturas.da_conta(cur, account_id, destino, hoje, horario))  # D046
     return saidas
 
 

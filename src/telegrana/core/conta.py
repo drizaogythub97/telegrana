@@ -5,7 +5,16 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 
-from telegrana.core import cartoes, categorias, datas, fixos, lancamentos, lembretes, valores
+from telegrana.core import (
+    cartoes,
+    categorias,
+    datas,
+    faturas,
+    fixos,
+    lancamentos,
+    lembretes,
+    valores,
+)
 from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
@@ -18,7 +27,7 @@ from telegrana.infra import db
 
 _CANCELAR = Botao("Cancelar", "cancelar")
 ACOES_APAGAR = frozenset({"apagar:1", "apagar:2"})
-_VALORES = frozenset({"lc_valor", "fi_valor", "lm_valor"})
+_VALORES = frozenset({"lc_valor", "fi_valor", "lm_valor", "fa_valor"})
 _NOMES = frozenset({"lc_cartao", "ct_nome", "ct_renomear"})
 _DIAS_DA_FATURA = frozenset({"lc_cartao_dias", "ct_dias"})
 # Perguntas que aceitam a resposta solta (sem "Responder"), se ela tiver a cara da resposta.
@@ -121,6 +130,8 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
         or e.pergunta in cartoes.PERGUNTAS
     ):
         return cartoes.trata(conn, ctx, e, p)
+    if (e.acao or "").startswith(faturas.PREFIXO) or e.pergunta in faturas.PERGUNTAS:
+        return faturas.trata(conn, ctx, e, p)
     if (e.acao or "").startswith(lembretes.PREFIXO) or e.pergunta in lembretes.PERGUNTAS:
         return lembretes.trata(conn, ctx, e, p)
     if (
