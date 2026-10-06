@@ -217,3 +217,15 @@ def test_cartao_e_rascunho_de_outra_conta(bot: Bot, banco: Banco) -> None:
     r = bot(a, texto="farmácia 80 no crédito")
     assert bot(b, acao=acao(r, "lc:k:")).saidas[0].texto == t.RASCUNHO_SUMIU
     assert parcelas_de(banco, b) == []
+
+
+def test_lembretes_do_cartao_e_pronto_volta_ao_cartao(bot: Bot) -> None:
+    de = com_nubank(bot)
+    tela = bot(de, acao=acao(bot(de, comando="cartoes"), "ct:ed:"))
+    lembretes = bot(de, acao=acao(tela, "ct:lb:"))
+    assert lembretes.saidas[0].substitui
+    lembretes = bot(de, acao=acao(lembretes, "ct:ta:"))  # tira o "todo dia depois"
+    assert "Lembrete na véspera e no dia, às 09:00" in lembretes.saidas[0].texto
+    pronto = bot(de, acao=acao(lembretes, "ct:pr:"))
+    assert pronto.saidas[0].substitui
+    assert pronto.saidas[0].texto.startswith(t.CARTAO_TITULO)
