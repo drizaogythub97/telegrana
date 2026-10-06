@@ -25,7 +25,7 @@ Tipo = Literal["gasto", "ganho", "transferencia"]
 Forma = Literal["pix", "debito", "dinheiro", "credito", "boleto", "poupanca"]
 CampoCorrecao = Literal["valor", "data", "categoria", "forma_pagamento", "descricao"]
 TipoConsulta = Literal["gastos", "ganhos", "saldo"]
-Agrupar = Literal["categoria", "mes", "semana", "dia", "forma", "nenhum"]
+Agrupar = Literal["categoria", "mes", "semana", "dia", "forma", "lancamento", "nenhum"]
 Visao = Literal["realizado", "compra", "compromissos"]
 
 

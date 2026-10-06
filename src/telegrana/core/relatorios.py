@@ -42,10 +42,17 @@ TOP_CATEGORIAS = 5
 LINHAS_MAX = 12
 _FORMAS = {"pix": "pix", "debito": "debit", "dinheiro": "cash", "credito": "credit",
            "boleto": "boleto", "poupanca": "savings"}  # fmt: skip
+LISTA_MAX = 25
+MINUTOS_RELATORIO = 30  # "liste compra a compra" logo depois de um relatório detalha ESSE
+_PEDE_LISTA = re.compile(
+    r"\b(list\w*|detalh\w*|quais (foram|sao)|item a item|compra a compra|gasto a gasto"
+    r"|um a um|uma a uma|um por um|uma por uma|cada (compra|gasto|lancamento))\b"
+)
 _PARECE_CONSULTA = re.compile(
     r"\b(quanto|qto|qnto|quantos) (que )?(eu )?(ja )?(gastei|ganhei|recebi|paguei|sobrou|entrou"
     r"|saiu|foi|gasto)\b|\b(meus|minhas) (gastos|ganhos|despesas|receitas)\b"
     r"|\brelatorio\b|\bextrato\b|\bonde (eu )?(mais )?gastei\b|\bem que (eu )?gastei\b"
+    r"|\b(list\w*|detalh\w*) (os |as |meus |minhas )?(gastos|compras|lancamentos|ganhos)\b"
 )
 
 
@@ -116,7 +123,7 @@ def do_codigo(
     )
     if re.search(r"\bdata da compra\b|\bincluindo o cartao\b", t_):
         visao = "compra"
-    agrupar = "nenhum"
+    agrupar = "lancamento" if _PEDE_LISTA.search(t_) else "nenhum"
     for padrao, grupo in (
         (r"\bmes a mes\b|\bpor mes\b", "mes"),
         (r"\bpor semana\b", "semana"),
@@ -124,7 +131,7 @@ def do_codigo(
         (r"\bpor (cartao|forma)\b", "forma"),
         (r"\bpor categoria\b|\bonde\b|\bem que\b|\bem qu\b", "categoria"),
     ):
-        if re.search(padrao, t_):
+        if agrupar == "nenhum" and re.search(padrao, t_):
             agrupar = grupo
             break
     validas = [c for c in cats if c.ativa]
@@ -209,6 +216,7 @@ _GRUPO = {
     "semana": "to_char(date_trunc('week', {col}), 'YYYY-MM-DD')",
     "dia": "to_char({col}, 'YYYY-MM-DD')",
     "forma": "coalesce(m.emoji || ' ' || m.name, '—')",
+    "lancamento": "''",  # a lista sai de `lancamentos()`; aqui só o total
     "nenhum": "''",
 }
 _ORDEM = {
@@ -217,6 +225,7 @@ _ORDEM = {
     "mes": "1",
     "semana": "1",
     "dia": "1",
+    "lancamento": "1",
     "nenhum": "1",
 }
 
@@ -280,6 +289,45 @@ def linhas(cur: Any, p: Pedido) -> list[Linha]:
     return [Linha(str(r[0]), int(r[1]), int(r[2]), int(r[3])) for r in rows]
 
 
+_LANCAMENTOS = sql.SQL(
+    "select {coluna}, coalesce(nullif(x.description, ''), c.name, ''), x.amount_cents, x.kind,"
+    " coalesce(c.emoji, '🏷️'), coalesce(m.emoji || ' ' || m.name, ''), x.installment_no,"
+    " x.installments"
+    " from telegrana.transactions x"
+    " left join telegrana.categories c on c.id = x.category_id"
+    " left join telegrana.payment_methods m on m.id = x.payment_method_id"
+    " where x.deleted_at is null and x.kind <> 'transfer'"
+    " and {coluna} between %(ini)s and %(fim)s{status}{tipo}{filtros}"
+    " order by {coluna} desc, x.created_at desc limit %(max)s"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Item:
+    dia: date
+    descricao: str
+    centavos: int
+    tipo: str  # expense | income
+    emoji: str
+    forma: str
+    parcela: int | None
+    parcelas: int | None
+
+
+def lancamentos(cur: Any, p: Pedido, maximo: int = LISTA_MAX) -> list[Item]:
+    """Cada lançamento que forma o total do pedido (mais recentes primeiro)."""
+    col = _COLUNA[p.visao]
+    filtros, params = _filtros(p)
+    consulta = _LANCAMENTOS.format(
+        coluna=sql.SQL(col),
+        status=sql.SQL(_STATUS[p.visao]),
+        tipo=sql.SQL(_TIPO[p.tipo]),
+        filtros=filtros,
+    )
+    rows = cur.execute(consulta, {**params, "max": maximo}).fetchall()
+    return [Item(*r) for r in rows]
+
+
 def cartao_em_aberto(cur: Any, p: Pedido) -> int:
     """Compras no cartão do período (data da compra) ainda não pagas: não entram no realizado."""
     if p.visao != "realizado" or p.tipo == "ganhos":
@@ -316,6 +364,35 @@ def titulo(p: Pedido) -> str:
         detalhes.append("no " + {v: k for k, v in _FORMAS.items()}.get(p.forma_kind, p.forma_kind))
     extra = (" " + " ".join(detalhes)) if detalhes else ""
     return f"📊 **{nome}{extra}** · {p.rotulo}"
+
+
+def texto_lista(p: Pedido, ls: list[Linha], itens: list[Item], em_aberto: int = 0) -> str:
+    """O relatório item a item: data · descrição · valor · forma."""
+    cab = [titulo(p), t.VISOES[p.visao], ""]
+    if not itens:
+        return "\n".join([*cab, t.RELATORIO_VAZIO])
+    corpo = []
+    for i in itens:
+        sinal = "+" if i.tipo == "income" and p.tipo == "saldo" else ""
+        parcela = f" ({i.parcela}/{i.parcelas})" if i.parcela and (i.parcelas or 1) > 1 else ""
+        forma = f" · {i.forma}" if i.forma else ""
+        descricao = seguro(i.descricao, 40)
+        corpo.append(
+            f"{i.dia:%d/%m} · {i.emoji} {descricao}{parcela} · {sinal}{valores.em_reais(i.centavos)}{forma}"
+        )
+    quantidade = sum(x.quantidade for x in ls)
+    if quantidade > len(itens):
+        corpo.append(t.LISTA_MAIS.format(n=quantidade - len(itens)))
+    ganhos = sum(x.ganhos for x in ls)
+    gastos = sum(x.gastos for x in ls)
+    if p.tipo == "saldo":
+        total = f"**Saldo: {_sinal(ganhos - gastos)}**"
+    else:
+        total = f"**Total: {valores.em_reais(ganhos if p.tipo == 'ganhos' else gastos)}**"
+    rodape = (
+        [t.RELATORIO_CARTAO_ABERTO.format(valor=valores.em_reais(em_aberto))] if em_aberto else []
+    )
+    return "\n".join([*cab, *corpo, "", total, *(["", *rodape] if rodape else [])])
 
 
 def texto(p: Pedido, ls: list[Linha], em_aberto: int = 0) -> str:
@@ -408,13 +485,56 @@ def _conta_uso(
 
 
 def _responde(cur: Any, p: Pessoa, pedido: Pedido, r: Resultado) -> Resultado:
+    """Responde e guarda o pedido: "liste compra a compra" logo depois detalha ESTE (e os
+    botões 📋 Ver lançamentos / 💳 Incluir compras no cartão usam o mesmo rascunho)."""
     ls = linhas(cur, pedido)
     aberto = cartao_em_aberto(cur, pedido)
-    botoes: tuple[tuple[Botao, ...], ...] = ()
+    cur.execute(
+        "delete from telegrana.pending_entries where user_id = %s and pendencia = 'consulta'",
+        (p.user_id,),
+    )
+    rascunho = seg.curto(
+        lrepo.cria_rascunho(cur, p.account_id, p.user_id, pedido.guarda(), "consulta")
+    )
+    botoes: list[Botao] = []
+    tem_valor = any(x.ganhos or x.gastos for x in ls)
+    if pedido.agrupar == "lancamento":
+        corpo = texto_lista(pedido, ls, lancamentos(cur, pedido), aberto)
+    else:
+        corpo = texto(pedido, ls, aberto)
+        if tem_valor:
+            botoes.append(Botao(t.BOTAO_VER_LANCAMENTOS, f"rp:it:{rascunho}"))
     if aberto:
-        rascunho = lrepo.cria_rascunho(cur, p.account_id, p.user_id, pedido.guarda(), "consulta")
-        botoes = ((Botao("💳 Incluir compras no cartão", f"rp:cp:{seg.curto(rascunho)}"),),)
-    return r.diz(texto(pedido, ls, aberto), botoes=botoes)
+        botoes.append(Botao("💳 Incluir compras no cartão", f"rp:cp:{rascunho}"))
+    return r.diz(corpo, botoes=tuple((b,) for b in botoes))
+
+
+def ultimo_pedido(cur: Any, user_id: uuid.UUID) -> Pedido | None:
+    row = cur.execute(
+        "select data from telegrana.pending_entries where user_id = %s and pendencia = 'consulta'"
+        " and created_at > now() - make_interval(mins => %s) order by created_at desc limit 1",
+        (user_id, MINUTOS_RELATORIO),
+    ).fetchone()
+    try:
+        return Pedido.de(dict(row[0])) if row else None
+    except KeyError, TypeError, ValueError:
+        return None
+
+
+def pede_lista(frase: str) -> bool:
+    """Pedido de detalhe SEM números ("liste compra a compra", "quais foram?"). Com número
+    ("lista de compras 50 no mercado") é lançamento ou um relatório novo, não o detalhe."""
+    return bool(_PEDE_LISTA.search(normaliza(frase))) and not any(c.isdigit() for c in frase)
+
+
+def detalha_ultimo(conn: db.Connection, p: Pessoa) -> Resultado | None:
+    """ "Liste compra a compra" logo depois de um relatório: os lançamentos DESSE relatório."""
+    with db.account_context(conn, p.account_id) as cur:
+        anterior = ultimo_pedido(cur, p.user_id)
+        if anterior is None:
+            return None
+        r = Resultado(rotulo="relatorio.lista", conta=p.account_id)
+        return _responde(cur, p, replace(anterior, agrupar="lancamento"), r)
 
 
 # ---------------------------------------------------------------------------
@@ -503,13 +623,19 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
             )
             r.saidas.append(tela_resumo(cur, p.account_id, hoje, substitui=True))
             return r
-        if len(partes) == 3 and partes[1] == "cp":
+        if len(partes) == 3 and partes[1] in {"cp", "it"}:
             rascunho_id = seg.longo(partes[2])
             achado = lrepo.rascunho(cur, rascunho_id) if rascunho_id else None
-            if achado is None or achado[1] != "consulta":
+            if (
+                achado is None or achado[1] != "consulta"
+            ):  # RLS: rascunho de outra conta não aparece
                 return r.diz(t.RASCUNHO_SUMIU)
-            pedido = replace(Pedido.de(achado[0]), visao="compra")
-            return r.diz(texto(pedido, linhas(cur, pedido)))
+            pedido = Pedido.de(achado[0])
+            if partes[1] == "cp":
+                pedido = replace(pedido, visao="compra")
+            else:
+                pedido = replace(pedido, agrupar="lancamento")
+            return _responde(cur, p, pedido, r)
     return r.diz(t.USE_OS_BOTOES)
 
 

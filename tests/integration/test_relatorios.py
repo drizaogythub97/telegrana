@@ -220,3 +220,36 @@ def test_fatura_sem_cartao_e_isolamento(bot: Bot, com_dados: str) -> None:
     outra = conta(bot)
     r = bot(outra, texto="quanto gastei este mês?")
     assert t.RELATORIO_VAZIO in primeira(r)  # os gastos de `de` não aparecem para outra conta
+
+
+def test_ver_lancamentos_por_botao_por_continuacao_e_direto(bot: Bot, com_dados: str) -> None:
+    de = com_dados
+    r = bot(de, texto="quanto gastei de mercado este mês?")
+    ver = next(a for a in acoes(r) if a.startswith("rp:it:"))
+    lista = primeira(bot(de, acao=ver))
+    assert "05/10 · 🛒 feira do sabado · R$ 50,00 · ⚡ Pix" in lista
+    assert "01/10 · 🛒 Mercado · R$ 100,00 · ⚡ Pix" in lista
+    assert lista.index("05/10") < lista.index("01/10")  # mais recentes primeiro
+    assert "**Total: R$ 150,00**" in lista
+    # Continuação: "liste compra a compra" logo depois do relatório detalha ESSE relatório.
+    bot(de, texto="quanto gastei de mercado este mês?")
+    r = bot(de, texto="Por favor, liste compra a compra o que deu esse total.")
+    assert r.rotulo == "relatorio.lista"
+    assert "feira do sabado" in primeira(r)
+    assert "uber" not in primeira(r)  # só mercado, como no relatório
+    # Direto (leitor do código), sem relatório antes.
+    outra = conta(bot)
+    assert primeira(bot(outra, texto="liste minhas compras deste mês")).endswith(
+        "Nada encontrado nesse período."
+    )
+    r = bot(de, texto="liste meus gastos de transporte deste mês")
+    assert "03/10 · 🚗 uber · R$ 30,00 · ⚡ Pix" in primeira(r)
+
+
+def test_detalhe_sem_relatorio_e_de_outra_conta(bot: Bot, com_dados: str) -> None:
+    de, outra = com_dados, conta(bot)
+    r = bot(de, texto="quanto gastei de mercado este mês?")
+    ver = next(a for a in acoes(r) if a.startswith("rp:it:"))
+    assert primeira(bot(outra, acao=ver)) == t.RASCUNHO_SUMIU  # RLS
+    # Sem relatório recente, "quais foram?" não inventa nada (segue o fluxo normal).
+    assert not bot(outra, texto="quais foram?").rotulo.startswith("relatorio.lista")
