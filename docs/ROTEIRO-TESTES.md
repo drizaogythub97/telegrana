@@ -1,6 +1,6 @@
 # Roteiro de testes no celular (bot de dev)
 
-> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026; I (fatura) em 06/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
+> Criado em 03/10/2026 (S3 + S4.1); bloco G (lembretes) e H (cartões) em 05/10/2026; I (fatura) e J (relatórios) em 06/10/2026. Fazer no **@TelegranaAppDevBot**, em ordem. ✍️ = mensagem de texto; 🎙️ = mensagem de voz.
 > "Responder" no Telegram do celular: deslize a mensagem para a esquerda (ou toque e segure → Responder).
 > Se algo sair diferente do esperado, anote o **código do passo** (ex.: D2). O agente confere os logs (`update.processado`) e a conversa.
 
@@ -80,6 +80,17 @@
 | I4 | `/cartoes` → Nubank → 🧾 Faturas | A fatura seguinte com o «Saldo anterior» somado |
 | I5 | ✍️ `estorno de 80 no inter` | ↩️ Estorno de R$ 80,00 abatido de «farmácia» |
 | I6 | `/cartoes` → Inter → 🔔 Lembretes → desmarcar Depois → ✔️ Pronto | "Lembrete na véspera e no dia, às 09:00" |
+
+## J — Relatórios (S6)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| J1 | `/resumo` | 📊 Resumo de outubro/2026: Entrou, Saiu, Saldo e "Onde mais gastou" (até 5, com %); botões do resumo semanal (desligado) e do fechamento (ligado) |
+| J2 | Tocar 🔕 Resumo semanal | A mesma mensagem muda para 🔔 ligado |
+| J3 | 🎙️ "quanto gastei de mercado este mês?" | 📊 Gastos com 🛒 Mercado · outubro · Total; se houver compra no cartão em aberto, o aviso e o botão 💳 Incluir compras no cartão |
+| J4 | ✍️ `meus gastos dos últimos 3 meses, mês a mês` | Uma linha por mês e o total |
+| J5 | ✍️ `quanto sobrou este mês?` | Entrou, Saiu, Saldo |
+| J6 | ✍️ `/fatura` | A fatura a pagar de cada cartão, com os botões |
+| J7 | O agente roda a rotina no domingo 20:00 e no dia 1 09:00 (dev) | 🗓️ Sua semana… e 📆 Fechamento de … |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |

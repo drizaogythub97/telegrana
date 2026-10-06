@@ -209,6 +209,10 @@ def _mensagem(
         return faturas.pede_pagamento(conn, p, e.texto)
     if faturas.parece_estorno(e.texto):
         return faturas.estorno(conn, p, e.texto)
+    from telegrana.core import relatorios  # tardio: relatorios → lembretes → este módulo
+
+    if relatorios.parece_consulta(e.texto):  # "quanto gastei…": direto para o relatório
+        return relatorios.consulta(conn, ctx, p, e.texto)
     if _PARECE_CORRECAO.search(normaliza(e.texto)):
         with db.account_context(conn, p.account_id) as cur:
             alvo = repo.ultimo(cur, p.user_id)
@@ -251,8 +255,9 @@ def _mensagem(
             return _apaga(cur, ultimo, cats, hoje, r)
     if interp.intencao == "pagar_fatura":
         return faturas.pede_pagamento(conn, p, e.texto)
+    if interp.intencao == "consulta":
+        return relatorios.consulta(conn, ctx, p, e.texto)
     mensagem = {
-        "consulta": t.CONSULTA_EM_BREVE,
         "conversa": t.OI,
     }.get(interp.intencao, t.NAO_ENTENDI)
     return r.diz(mensagem)

@@ -257,6 +257,17 @@ def test_paga_a_fatura(ana: Pessoa) -> None:
     ana.espera("Fatura do Nubank paga")
 
 
+def test_resumo_e_consulta(ana: Pessoa) -> None:
+    ana.diz("/resumo")
+    resumo = ana.espera("Resumo de")
+    assert "Saiu:" in resumo.texto
+    ana.toca("Resumo semanal")
+    ana.diz("quanto gastei de mercado este mês?")
+    assert "Total:" in ana.espera("Gastos com").texto
+    ana.diz("/fatura")
+    ana.espera("Fatura do Nubank")
+
+
 def test_categorias(ana: Pessoa) -> None:
     ana.diz("/categorias")
     lista = ana.espera("Suas categorias")

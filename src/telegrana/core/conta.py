@@ -13,6 +13,7 @@ from telegrana.core import (
     fixos,
     lancamentos,
     lembretes,
+    relatorios,
     valores,
 )
 from telegrana.core import lancamentos_repo as lrepo
@@ -130,6 +131,8 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
         or e.pergunta in cartoes.PERGUNTAS
     ):
         return cartoes.trata(conn, ctx, e, p)
+    if e.comando in relatorios.COMANDOS or (e.acao or "").startswith(relatorios.PREFIXO):
+        return relatorios.trata(conn, ctx, e, p)
     if (e.acao or "").startswith(faturas.PREFIXO) or e.pergunta in faturas.PERGUNTAS:
         return faturas.trata(conn, ctx, e, p)
     if (e.acao or "").startswith(lembretes.PREFIXO) or e.pergunta in lembretes.PERGUNTAS:

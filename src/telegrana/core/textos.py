@@ -166,10 +166,14 @@ USE_OS_BOTOES = "Use os botões da mensagem acima para continuar."
 # ---------------------------------------------------------------------------
 AJUDA = (
     "💬 **Para registrar**, é só escrever ou mandar um áudio: «mercado 45,90 no pix», "
-    "«uber 18 ontem», «recebi 3.500 de salário». Para corrigir, responda ao recibo.\n\n"
+    "«uber 18 ontem», «recebi 3.500 de salário». Para corrigir, responda ao recibo.\n"
+    "📊 **Para consultar**, pergunte: «quanto gastei de mercado no mês passado?», "
+    "«meus gastos dos últimos 3 meses, mês a mês».\n\n"
     "📋 **Comandos**\n"
     "/meus_dados — o que está guardado sobre você\n"
     "/corrigir_nome — corrigir o seu nome\n"
+    "/resumo — o mês até agora: entradas, saídas e onde mais gastou\n"
+    "/fatura — as faturas em aberto dos seus cartões\n"
     "/categorias — ver, criar e editar suas categorias\n"
     "/fixos — contas e ganhos que se repetem todo mês, com lembretes\n"
     "/cartoes — seus cartões de crédito (fechamento e vencimento da fatura)\n"
@@ -374,6 +378,30 @@ ESTORNO_SEM_COMPRA = (
 ESTORNO_QUAL = "↩️ Estorno de {valor}: de qual compra?"
 ESTORNO_FEITO = "↩️ Estorno de {valor} abatido de «{descricao}»."
 ESTORNO_NENHUMA = "👍 Nada mudou."
+# Relatórios (S6, D047)
+VISOES = {
+    "realizado": "✅ Realizado (o que já foi pago)",
+    "compra": "🛍️ Pela data da compra (inclui o cartão ainda não pago)",
+    "compromissos": "🗓️ Compromissos (a pagar)",
+}
+RELATORIO_VAZIO = "Nada encontrado nesse período."
+RELATORIO_MAIS = "…e mais {n}"
+RELATORIO_CARTAO_ABERTO = (
+    "💳 Mais {valor} em compras no cartão desse período ainda não pagas (entram quando a "
+    "fatura for paga)."
+)
+PERIODO_NAO_ENTENDI = (
+    "Não entendi o período. Tente assim: «quanto gastei de mercado no mês passado» ou "
+    "«meus gastos dos últimos 3 meses, mês a mês»."
+)
+RESUMO_TITULO = "📊 **Resumo de {periodo}**"
+RESUMO_TOP = "**Onde mais gastou**"
+SEMANAL_TITULO = "🗓️ **Sua semana** · {periodo}"
+SEMANAL_PROXIMOS = "**Vence nos próximos 7 dias**"
+SEMANAL_NADA_VENCE = "Nada vence nos próximos 7 dias. 👍"
+MENSAL_TITULO = "📆 **Fechamento de {periodo}**"
+MENSAL_COMPARA = "{seta} {pct}% de gastos em relação a {mes}."
+SEM_FATURA_ABERTA = "🧾 Nenhuma fatura em aberto."
 PERGUNTA_CATEGORIA_CORRECAO = "🤔 Para qual categoria vai **{resumo}**?"
 CORRECAO_IGUAL = "👍 O lançamento já está assim."
 CORRECAO_NAO_ENTENDI = (
@@ -387,10 +415,6 @@ NAO_ENTENDI = (
     "🤔 Não entendi bem. Me conta assim, por exemplo: «mercado 45,90 no pix» ou "
     "«recebi 1.500 de salário»."
 )
-CONSULTA_EM_BREVE = (
-    "📊 Consultas e relatórios chegam numa próxima etapa. Por enquanto, eu registro."
-)
-FATURA_EM_BREVE = "💳 Faturas de cartão chegam numa próxima etapa."
 OI = "👋 Oi! Me conta um gasto ou um ganho, por texto ou áudio, que eu registro."
 SOBRECARREGADO = (
     "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
