@@ -178,10 +178,15 @@ def da_ia(
         cartao_forma=str(cartao.forma_id) if cartao else None,
         cartao_nome=cartao.nome if cartao else None,
         termo=termo or None,
-        agrupar=c.agrupar,
+        agrupar=_agrupar_saldo(c.tipo, c.agrupar),
         limite=c.limite,
         visao=c.visao,
     )
+
+
+def _agrupar_saldo(tipo: str, agrupar: str) -> str:
+    """Saldo por categoria ou forma não faz sentido (só tem saída): vira o total."""
+    return "nenhum" if tipo == "saldo" and agrupar in {"categoria", "forma"} else agrupar
 
 
 # ---------------------------------------------------------------------------
@@ -530,11 +535,15 @@ def semanal(cur: Any, hoje: date) -> str:
 
 def _vencimentos(cur: Any, inicio: date, fim: date) -> list[str]:
     itens: list[tuple[date, str]] = []
+    desde = inicio - timedelta(days=70)
+    resolvidos = lembretes._resolvidos(cur, desde)
+    pagamentos = lembretes._pagamentos(cur, desde)
     for f in fixos.lista(cur):
         if not f.ativo:
             continue
         _, proximo = lembretes.vencimentos_perto(f.dia, inicio)
-        if inicio <= proximo <= fim:
+        feito = lembretes.resolvido(proximo, resolvidos.get(f.id, set()), pagamentos.get(f.id, []))
+        if inicio <= proximo <= fim and not feito:  # pago ou pulado não aparece
             itens.append(
                 (
                     proximo,
