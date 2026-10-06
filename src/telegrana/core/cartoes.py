@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -516,7 +516,7 @@ def _tela_lembretes(c: Cartao) -> Saida:
                 horario("evening", "🌙 Noite"),
                 horario("both", "🌅🌙 Ambos"),
             ),
-            (Botao("✔️ Pronto", f"ct:ed:{i}"),),
+            (Botao("✔️ Pronto", f"ct:pr:{i}"),),
         ),
         substitui=True,
     )
@@ -573,8 +573,9 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
         c = por_id(cur, cartao_id) if cartao_id else None  # RLS: outra conta não acha
         if c is None:
             return r.diz(t.CARTAO_SUMIU)
-        if acao == "ed":
-            r.saidas.append(tela(c))
+        if acao in {"ed", "pr"}:  # "Pronto": a tela de lembretes volta a ser o cartão
+            saida = tela(c)
+            r.saidas.append(replace(saida, substitui=acao == "pr"))
         elif acao == "lb":
             r.saidas.append(_tela_lembretes(c))
         elif acao in _ALTERNA or acao in _HORARIO:
