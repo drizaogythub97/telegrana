@@ -111,6 +111,8 @@ def verificar(sessao: Any, env: str) -> None:
 
 COMANDOS = [
     ("ajuda", "O que o Telegrana faz e a lista de comandos"),
+    ("resumo", "O mês até agora: entradas, saídas e onde mais gastou"),
+    ("fatura", "Faturas em aberto dos seus cartões"),
     ("meus_dados", "O que está guardado sobre você"),
     ("categorias", "Ver, criar e editar suas categorias"),
     ("fixos", "Contas e ganhos de todo mês, com lembretes"),

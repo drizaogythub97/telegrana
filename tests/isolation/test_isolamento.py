@@ -48,6 +48,7 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "cards": ("id", "account_id = %(conta)s"),
     "card_invoices": ("id", "account_id = %(conta)s"),
     "invoice_notices": ("id", "account_id = %(conta)s"),
+    "summary_sends": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -165,6 +166,11 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
             "insert into telegrana.card_invoices (account_id, card_id, due_date, total_cents,"
             " paid_cents, paid_on) select %s, id, current_date, 100, 100, current_date"
             " from telegrana.cards",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.summary_sends (account_id, kind, period_start)"
+            " values (%s, 'monthly', date_trunc('month', current_date))",
             (conta.account_id,),
         )
         cur.execute(
@@ -394,6 +400,7 @@ def test_funcoes_security_definer_sao_blindadas(migrator: db.Connection) -> None
         "admin_list_users",
         "purge_account_temporaries",
         "accounts_with_reminders",
+        "accounts_for_summaries",
     }
     for nome, config, publico in funcoes:
         assert config, f"{nome}: sem configuração"
@@ -597,3 +604,14 @@ def test_cartao_e_parcela_nao_apontam_para_outra_conta(
                 " invoice_on = current_date",
                 (tx_b,),
             )
+
+
+def test_contas_com_resumo_so_devolve_ids(app: db.Connection, cenario: Cenario) -> None:
+    with app.transaction():
+        cursor = app.execute("select * from telegrana.accounts_for_summaries('monthly')")
+        colunas = [c.name for c in cursor.description or []]
+        ids = {r[0] for r in cursor.fetchall()}
+        nada = app.execute("select * from telegrana.accounts_for_summaries('outro')").fetchall()
+    assert colunas == ["o_account_id"]
+    assert {cenario.a.account_id, cenario.b.account_id} <= ids  # mensal ligado por padrão
+    assert nada == []

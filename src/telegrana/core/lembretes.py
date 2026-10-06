@@ -185,7 +185,7 @@ def _pagamentos(cur: Any, desde: date) -> dict[uuid.UUID, list[date]]:
     return achados
 
 
-def _destino(cur: Any, canal: str) -> str | None:
+def destino(cur: Any, canal: str) -> str | None:
     row = cur.execute(
         "select c.external_id from telegrana.user_channels c"
         " join telegrana.account_members m on m.user_id = c.user_id"
@@ -207,8 +207,8 @@ def _marca_envio(cur: Any, account_id: uuid.UUID, lb: Lembrete, hoje: date, hora
 
 
 def da_conta(cur: Any, account_id: uuid.UUID, canal: str, hoje: date, horario: str) -> list[Saida]:
-    destino = _destino(cur, canal)
-    if destino is None:
+    destino_ = destino(cur, canal)
+    if destino_ is None:
         return []
     inicio = hoje - timedelta(days=70)
     resolvidos = _resolvidos(cur, inicio)
@@ -220,8 +220,8 @@ def da_conta(cur: Any, account_id: uuid.UUID, canal: str, hoje: date, horario: s
         if lb is None or not _marca_envio(cur, account_id, lb, hoje, horario):
             continue
         emoji = emojis.get(f.categoria_id, fixos.MARCA) if f.categoria_id else fixos.MARCA
-        saidas.append(saida(lb, emoji, destino))
-    saidas.extend(faturas.da_conta(cur, account_id, destino, hoje, horario))  # D046
+        saidas.append(saida(lb, emoji, destino_))
+    saidas.extend(faturas.da_conta(cur, account_id, destino_, hoje, horario))  # D046
     return saidas
 
 

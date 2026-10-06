@@ -24,6 +24,9 @@ Intencao = Literal[
 Tipo = Literal["gasto", "ganho", "transferencia"]
 Forma = Literal["pix", "debito", "dinheiro", "credito", "boleto", "poupanca"]
 CampoCorrecao = Literal["valor", "data", "categoria", "forma_pagamento", "descricao"]
+TipoConsulta = Literal["gastos", "ganhos", "saldo"]
+Agrupar = Literal["categoria", "mes", "semana", "dia", "forma", "nenhum"]
+Visao = Literal["realizado", "compra", "compromissos"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,23 @@ class ExtracaoIA(BaseModel):
     correcao_campo: CampoCorrecao | None
     correcao_texto: str | None = Field(max_length=80)
     pergunta: str | None = Field(max_length=200)
+
+
+class ConsultaIA(BaseModel):
+    """Pedido de relatório em linguagem natural (S6, PLANO 6): a IA preenche, o código valida
+    (período resolvido por `core.periodos`, categorias da conta, listas fixas) e monta o SQL."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tipo: TipoConsulta
+    periodo_texto: str | None = Field(max_length=60)
+    categorias: list[str] = Field(max_length=5)
+    termo: str | None = Field(max_length=30)
+    forma_pagamento: Forma | None
+    cartao: str | None = Field(max_length=30)
+    agrupar: Agrupar
+    limite: int | None = Field(ge=1, le=20)
+    visao: Visao
 
 
 class CorrecaoIA(BaseModel):
@@ -128,6 +148,22 @@ def esquema_json() -> dict[str, Any]:
             "correcao_campo": _enum_ou_nulo(CampoCorrecao),
             "correcao_texto": _texto_ou_nulo(),
             "pergunta": _texto_ou_nulo(),
+        }
+    )
+
+
+def esquema_consulta() -> dict[str, Any]:
+    return _objeto(
+        {
+            "tipo": {"type": "string", "enum": list(get_args(TipoConsulta))},
+            "periodo_texto": _texto_ou_nulo(),
+            "categorias": {"type": "array", "items": {"type": "string"}},
+            "termo": _texto_ou_nulo(),
+            "forma_pagamento": _enum_ou_nulo(Forma),
+            "cartao": _texto_ou_nulo(),
+            "agrupar": {"type": "string", "enum": list(get_args(Agrupar))},
+            "limite": {"type": ["integer", "null"]},
+            "visao": {"type": "string", "enum": list(get_args(Visao))},
         }
     )
 

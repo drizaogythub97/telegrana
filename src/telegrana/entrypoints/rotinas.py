@@ -12,7 +12,7 @@ from typing import Any
 
 from telegrana.channels.telegram import adaptador
 from telegrana.channels.telegram.api import TelegramAPI
-from telegrana.core import lembretes, repositorio
+from telegrana.core import lembretes, relatorios, repositorio
 from telegrana.core.contexto import FUSO, agora
 from telegrana.core.mensagens import Resultado
 from telegrana.infra import config, db, logs
@@ -62,6 +62,8 @@ def lembra(
     """Calcula e envia os lembretes do horário. Cada envio é independente (quem bloqueou o
     bot não impede os outros); o registro do envio já foi gravado antes (nunca repete)."""
     saidas, contas_com_falha = lembretes.da_rotina(conn, adaptador.CANAL, momento)
+    resumos, falhas_resumo = relatorios.da_rotina(conn, adaptador.CANAL, momento)  # D047
+    saidas, contas_com_falha = saidas + resumos, contas_com_falha + falhas_resumo
     falhas = 0
     for saida in saidas:
         origem = adaptador.Origem(chat_id=int(saida.destino or 0))
