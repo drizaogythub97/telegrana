@@ -287,7 +287,9 @@ def test_ia_fora_do_ar_e_limite(bot: Bot, ia: IAFalsa) -> None:
 
 def test_intencoes_sem_lancamento(bot: Bot) -> None:
     de = conta(bot)
-    assert bot(de, texto="qnt gastei de mercado?").saidas[0].texto == t.CONSULTA_EM_BREVE
+    consulta = bot(de, texto="qnt gastei de mercado?").saidas[0].texto  # S6: vira relatório
+    assert consulta.startswith("📊 **Gastos com 🛒 Mercado**")
+    assert t.RELATORIO_VAZIO in consulta
     assert bot(de, texto="oi").saidas[0].texto == t.OI
 
 

@@ -415,10 +415,6 @@ NAO_ENTENDI = (
     "🤔 Não entendi bem. Me conta assim, por exemplo: «mercado 45,90 no pix» ou "
     "«recebi 1.500 de salário»."
 )
-CONSULTA_EM_BREVE = (
-    "📊 Consultas e relatórios chegam numa próxima etapa. Por enquanto, eu registro."
-)
-FATURA_EM_BREVE = "💳 Faturas de cartão chegam numa próxima etapa."
 OI = "👋 Oi! Me conta um gasto ou um ganho, por texto ou áudio, que eu registro."
 SOBRECARREGADO = (
     "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
