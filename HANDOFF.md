@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 06/10/2026 · **S0 a S6 encerradas** · texto, áudio, fixos, lembretes, cartão com fatura e **relatórios em texto** no ar em dev e prod · próxima: **S7 — exportação (XLSX e PDF)**.
+> Atualizado em 07/10/2026 · **S0 a S7 encerradas** · texto, áudio, fixos, lembretes, cartão com fatura, relatórios em texto e **exportação em PDF e planilha** no ar em dev e prod · próxima: **S8 — endurecimento e entrada da família**.
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,22 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D047. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D048. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S7 — encerrada em 07/10/2026 (D048; PRs #63–#65)
+
+- **Exportação** (PR #63, `a444828`): `/exportar` com botões (este mês, mês passado, este ano × 📄 PDF, 📊 Planilha) e por frase ("me manda os gastos de setembro em PDF", "quero a planilha deste mês"; texto ou áudio). Mesmo `Pedido` dos relatórios (`core/exportacao.py`): `dados()` lê tudo pelo SQL dentro de `account_context` → `exports/dados.py` (`Dados`, centavos) → `gera()` desenha **fora da transação** → `Saida.arquivo` (`Arquivo`: nome, tipo, bytes) → adaptador manda com `sendDocument` (`api.envia_documento`, multipart).
+- **PDF** (`exports/pdf.py`, fpdf2): logo (`exports/logo.png`), faixa azul→verde em fatias, cards Entrou/Saiu/Saldo, barras por categoria, tabela paginada (até 400 lançamentos), rodapé. Helvetica/Latin-1: `pdf.texto()` troca/limpa o que não cabe (emojis saem).
+- **Planilha** (`exports/xlsx.py`, openpyxl): abas Resumo, Por categoria, Lançamentos (com filtro) e Compromissos; formato R$; `seguro()` neutraliza injeção de fórmula.
+- **Fechamento do mês** (rotina do dia 1, 09:00) vai com o PDF do mês anexo (o texto vira a legenda, até 1000 caracteres).
+- **Correções do roteiro K**: o PDF era desenhado com a transação aberta e caía no `idle_in_transaction_session_timeout` de 10 s (#64, `e78ac65`); o primeiro PDF levava 13 s → Lambda do bot com **512 MB** e "enviando arquivo…" (`upload_document`) enquanto gera (#65, `ea6a89e`).
+- **Roteiro K** (06–07/10/2026): K1–K4 certos; o Adriano abriu o PDF e a planilha no celular ("legíveis e bons").
+- **Testes**: `tests/unit/test_exports.py` (PDF/XLSX, injeção de fórmula, Latin-1), `tests/integration/test_exportacao.py` (valores conferidos contra os dados, isolamento, fechamento com PDF, geração fora da transação), E2E 24 (o simulado aceita `sendDocument` e guarda o arquivo em `MensagemDoBot.documento`).
 
 ### S6 — encerrada em 06/10/2026 (D047; PRs #57–#61)
 
@@ -198,19 +208,25 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #59 | `0b4e312` | ver os lançamentos de um relatório |
 | #60 | `7031c3e` | categoria escrita na frase vale quando a IA a esquece |
 | #61 | `b0d21b6` | categoria única mostra só o total |
-| #62 | (este) | encerramento da S6 |
+| #62 | `3277b50` | encerramento da S6 |
+| #63 | `a444828` | **S7**: exportação em PDF e planilha (D048) |
+| #64 | `e78ac65` | arquivo desenhado fora da transação do banco |
+| #65 | `ea6a89e` | Lambda do bot com 512 MB e "enviando arquivo…" |
+| #66 | (este) | encerramento da S7 |
 
-## Ponto de partida exato da próxima sessão (S7 — exportação XLSX e PDF)
+## Ponto de partida exato da próxima sessão (S8 — endurecimento e entrada da família)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (400 → `--remote` em janela anônima; ID da conta no `login_session` do perfil).
-2. **S7 (PLANO seção 6, "XLSX" e "PDF")**: `/exportar` e "me manda em PDF/planilha" sobre o mesmo `Pedido` de `core/relatorios.py` (a visão e os filtros já existem; o formato vira um campo novo na `ConsultaIA`/leitor do código).
-   - **XLSX** (openpyxl, já previsto no PLANO): abas Resumo, Por categoria, Lançamentos, Compromissos; moeda BRL; cabeçalho nas cores da marca (`exports/brand.py`); filtros e colunas ajustadas; **neutralizar injeção de fórmula** (prefixar `'` em texto iniciado por `=`, `+`, `-`, `@`, tab, CR).
-   - **PDF**: biblioteca leve para Lambda (avaliar `fpdf2` x `reportlab`, registrar a escolha numa D048; nada de Chromium); cabeçalho com a logo e degradê azul→verde, cards de resumo, gráfico de barras por categoria, tabela de lançamentos.
-   - Envio pelo canal: o núcleo devolve o arquivo (bytes + nome sem dado sensível) numa `Saida` nova (ex.: `arquivo`), o adaptador do Telegram usa `sendDocument`; arquivo em `/tmp`, apagado na mesma execução. A Bot API simulada do E2E precisa aceitar `sendDocument`.
-   - **Fechamento do mês** passa a ir com o PDF anexo (D047).
-   - Validação visual no celular via adb (PLANO 12, S7): abrir o XLSX e o PDF no Galaxy.
-   - Antes de codar, perguntar ao Adriano de uma vez: o que vai no PDF mensal (só o mês? com comparação?), se a planilha leva todos os lançamentos do período ou só o resumo, e se quer `/exportar` com botões de período (mês atual, mês passado, ano).
-3. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (bloco K; agente por texto no Telegram Web, áudios e celular com o Adriano) → encerramento.
+1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (400 → `--remote` em janela própria; ID da conta no `login_session` do perfil).
+2. **S8 (PLANO seção 12, linha S8; seções 8 e 9)** — antes de codar, montar a lista e perguntar ao Adriano de uma vez o que for dele:
+   - **Revisão de segurança completa**: percorrer o checklist da seção 8 (8.1 a 8.8) item a item, com evidência (arquivo/teste/comando) numa tabela nova em `docs/` — o que falta vira PR. Rodar `/security-review` no código todo.
+   - **Kill-switch testado de verdade** (PLANO 9; obrigatório antes do upgrade da conta AWS até 30/03/2027): disparar em dev (SNS de teste → concorrência 0 nas Lambdas de dev → aviso ao admin) e religar pelo `deploy/README.md`; registrar data e resultado.
+   - **Limites de uso** por pessoa (mensagens/áudios/exportações por dia) e o comportamento quando a cota do Groq acaba (cadeia de modelos já existe; falta o aviso amigável e o teto por conta).
+   - **Backup** (PLANO 12, parágrafo "Backup (S8)"): o Neon Free só volta 6 h. Avaliar o export lógico semanal cifrado com chave pública (privada só com o Adriano, offline) enviado ao chat do admin; registrar a decisão (D049) e testar a restauração num branch do Neon.
+   - **Documentação de operação** (`docs/OPERACAO.md`): incidente (art. 48 da LGPD), religar após kill-switch, rotação de segredos, restauração do backup, como liberar um convidado.
+   - **Permissões do `adriano-dev`** reduzidas (D017 previa na S8), com o Adriano.
+   - Pendência da S6: casos de `consulta` (relatórios) no conjunto privado de avaliação da IA.
+3. Critério de saída da S8: o Adriano usa sozinho a produção por 2 semanas; depois gera o link para a família.
+4. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (agente por texto no Telegram Web, áudios e celular com o Adriano) → encerramento.
 
 ## Pendências do Adriano
 
@@ -331,6 +347,13 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - `aws login --profile telegrana --remote` **não abre aba**: imprime o link e espera o código. O painel de terminal do app falha na integração; abra uma janela própria: `Start-Process pwsh -ArgumentList '-NoExit','-NoProfile','-Command','aws login --profile telegrana --remote'`. A tela pede o ID da conta (está no `login_session` do perfil em `~/.aws/config`).
 - No Git Bash, caminhos como `/aws/lambda/...` viram caminhos do Windows: prefixe `MSYS_NO_PATHCONV=1` (ex.: `aws logs filter-log-events --log-group-name /aws/lambda/telegrana-dev-bot ...`).
 - Testes com o Neon de testes podem levar 10+ min (rede lenta em 05/10/2026); o CI usa Postgres local e roda tudo em segundos. A fixture `Banco` não mostra as URLs no `repr` (uma falha de teste não pode imprimir senha).
+
+**Exportação (S7)**
+- O papel do app derruba transação parada há 10 s (`idle_in_transaction_session_timeout`, bootstrap): trabalho pesado (desenhar PDF/planilha) **sempre fora** do `account_context`. O teste `test_arquivo_e_desenhado_fora_da_transacao` vigia isso.
+- fpdf2 com fonte Helvetica só aceita Latin-1: todo texto passa por `pdf.texto()`. Para escrever caracteres especiais em scripts no Windows, use `chr()` (a ferramenta de edição converte `\u...` no próprio caractere).
+- O E2E é sequencial (a Ana entra num cenário anterior): `-k exportar` sozinho falha com "acesso antecipado"; rode a suíte E2E inteira.
+- O fechamento do mês nunca se repete (`summary_sends`). Para testar de novo em dev, apague só a marca daquele mês (`kind = 'monthly'`, `period_start`) com o dono do dev e rode `{"momento": "AAAA-MM-01T09:00"}`.
+- O mypy do CI é `uv run mypy` (só `src`, pelo `pyproject`); `mypy src tests` acusa erros antigos dos testes que o CI não confere.
 
 **Relatórios (S6)**
 - `relatorios._responde` guarda o último pedido num rascunho `consulta` (30 min): é dele que saem "📋 Ver lançamentos", "💳 Incluir compras no cartão" e o "liste compra a compra" seguinte. Pedido de lista com número ou assunto novo é relatório novo.
