@@ -268,7 +268,7 @@ def test_resumo_e_consulta(ana: Pessoa) -> None:
     ana.espera("Fatura do Nubank")
 
 
-def test_exportar_pdf_e_planilha(ana: Pessoa) -> None:
+def test_exportar_pdf_e_planilha(mundo: Mundo, ana: Pessoa) -> None:
     ana.diz("/exportar")
     ana.espera("Exportar")
     ana.toca("Este mês · PDF")
@@ -276,6 +276,7 @@ def test_exportar_pdf_e_planilha(ana: Pessoa) -> None:
     assert pdf.documento is not None
     assert pdf.documento[1] == "application/pdf"
     assert pdf.documento[2].startswith(b"%PDF")
+    assert (ana.id, "upload_document") in mundo.tg.acoes_de_chat  # "enviando arquivo…"
     ana.diz("me manda a planilha deste mês")
     planilha = ana.espera("📎 Planilha")
     assert planilha.documento is not None
