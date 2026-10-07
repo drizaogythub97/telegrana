@@ -429,6 +429,12 @@ NAO_ENTENDI = (
     "«recebi 1.500 de salário»."
 )
 OI = "👋 Oi! Me conta um gasto ou um ganho, por texto ou áudio, que eu registro."
+# "exato", "ok", "valeu" sem pergunta aberta (07/10/2026): não é cumprimento.
+CONCORDA = {
+    "sim": "👍 Combinado.",
+    "nao": "👍 Tudo bem.",
+    "gratidao": "😊 Por nada! Qualquer coisa, é só me mandar.",
+}
 SOBRECARREGADO = (
     "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
 )

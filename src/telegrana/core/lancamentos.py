@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
-from telegrana.core import atalho, cartoes, datas, faturas, fixos, valores
+from telegrana.core import atalho, cartoes, datas, escolha, faturas, fixos, valores
 from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
@@ -205,6 +205,10 @@ def _mensagem(
 ) -> Resultado:
     hoje = agora().date()
     frase = normaliza(e.texto)
+    jeito = escolha.concordancia(e.texto)
+    if jeito is not None:  # "exato", "ok", "valeu": sem pergunta aberta, só concorda
+        r = Resultado(rotulo="lancamento.concordancia.atalho", conta=p.account_id)
+        return r.diz(t.CONCORDA[jeito])
     if _PAGA_FATURA.search(frase) and not _FATURA_DE_CONSUMO.search(frase):
         return faturas.pede_pagamento(conn, p, e.texto)
     if faturas.parece_estorno(e.texto):
@@ -272,6 +276,7 @@ def _mensagem(
         return relatorios.consulta(conn, ctx, p, e.texto)
     mensagem = {
         "conversa": t.OI,
+        "concordancia": t.CONCORDA["sim"],
     }.get(interp.intencao, t.NAO_ENTENDI)
     return r.diz(mensagem)
 
@@ -665,7 +670,8 @@ def _botao(conn: db.Connection, e: Entrada, p: Pessoa) -> Resultado:
             if cat is None:
                 return r.diz(t.CATEGORIA_SUMIU)
             repo.atualiza(cur, tx.id, "category_id", cat.id)
-            return _recibo_atualizado(cur, tx.id, cats, hoje, r)
+            _recibo_atualizado(cur, tx.id, cats, hoje, r)
+            return _oferece_regra(cur, tx, cat, cats, r)
         if acao == "tx:nc" and len(partes) == 4:
             return _cria_categoria_do_recibo(cur, p, tx, partes[3], hoje, r)
         if acao == "tx:del":
@@ -729,6 +735,27 @@ def _apaga(
     return r.diz(
         t.APAGADO.format(resumo=resumo),
         botoes=((Botao("↩️ Desfazer", f"tx:un:{seg.curto(tx.id)}"),),),
+    )
+
+
+def _oferece_regra(
+    cur: Any, tx: repo.Lancamento, cat: repo.Categoria, cats: list[repo.Categoria], r: Resultado
+) -> Resultado:
+    """Trocou a categoria pelo recibo: oferece lembrar «descrição» → categoria NOVA (a oferta
+    feita antes, com a categoria antiga, ficou para trás — 07/10/2026)."""
+    termo = normaliza(tx.descricao or "")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9 ]{1,29}", termo) or len(termo.split()) > 3:
+        return r
+    if any(x.padrao == termo and x.chave == cat.chave for x in repo.regras(cur, cats)):
+        return r
+    return r.diz(
+        t.LEMBRAR_REGRA.format(termo=termo, rotulo=cat.rotulo),
+        botoes=(
+            (
+                Botao("✅ Sempre", f"rg:{seg.curto(cat.id)}:{termo}"),
+                Botao("Só desta vez", "rg:no"),
+            ),
+        ),
     )
 
 

@@ -278,14 +278,19 @@ def rascunho_mais_recente(
 # Pergunta aberta: a próxima mensagem solta pode ser a resposta (Telegram Web/Desktop)
 # ---------------------------------------------------------------------------
 def marca_pergunta(
-    cur: Any, account_id: uuid.UUID, user_id: uuid.UUID, pergunta: str, contexto: str
+    cur: Any,
+    account_id: uuid.UUID,
+    user_id: uuid.UUID,
+    pergunta: str,
+    contexto: str,
+    limite: int = 200,
 ) -> None:
     cur.execute(
         "delete from telegrana.pending_entries where user_id = %s and pendencia = 'pergunta'",
         (user_id,),
     )
     cria_rascunho(
-        cur, account_id, user_id, {"pergunta": pergunta, "contexto": contexto[:200]}, "pergunta"
+        cur, account_id, user_id, {"pergunta": pergunta, "contexto": contexto[:limite]}, "pergunta"
     )
 
 

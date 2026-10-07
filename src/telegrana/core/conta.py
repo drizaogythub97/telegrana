@@ -9,6 +9,7 @@ from telegrana.core import (
     cartoes,
     categorias,
     datas,
+    escolha,
     exportacao,
     faturas,
     fixos,
@@ -22,7 +23,7 @@ from telegrana.core import repositorio as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.cadastro import registra_aceites, saida_codigo, tela_termos, valida_nome
-from telegrana.core.contexto import Contexto, data_br
+from telegrana.core.contexto import Contexto, agora, data_br
 from telegrana.core.interpretacao import normaliza
 from telegrana.core.mensagens import ADMIN, Botao, Entrada, Resultado, Saida, seguro
 from telegrana.infra import db
@@ -207,6 +208,8 @@ def _resposta_solta(
             return transcrito
         ouvido, avisos = transcrito
         texto = ouvido
+    if pergunta == escolha.PERGUNTA:
+        return _escolha_solta(conn, ctx, e, p, texto, contexto, ouvido, avisos)
     if cabe(pergunta, texto, contexto):
         resposta = replace(e, pergunta=pergunta, contexto=contexto, texto=texto, audio=None)
         r = trata(conn, ctx, resposta, p)
@@ -215,6 +218,31 @@ def _resposta_solta(
         r = trata(conn, ctx, replace(e, texto=ouvido, audio=None), p)  # já ouvido: segue
     else:
         return None
+    return lancamentos._com_eco(r, ouvido, avisos)
+
+
+def _escolha_solta(
+    conn: db.Connection,
+    ctx: Contexto,
+    e: Entrada,
+    p: repo.Pessoa,
+    texto: str,
+    contexto: str,
+    ouvido: str | None,
+    avisos: list[Saida],
+) -> Resultado:
+    """Pergunta com botões respondida escrevendo (ou falando): a opção entendida vira o toque
+    no botão; nenhuma → a mensagem segue como nova (a pergunta já fechou)."""
+    aberta = escolha.Aberta.le(contexto)
+    achou = escolha.escolhe(ctx.extrator, texto, aberta) if aberta else None
+    if aberta is not None and achou is not None and achou.indice is not None:
+        acao = aberta.opcoes[achou.indice][1]
+        r = trata(conn, ctx, replace(e, acao=acao, texto="", audio=None), p)
+        r.rotulo += ".solta" + (".ia" if achou.via == "ia" else "")
+    else:
+        r = trata(conn, ctx, replace(e, texto=texto, audio=None), p)
+    if achou is not None and achou.tokens:
+        lancamentos._conta_uso(conn, agora().date(), achou.modelo, achou.tokens, r)
     return lancamentos._com_eco(r, ouvido, avisos)
 
 
