@@ -94,7 +94,7 @@
 | J7 | O agente roda a rotina no domingo 20:00 e no dia 1 09:00 (dev) | 🗓️ Sua semana… e 📆 Fechamento de … |
 
 ## K — Exportação (S7)
-> Abrir os arquivos **no celular** (validação visual da S7).
+> Abrir os arquivos **no celular** (validação visual da S7). ✅ Feito em 06–07/10/2026: K1–K4 certos, arquivos conferidos no celular.
 
 | Passo | O que fazer | O que deve acontecer |
 |---|---|---|
