@@ -103,6 +103,15 @@
 | K3 | 🎙️ "me manda os gastos de setembro em PDF" | PDF de setembro só com gastos |
 | K4 | O agente roda a rotina no dia 1 09:00 (dev) | 📆 Fechamento de … com o PDF anexo |
 
+## L — Resposta escrita às perguntas com botões (D049)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| L1 | ✍️ `tim no dia 20/10 vai ser 55 reais` → tocar 📦 Outros → 🏷️ Categoria → 📱 Assinaturas | ✏️ Corrigido e "🧠 Quer que eu lembre: «tim» é sempre 📱 Assinaturas?" |
+| L2 | ✍️ `Exato` (sem responder) | 🧠 Pronto: «tim» vai sempre para 📱 Assinaturas |
+| L3 | ✍️ `netflix 39,90` → no recibo "Isso se repete todo mês?" ✍️ `é mensal` | 🔁 Fixo cadastrado (a IA entendeu como 🔁 Sim, todo mês) |
+| L4 | ✍️ `ok` e depois `valeu` | 👍 Combinado. / 😊 Por nada! (nunca o "👋 Oi!") |
+| L5 | /apagar_conta → ✍️ `sim` | Nada é apagado: só o toque no botão apaga |
+
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |
 |---|---|---|

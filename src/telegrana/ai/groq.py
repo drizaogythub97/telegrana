@@ -26,13 +26,16 @@ from telegrana.ai.prompt import (
     mensagens,
     mensagens_consulta,
     mensagens_correcao,
+    mensagens_escolha,
 )
 from telegrana.core.extracao import (
     ConsultaIA,
     CorrecaoIA,
+    EscolhaIA,
     ExtracaoIA,
     esquema_consulta,
     esquema_correcao,
+    esquema_escolha,
     esquema_json,
 )
 
@@ -50,7 +53,7 @@ PARAMETROS: dict[str, dict[str, Any]] = {
 # 02/10/2026); o 20b fica por último até completar uma rodada com o código atual.
 MODELOS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 MODELO = MODELOS[0]
-Saida = TypeVar("Saida", ExtracaoIA, CorrecaoIA, ConsultaIA)
+Saida = TypeVar("Saida", ExtracaoIA, CorrecaoIA, ConsultaIA, EscolhaIA)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +106,12 @@ class Groq:
         msgs = mensagens_consulta(texto, categorias, hoje)
         return self._corpo(modelo, msgs, "consulta", esquema_consulta())
 
+    def corpo_escolha(
+        self, pergunta: str, opcoes: list[str], texto: str, modelo: str = ""
+    ) -> dict[str, Any]:
+        msgs = mensagens_escolha(pergunta, opcoes, texto)
+        return self._corpo(modelo, msgs, "escolha", esquema_escolha())
+
     def _corpo(
         self, modelo: str, msgs: list[dict[str, str]], nome: str, esquema: dict[str, Any]
     ) -> dict[str, Any]:
@@ -148,6 +157,15 @@ class Groq:
         return self._cadeia.executa(
             lambda modelo: self._chama(
                 modelo, self.corpo_consulta(texto, categorias, hoje, modelo), ConsultaIA
+            )
+        )
+
+    def escolha(self, pergunta: str, opcoes: list[str], texto: str) -> tuple[EscolhaIA, str]:
+        """Resposta escrita a uma pergunta com botões: (opção escolhida, modelo)."""
+        self.ultimo_uso = None
+        return self._cadeia.executa(
+            lambda modelo: self._chama(
+                modelo, self.corpo_escolha(pergunta, opcoes, texto, modelo), EscolhaIA
             )
         )
 

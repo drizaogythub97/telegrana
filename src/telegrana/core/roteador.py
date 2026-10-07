@@ -6,7 +6,7 @@ IA (regra de ouro 4). Admin = `Contexto.admin_id`.
 
 from __future__ import annotations
 
-from telegrana.core import admin, cadastro, conta
+from telegrana.core import admin, cadastro, conta, escolha
 from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import textos as t
@@ -47,5 +47,12 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada) -> Resultado:
         with db.account_context(conn, pessoa.account_id) as cur:
             lrepo.marca_pergunta(
                 cur, pessoa.account_id, pessoa.user_id, pergunta.pergunta, contexto
+            )
+    elif (aberta := escolha.da_saida(r.saidas)) is not None:
+        # Pergunta com botões: "exato", "pode ser" ou o nome de uma opção, escrito ou falado,
+        # valem como o toque (conta._escolha_solta, 07/10/2026).
+        with db.account_context(conn, pessoa.account_id) as cur:
+            lrepo.marca_pergunta(
+                cur, pessoa.account_id, pessoa.user_id, escolha.PERGUNTA, aberta.guarda(), 8000
             )
     return r

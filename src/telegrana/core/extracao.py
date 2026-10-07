@@ -19,6 +19,7 @@ Intencao = Literal[
     "consulta",
     "pagar_fatura",
     "conversa",
+    "concordancia",
     "fora_do_escopo",
 ]
 Tipo = Literal["gasto", "ganho", "transferencia"]
@@ -63,6 +64,15 @@ class ExtracaoIA(BaseModel):
     correcao_campo: CampoCorrecao | None
     correcao_texto: str | None = Field(max_length=80)
     pergunta: str | None = Field(max_length=200)
+
+
+class EscolhaIA(BaseModel):
+    """Resposta por texto/áudio a uma pergunta com botões (07/10/2026): a IA só aponta UMA
+    das opções mostradas (número) ou nenhuma; quem executa é o código, como um toque."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    opcao: int | None = Field(ge=1, le=40)
 
 
 class ConsultaIA(BaseModel):
@@ -166,6 +176,10 @@ def esquema_consulta() -> dict[str, Any]:
             "visao": {"type": "string", "enum": list(get_args(Visao))},
         }
     )
+
+
+def esquema_escolha() -> dict[str, Any]:
+    return _objeto({"opcao": {"type": ["integer", "null"]}})
 
 
 def esquema_correcao() -> dict[str, Any]:
