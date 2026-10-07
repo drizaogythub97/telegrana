@@ -51,6 +51,8 @@ Resources:
       CodeUri: ../.build/lambda
       Description: Webhook do Telegram (valida segredo, deduplica, só chat privado).
       Handler: telegrana.entrypoints.bot.handler
+      # 512 MB = o dobro de CPU: o PDF/planilha (S7) saía em 13 s com 256 MB (D048).
+      MemorySize: 512
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO

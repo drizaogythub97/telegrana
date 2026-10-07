@@ -18,7 +18,7 @@ from telegrana.ai.groq import Groq
 from telegrana.ai.whisper import Whisper
 from telegrana.channels.telegram import adaptador, webhook
 from telegrana.channels.telegram.api import TelegramAPI, TelegramError
-from telegrana.core import lancamentos_repo, roteador
+from telegrana.core import exportacao, lancamentos_repo, roteador
 from telegrana.core.contexto import Contexto, Documento
 from telegrana.core.seguranca import decodifica_pepper
 from telegrana.infra import config, db, logs
@@ -128,6 +128,11 @@ def _processa(update: dict[str, Any], settings: config.Settings, api: TelegramAP
     if entrada.audio is not None:
         with contextlib.suppress(TelegramError):  # "digitando…" enquanto baixa e transcreve
             api.call("sendChatAction", chat_id=origem.chat_id, action="typing")
+    elif (entrada.acao or "").startswith(exportacao.PREFIXO) or exportacao.pede_arquivo(
+        entrada.texto
+    ):
+        with contextlib.suppress(TelegramError):  # "enviando arquivo…" enquanto gera o PDF
+            api.call("sendChatAction", chat_id=origem.chat_id, action="upload_document")
     conn = _conexao(settings)
     resultado = roteador.trata(conn, _contexto(settings, api), entrada)
     falhas, refs = adaptador.executa(api, resultado, origem, settings.admin_telegram_id)
