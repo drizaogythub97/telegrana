@@ -620,3 +620,15 @@ def test_contas_com_resumo_so_devolve_ids(app: db.Connection, cenario: Cenario) 
     assert colunas == ["o_account_id"]
     assert {cenario.a.account_id, cenario.b.account_id} <= ids  # mensal ligado por padrão
     assert nada == []
+
+
+def test_toda_tabela_com_rls_tem_a_politica_de_backup(banco: Banco) -> None:
+    """O backup (D052) lê por políticas explícitas: tabela nova sem a sua ficaria de fora."""
+    with db.connect(banco.migrator) as m:
+        sem = m.execute(
+            "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace"
+            " where n.nspname = 'telegrana' and c.relkind = 'r' and c.relrowsecurity"
+            " and not exists (select 1 from pg_policy p where p.polrelid = c.oid"
+            " and p.polname = 'backup')"
+        ).fetchall()
+    assert sem == []
