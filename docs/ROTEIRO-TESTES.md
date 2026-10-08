@@ -112,6 +112,15 @@
 | L4 | ✍️ `ok` e depois `valeu` | 👍 Combinado. / 😊 Por nada! (nunca o "👋 Oi!") |
 | L5 | /apagar_conta → ✍️ `sim` | Nada é apagado: só o toque no botão apaga |
 
+## M — Conversa (D050)
+| Passo | O que fazer | O que deve acontecer |
+|---|---|---|
+| M1 | 🎙️ "Quero cadastrar um gasto fixo" | Resposta natural com um exemplo («aluguel 1500 todo dia 10»), nunca "Não entendi bem" |
+| M2 | 🎙️ "o aluguel é 1500 e vence dia 10" | 🔁 Fixo cadastrado (sem dizer "todo mês") |
+| M3 | ✍️ `tenho um cartão novo` | Uma frase + a tela "💳 Qual é o nome do cartão?" |
+| M4 | ✍️ `me recomenda onde investir 5 mil` | Recusa gentil e o que o bot faz |
+| M5 | ✍️ `como faço pra apagar minha conta?` | Explica o /apagar_conta (não apaga nada) |
+
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |
 |---|---|---|

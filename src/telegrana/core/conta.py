@@ -8,6 +8,7 @@ from datetime import datetime
 from telegrana.core import (
     cartoes,
     categorias,
+    conversa,
     datas,
     escolha,
     exportacao,
@@ -210,6 +211,10 @@ def _resposta_solta(
         texto = ouvido
     if pergunta == escolha.PERGUNTA:
         return _escolha_solta(conn, ctx, e, p, texto, contexto, ouvido, avisos)
+    if pergunta == conversa.FIXO_NOVO:  # "quero cadastrar um fixo" → "aluguel 1500 dia 10"
+        r = lancamentos.trata(conn, ctx, replace(e, texto=texto, audio=None), p, fixo=True)
+        r.rotulo += ".solta"
+        return lancamentos._com_eco(r, ouvido, avisos)
     if cabe(pergunta, texto, contexto):
         resposta = replace(e, pergunta=pergunta, contexto=contexto, texto=texto, audio=None)
         r = trata(conn, ctx, resposta, p)

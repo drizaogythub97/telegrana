@@ -6,7 +6,9 @@ IA (regra de ouro 4). Admin = `Contexto.admin_id`.
 
 from __future__ import annotations
 
-from telegrana.core import admin, cadastro, conta, escolha
+from dataclasses import replace
+
+from telegrana.core import admin, cadastro, conta, conversa, escolha
 from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import textos as t
@@ -38,6 +40,11 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada) -> Resultado:
     if pessoa.status == "onboarding":
         return cadastro.passo(conn, ctx, e, pessoa)
     r = conta.trata(conn, ctx, e, pessoa)
+    if r.abrir in conversa.TELAS:
+        # A conversa sugeriu uma tela (D050): abre como se a pessoa mandasse o comando.
+        comando, acao = conversa.TELAS[r.abrir]
+        tela = replace(e, texto="", audio=None, resposta_a=None, comando=comando, acao=acao)
+        r.saidas.extend(conta.trata(conn, ctx, tela, pessoa).saidas)
     pergunta = next((s for s in reversed(r.saidas) if s.pergunta in conta.SOLTAS), None)
     if pergunta is not None and pergunta.pergunta is not None:
         # No Telegram Web/Desktop a resposta não abre sozinha: a próxima mensagem solta com

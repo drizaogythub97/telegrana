@@ -96,6 +96,13 @@ def recorrencia(texto: str) -> tuple[bool, int | None]:
     return True, dia if dia and 1 <= dia <= 31 else None
 
 
+def dia_do_mes(texto: str) -> int | None:
+    """ "aluguel 1500 dia 10" → 10 (sem "todo": a conversa já disse que é fixo, D050)."""
+    achado = _DIA.search(normaliza(texto))
+    dia = int(achado.group(1)) if achado else None
+    return dia if dia and 1 <= dia <= 31 else None
+
+
 def so_cadastro(texto: str) -> bool:
     """Sem verbo de pagamento ("aluguel 1500 todo dia 10"): cadastra o fixo e não lança."""
     return not (_VERBOS_DE_PAGAMENTO & set(normaliza(texto).split()))

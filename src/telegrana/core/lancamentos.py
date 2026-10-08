@@ -14,7 +14,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
 
-from telegrana.core import atalho, cartoes, datas, escolha, faturas, fixos, valores
+from telegrana.core import atalho, cartoes, conversa, datas, escolha, faturas, fixos, valores
 from telegrana.core import audio as aud
 from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
@@ -68,7 +68,11 @@ _GENERICAS = {"expense": "outros", "income": "outros_ganhos"}
 # ---------------------------------------------------------------------------
 # Porta de entrada
 # ---------------------------------------------------------------------------
-def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultado:
+def trata(
+    conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa, *, fixo: bool = False
+) -> Resultado:
+    """`fixo`: a conversa acabou de combinar um fixo novo (D050): a frase vira fixo mesmo
+    sem "todo mês"."""
     if (e.acao or "").startswith(PREFIXOS):
         return _botao(conn, e, p)
     ouvido: str | None = None
@@ -111,7 +115,7 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa) -> Resultad
     elif (solta := _resposta_solta(conn, e, p)) is not None:
         r = solta
     else:
-        r = _mensagem(conn, ctx, e, p, origem="audio" if ouvido else "text")
+        r = _mensagem(conn, ctx, e, p, origem="audio" if ouvido else "text", fixo=fixo)
     return _com_eco(r, ouvido, avisos)
 
 
@@ -201,7 +205,13 @@ def _com_eco(r: Resultado, ouvido: str | None, avisos: list[Saida]) -> Resultado
 
 
 def _mensagem(
-    conn: db.Connection, ctx: Contexto, e: Entrada, p: Pessoa, *, origem: str = "text"
+    conn: db.Connection,
+    ctx: Contexto,
+    e: Entrada,
+    p: Pessoa,
+    *,
+    origem: str = "text",
+    fixo: bool = False,
 ) -> Resultado:
     hoje = agora().date()
     frase = normaliza(e.texto)
@@ -258,6 +268,8 @@ def _mensagem(
         if interp.intencao == "lancamentos" and interp.propostas:
             formas = repo.formas(cur)
             repete, dia = fixos.recorrencia(e.texto)
+            if fixo and not repete and (dia := fixos.dia_do_mes(e.texto)) is not None:
+                repete = True  # combinou um fixo e disse o dia: "aluguel 1500 dia 10"
             unico = len(interp.propostas) == 1
             for prop in interp.propostas:
                 dados = _dados(prop, e.texto, origem)
@@ -274,11 +286,35 @@ def _mensagem(
         return faturas.pede_pagamento(conn, p, e.texto)
     if interp.intencao == "consulta":
         return relatorios.consulta(conn, ctx, p, e.texto)
-    mensagem = {
-        "conversa": t.OI,
-        "concordancia": t.CONCORDA["sim"],
-    }.get(interp.intencao, t.NAO_ENTENDI)
-    return r.diz(mensagem)
+    if interp.intencao == "concordancia":
+        return r.diz(t.CONCORDA["sim"])
+    reserva = t.OI if interp.intencao == "conversa" else t.NAO_ENTENDI
+    return _conversa(conn, ctx, p, e.texto, hoje, r, reserva)
+
+
+def _conversa(
+    conn: db.Connection,
+    ctx: Contexto,
+    p: Pessoa,
+    texto: str,
+    hoje: date,
+    r: Resultado,
+    reserva: str,
+) -> Resultado:
+    """Nem lançamento nem consulta (D050): a IA de conversa responde e aponta a tela."""
+    c = conversa.gera(ctx.extrator, texto)
+    if c.tokens:
+        _conta_uso(conn, hoje, c.modelo, c.tokens, r)
+    if c.texto is None:
+        return r.diz(reserva)
+    r.rotulo = f"lancamento.conversa.{c.abrir}"
+    r.diz(c.texto)
+    if c.abrir == conversa.FIXO_NOVO:  # a próxima mensagem solta vira o fixo
+        with db.account_context(conn, p.account_id) as cur:
+            repo.marca_pergunta(cur, p.account_id, p.user_id, conversa.FIXO_NOVO, "")
+    elif c.abrir in conversa.TELAS:
+        r.abrir = c.abrir
+    return r
 
 
 def _conta_uso(
