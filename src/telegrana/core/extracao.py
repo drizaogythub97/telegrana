@@ -28,6 +28,21 @@ CampoCorrecao = Literal["valor", "data", "categoria", "forma_pagamento", "descri
 TipoConsulta = Literal["gastos", "ganhos", "saldo"]
 Agrupar = Literal["categoria", "mes", "semana", "dia", "forma", "lancamento", "nenhum"]
 Visao = Literal["realizado", "compra", "compromissos"]
+# Telas que a conversa pode abrir (D050): só as que a pessoa abriria por comando; nada que
+# apague, pague ou mude dado.
+Abrir = Literal[
+    "nenhuma",
+    "fixo_novo",
+    "fixos",
+    "cartao_novo",
+    "cartoes",
+    "categorias",
+    "resumo",
+    "fatura",
+    "exportar",
+    "ajuda",
+    "meus_dados",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +79,16 @@ class ExtracaoIA(BaseModel):
     correcao_campo: CampoCorrecao | None
     correcao_texto: str | None = Field(max_length=80)
     pergunta: str | None = Field(max_length=200)
+
+
+class ConversaIA(BaseModel):
+    """Mensagem que não é lançamento nem consulta (D050): a IA responde em texto curto e, se
+    ajudar, aponta UMA tela da lista fixa. Ela não vê dado da pessoa e não executa nada."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    resposta: str = Field(min_length=1, max_length=700)
+    abrir: Abrir
 
 
 class EscolhaIA(BaseModel):
@@ -174,6 +199,15 @@ def esquema_consulta() -> dict[str, Any]:
             "agrupar": {"type": "string", "enum": list(get_args(Agrupar))},
             "limite": {"type": ["integer", "null"]},
             "visao": {"type": "string", "enum": list(get_args(Visao))},
+        }
+    )
+
+
+def esquema_conversa() -> dict[str, Any]:
+    return _objeto(
+        {
+            "resposta": {"type": "string"},
+            "abrir": {"type": "string", "enum": list(get_args(Abrir))},
         }
     )
 

@@ -88,6 +88,7 @@ class Resultado:
     aviso: str | None = None  # resposta curta ao toque no botão
     rotulo: str = "nada"  # rótulo técnico para log (sem conteúdo do usuário)
     conta: Any = None  # conta dona das `ref` (para guardar recibo ↔ lançamento)
+    abrir: str | None = None  # tela sugerida pela conversa (D050); o roteador abre
 
     def diz(self, texto: str, **kw: object) -> Resultado:
         self.saidas.append(Saida(texto, **kw))  # type: ignore[arg-type]

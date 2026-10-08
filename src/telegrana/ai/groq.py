@@ -25,15 +25,18 @@ from telegrana.ai.prompt import (
     CategoriaPrompt,
     mensagens,
     mensagens_consulta,
+    mensagens_conversa,
     mensagens_correcao,
     mensagens_escolha,
 )
 from telegrana.core.extracao import (
     ConsultaIA,
+    ConversaIA,
     CorrecaoIA,
     EscolhaIA,
     ExtracaoIA,
     esquema_consulta,
+    esquema_conversa,
     esquema_correcao,
     esquema_escolha,
     esquema_json,
@@ -53,7 +56,7 @@ PARAMETROS: dict[str, dict[str, Any]] = {
 # 02/10/2026); o 20b fica por último até completar uma rodada com o código atual.
 MODELOS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 MODELO = MODELOS[0]
-Saida = TypeVar("Saida", ExtracaoIA, CorrecaoIA, ConsultaIA, EscolhaIA)
+Saida = TypeVar("Saida", ExtracaoIA, CorrecaoIA, ConsultaIA, EscolhaIA, ConversaIA)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +108,9 @@ class Groq:
     ) -> dict[str, Any]:
         msgs = mensagens_consulta(texto, categorias, hoje)
         return self._corpo(modelo, msgs, "consulta", esquema_consulta())
+
+    def corpo_conversa(self, texto: str, modelo: str = "") -> dict[str, Any]:
+        return self._corpo(modelo, mensagens_conversa(texto), "conversa", esquema_conversa())
 
     def corpo_escolha(
         self, pergunta: str, opcoes: list[str], texto: str, modelo: str = ""
@@ -158,6 +164,13 @@ class Groq:
             lambda modelo: self._chama(
                 modelo, self.corpo_consulta(texto, categorias, hoje, modelo), ConsultaIA
             )
+        )
+
+    def conversa(self, texto: str) -> tuple[ConversaIA, str]:
+        """Mensagem que não é lançamento nem consulta: resposta curta + tela a abrir."""
+        self.ultimo_uso = None
+        return self._cadeia.executa(
+            lambda modelo: self._chama(modelo, self.corpo_conversa(texto, modelo), ConversaIA)
         )
 
     def escolha(self, pergunta: str, opcoes: list[str], texto: str) -> tuple[EscolhaIA, str]:
