@@ -216,6 +216,8 @@ Resources:
         ZipFile: |
           # Kill-switch do Telegrana. Evento SNS do orçamento -> concorrência 0 nas Lambdas
           # "telegrana-*" (exceto esta). {"dry_run": true} só lista, sem alterar nada.
+          # Teste real (S8, D053): mensagem SNS {"teste_somente": "telegrana-dev-"} faz o
+          # caminho inteiro (SNS -> Lambda -> e-mail + Telegram), mas só nas Lambdas de dev.
           import json, os, urllib.parse, urllib.request
           import boto3
 
@@ -233,9 +235,20 @@ Resources:
               except Exception as exc:
                   print(json.dumps({"aviso_telegram": "falhou", "erro": type(exc).__name__}))
 
+          def so_teste(event):
+              # Só aceita restringir ao dev: nenhum filtro serve para mirar a produção.
+              dados = event if isinstance(event, dict) else {}
+              try:
+                  dados = json.loads(event["Records"][0]["Sns"]["Message"])
+              except Exception:
+                  pass
+              alvo = dados.get("teste_somente") if isinstance(dados, dict) else None
+              return alvo if alvo == "telegrana-dev-" else None
+
           def handler(event, context):
               dry_run = bool(isinstance(event, dict) and event.get("dry_run"))
-              prefix = os.environ["PREFIX"]
+              teste = so_teste(event)
+              prefix = teste or os.environ["PREFIX"]
               targets = []
               for page in lam.get_paginator("list_functions").paginate():
                   for fn in page["Functions"]:
@@ -251,16 +264,18 @@ Resources:
                       done.append(name)
                   except Exception as exc:  # segue para as outras; o relatório mostra a falha
                       failed.append(f"{name}: {type(exc).__name__}")
-              report = {"dry_run": dry_run, "alvos": targets, "zeradas": done, "falhas": failed}
+              report = {"dry_run": dry_run, "teste": bool(teste), "alvos": targets, "zeradas": done, "falhas": failed}
               print(json.dumps(report))
               if not dry_run:
                   texto = (
-                      "O orçamento mensal estourou e o kill-switch parou as Lambdas do Telegrana.\n"
+                      ("[TESTE, só dev] " if teste else "")
+                      + "O orçamento mensal estourou e o kill-switch parou as Lambdas do Telegrana.\n"
                       f"Zeradas: {', '.join(done) or 'nenhuma'}\n"
                       f"Falhas: {', '.join(failed) or 'nenhuma'}\n"
                       "Para religar, veja deploy/README.md ou peça ao agente."
                   )
-                  sns.publish(TopicArn=os.environ["NOTICE_TOPIC_ARN"], Subject="Telegrana: kill-switch acionado", Message=texto)
+                  assunto = "Telegrana: TESTE do kill-switch (dev)" if teste else "Telegrana: kill-switch acionado"
+                  sns.publish(TopicArn=os.environ["NOTICE_TOPIC_ARN"], Subject=assunto, Message=texto)
                   avisa_telegram("⚠️ " + texto)
               return report
 

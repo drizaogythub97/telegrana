@@ -410,3 +410,12 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
   - **Testado de ida e volta** (exporta → cifra → abre → restaura → mesmas linhas, RLS forçado de volta).
 - **Perder a chave privada** = os backups antigos ficam ilegíveis; gerar outra faz os próximos voltarem a funcionar.
 - **Descartado**: S3 (centavos fora do Always Free; o Adriano preferiu o chat); `pg_dump` (não existe no runtime da Lambda); papel com BYPASSRLS (menos auditável que políticas explícitas).
+
+## D053 · 2026-10-08 · S8 — kill-switch testado de verdade (só no dev)
+- **Decisão do Adriano (08/10/2026)**: teste real pelo mesmo caminho do estouro do orçamento, mas sem parar a produção.
+- **Como**: o kill-switch aceita, na mensagem SNS, `{"teste_somente": "telegrana-dev-"}`. Só esse valor vale: o filtro não serve para mirar a produção de forma seletiva, e qualquer outra mensagem (inclusive o aviso real do AWS Budgets) para TODAS as Lambdas `telegrana-*`. E-mail e Telegram saem marcados como TESTE.
+- **Teste em 08/10/2026**:
+  1. `aws sns publish` no tópico `telegrana-orcamento-estourado` → Lambda `telegrana-kill-switch`.
+  2. Resultado: `telegrana-dev-bot`, `-rotinas` e `-backup` com concorrência 0; as três de prod intactas; relatório `{"teste": true, "falhas": []}`; e-mail e aviso pelo Telegram enviados.
+  3. Religado pelo procedimento do `deploy/README.md` (`delete-function-concurrency`); a rotina de dev respondeu 200 em seguida.
+- **Fica valendo para o upgrade da conta AWS** (antes de 30/03/2027): o kill-switch está provado ponta a ponta. Na S9 ele também precisa parar a EC2 do WhatsApp.

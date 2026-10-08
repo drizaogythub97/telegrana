@@ -58,6 +58,16 @@ aws lambda invoke --function-name telegrana-kill-switch --payload fileb://ks.jso
 Get-Content out.json   # lista as Lambdas que seriam paradas
 ```
 
+### Testar o kill-switch de verdade, só no dev (D053)
+
+Mesmo caminho do estouro (SNS → Lambda → e-mail + Telegram), parando só as Lambdas de dev:
+
+```powershell
+aws sns publish --topic-arn arn:aws:sns:us-east-1:<conta>:telegrana-orcamento-estourado --message '{"teste_somente": "telegrana-dev-"}' --profile telegrana
+```
+
+Depois, religue as de dev como abaixo. Último teste: 08/10/2026 (dev parado e religado; prod intacta).
+
 ### Religar depois de um acionamento
 
 Descubra a causa do custo primeiro. Depois, para cada função zerada:
