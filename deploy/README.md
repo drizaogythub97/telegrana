@@ -66,6 +66,14 @@ Descubra a causa do custo primeiro. Depois, para cada função zerada:
 aws lambda delete-function-concurrency --function-name <nome> --profile telegrana
 ```
 
+### Alarmes de erro (S8, D051)
+
+Só em produção, criados pelo `app.yaml`: `telegrana-prod-bot-erros` (log do bot com nível ERROR), `telegrana-prod-rotinas-erros` (idem nas rotinas) e `telegrana-prod-bot-lambda` (a Lambda do bot falhou). Disparam com 1 ocorrência em 5 minutos e mandam e-mail pelo tópico `telegrana-avisos` (a política do tópico, no `bootstrap.yaml`, aceita só alarmes `telegrana-*` desta conta). Ver o estado:
+
+```powershell
+aws cloudwatch describe-alarms --alarm-name-prefix telegrana- --query "MetricAlarms[].[AlarmName,StateValue]" --output table --profile telegrana
+```
+
 ### Limites da conta a lembrar
 
 - A conta nova permite só **5 execuções simultâneas de Lambda no total**. Por isso não dá para reservar concorrência por função; o próprio limite da conta já é o teto. Zerar (`0`) funciona: foi testado em 30/09/2026.

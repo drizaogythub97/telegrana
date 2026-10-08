@@ -62,6 +62,28 @@ Resources:
         - Protocol: email
           Endpoint: !Ref AlertEmail
 
+  # Alarmes de erro da aplicação (S8, D051) publicam aqui; a conta continua podendo publicar.
+  NoticeTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref NoticeTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ContaPublica
+            Effect: Allow
+            Principal: {AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"}
+            Action: sns:Publish
+            Resource: !Ref NoticeTopic
+          - Sid: AlarmesPublicam
+            Effect: Allow
+            Principal: {Service: cloudwatch.amazonaws.com}
+            Action: sns:Publish
+            Resource: !Ref NoticeTopic
+            Condition:
+              StringEquals: {"aws:SourceAccount": !Ref AWS::AccountId}
+              ArnLike: {"aws:SourceArn": !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:telegrana-*"}
+
   # -------------------------------------------------------------------
   # Orçamentos (sem ações pagas; custos cobertos por créditos CONTAM)
   # -------------------------------------------------------------------
@@ -352,7 +374,21 @@ Resources:
                   - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-prod-*"
               - Sid: LogsDescrever
                 Effect: Allow
-                Action: logs:DescribeLogGroups
+                Action: [logs:DescribeLogGroups, logs:DescribeMetricFilters]
+                Resource: "*"
+              - Sid: FiltrosDeErro
+                Effect: Allow
+                Action: [logs:PutMetricFilter, logs:DeleteMetricFilter]
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-dev-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/telegrana-prod-*"
+              - Sid: Alarmes
+                Effect: Allow
+                Action: [cloudwatch:PutMetricAlarm, cloudwatch:DeleteAlarms, cloudwatch:TagResource, cloudwatch:UntagResource, cloudwatch:ListTagsForResource]
+                Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:telegrana-*"
+              - Sid: AlarmesDescrever
+                Effect: Allow
+                Action: cloudwatch:DescribeAlarms
                 Resource: "*"
               - Sid: Agendas
                 Effect: Allow

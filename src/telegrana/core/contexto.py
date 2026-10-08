@@ -19,6 +19,17 @@ class Documento:
 
 
 @dataclass(frozen=True, slots=True)
+class Limites:
+    """Uso por pessoa (S8, D051): "folgados", decisão do Adriano em 08/10/2026."""
+
+    por_minuto: int = 40
+    por_dia: int = 600
+    ia: int = 200  # chamadas à IA por dia
+    audio_segundos: int = 60 * 60  # por dia
+    arquivos: int = 20  # PDF/planilha por dia
+
+
+@dataclass(frozen=True, slots=True)
 class Contexto:
     canal: str
     admin_id: str  # external_id do administrador no canal
@@ -31,6 +42,7 @@ class Contexto:
     transcritor: Any = None  # provedor de transcrição (core.audio.Transcritor); None = sem áudio
     max_usos_convite: int = 20
     max_pedidos_por_hora: int = 20
+    limites: Limites = field(default_factory=Limites)
 
 
 def data_br(momento: datetime) -> str:

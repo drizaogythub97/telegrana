@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from telegrana.core import admin, cadastro, conta, conversa, escolha
+from telegrana.core import admin, cadastro, conta, conversa, escolha, limites
 from telegrana.core import lancamentos_repo as lrepo
 from telegrana.core import repositorio as repo
 from telegrana.core import textos as t
@@ -39,12 +39,16 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada) -> Resultado:
             return conta.apagar(conn, ctx, e, pessoa)
     if pessoa.status == "onboarding":
         return cadastro.passo(conn, ctx, e, pessoa)
+    parada, ctx, contador = limites.antes(conn, ctx, pessoa, e, admin=eh_admin)
+    if parada is not None:  # limite por pessoa (D051)
+        return parada
     r = conta.trata(conn, ctx, e, pessoa)
     if r.abrir in conversa.TELAS:
         # A conversa sugeriu uma tela (D050): abre como se a pessoa mandasse o comando.
         comando, acao = conversa.TELAS[r.abrir]
         tela = replace(e, texto="", audio=None, resposta_a=None, comando=comando, acao=acao)
         r.saidas.extend(conta.trata(conn, ctx, tela, pessoa).saidas)
+    limites.depois(conn, pessoa, e, r, contador)
     pergunta = next((s for s in reversed(r.saidas) if s.pergunta in conta.SOLTAS), None)
     if pergunta is not None and pergunta.pergunta is not None:
         # No Telegram Web/Desktop a resposta não abre sozinha: a próxima mensagem solta com

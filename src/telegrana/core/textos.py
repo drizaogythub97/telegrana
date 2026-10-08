@@ -439,6 +439,20 @@ SOBRECARREGADO = (
     "⏳ Estou com muita demanda agora. Manda de novo daqui a alguns minutos, por favor."
 )
 IA_FALHOU = "😕 Não consegui entender agora. Pode tentar de novo?"
+# Limites por pessoa (S8, D051)
+LIMITE_MINUTO = (
+    "⏳ Muitas mensagens em pouco tempo. Espera um minutinho e manda de novo, por favor."
+)
+LIMITE_DIA = "⏳ Você chegou ao limite de {n} mensagens por dia. Amanhã libera de novo."
+LIMITE_IA = (
+    "⏳ Você chegou ao limite diário de uso da IA. Mensagens simples como «mercado 45,90 no "
+    "pix» continuam funcionando; o resto volta amanhã."
+)
+LIMITE_AUDIO = (
+    "🎙️ Você chegou ao limite de {minutos} minutos de áudio por dia. Pode mandar por texto; "
+    "amanhã libera de novo."
+)
+LIMITE_ARQUIVOS = "📤 Você chegou ao limite de {n} arquivos por dia. Amanhã libera de novo."
 ADM_COTA_IA = (
     "⚠️ IA: o modelo {modelo} já usou {pct}% da cota de hoje no Groq. "
     "Quando acabar, sigo nos modelos de reserva."
