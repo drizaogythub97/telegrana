@@ -8,6 +8,7 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "argon2-cffi>=25.1",
     "certifi>=2026.7",       # CAs para TLS verify-full com o Neon (D030)
+    "cryptography>=46",
     "fpdf2>=2.8",            # PDF leve, sem navegador, na Lambda (S7; D048)
     "httpx>=0.28",           # chamadas à Bot API do Telegram, com timeouts (PLANO 2; D031)
     "openpyxl>=3.1",         # planilha XLSX (PLANO 6; S7; D048)

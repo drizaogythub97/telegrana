@@ -63,9 +63,12 @@ def discover(directory: Path = MIGRATIONS_DIR) -> list[Migration]:
     return migrations
 
 
-def migrate(conn: Connection, directory: Path = MIGRATIONS_DIR) -> list[str]:
-    """Aplica as migrações pendentes. Devolve os nomes aplicados nesta execução."""
-    migrations = discover(directory)
+def migrate(
+    conn: Connection, directory: Path = MIGRATIONS_DIR, *, ate: int | None = None
+) -> list[str]:
+    """Aplica as migrações pendentes (até a versão `ate`, se dada — restauração de backup).
+    Devolve os nomes aplicados nesta execução."""
+    migrations = [m for m in discover(directory) if ate is None or m.version <= ate]
     with conn.transaction():
         conn.execute("select pg_advisory_xact_lock(%s)", (_LOCK_KEY,))
         conn.execute("create schema if not exists telegrana")

@@ -392,3 +392,21 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
   - o administrador não tem limite;
   - limpeza: uso com mais de 35 dias sai na rotina (`purge_account_temporaries`).
 - **Descartado**: limite global por tempo (a cadeia de modelos do Groq e o aviso de cota já cobrem); bloquear a conta ao bater o limite (castigo desnecessário: o dia seguinte libera).
+
+## D052 · 2026-10-08 · S8 — backup semanal cifrado no chat do admin
+- **Por quê**: o Neon Free só volta **6 horas**, tem **um** snapshot manual e **não** faz backup agendado (página de planos do Neon, conferida em 08/10/2026).
+- **Decisão do Adriano (08/10/2026)**: backup semanal, cifrado, entregue no **chat do admin** (custo zero).
+- **Como funciona**:
+  - Lambda `telegrana-<env>-backup`; agenda **só em produção**, domingo às 03:00 (São Paulo); em dev, só invocação manual.
+  - Lê com o papel **`telegrana_backup`**: só leitura (toda transação READ ONLY), 2 conexões, 60 s por consulta. Ele vê todas as contas por **políticas de leitura explícitas** (migração **0015**), não por BYPASSRLS. Um teste de isolamento exige a política em toda tabela com RLS.
+  - Uma transação REPEATABLE READ (fotografia consistente) gera um CSV por tabela (`processed_updates` fica fora) e um `manifesto.json` (data, versão do esquema, linhas por tabela), num `.tar.gz` em memória.
+  - **Cifra** `TGBK1`: X25519 efêmero + HKDF-SHA256 + ChaCha20-Poly1305 (biblioteca `cryptography`, PyCA — dependência nova). A chave **pública** fica no SSM (`/telegrana/<env>/backup/public_key`); a **privada**, só com o Adriano, offline (`scripts/backup_chave.py` a gera e não aceita gravar dentro do projeto). Nem o bot, nem o agente, nem o Telegram conseguem abrir.
+  - A Lambda lê do SSM **só** a URL do papel de backup, o token do bot e a chave pública. O arquivo vai pelo `sendDocument`; o log tem só números. Alarme `telegrana-prod-backup-falhou` → e-mail.
+- **Restauração** (`scripts/backup_abre.py`, `scripts/backup_restaura.py`, `backup.restaura`):
+  - só num banco **vazio**, migrado até a **mesma versão** do backup (`migrate(..., ate=...)`);
+  - tabelas em ordem de dependência (chave para a própria tabela é checada no fim do COPY);
+  - o dono tira o FORCE do RLS só durante a carga, na mesma transação;
+  - a sequência da identidade é acertada e as linhas são conferidas com o manifesto.
+  - **Testado de ida e volta** (exporta → cifra → abre → restaura → mesmas linhas, RLS forçado de volta).
+- **Perder a chave privada** = os backups antigos ficam ilegíveis; gerar outra faz os próximos voltarem a funcionar.
+- **Descartado**: S3 (centavos fora do Always Free; o Adriano preferiu o chat); `pg_dump` (não existe no runtime da Lambda); papel com BYPASSRLS (menos auditável que políticas explícitas).
