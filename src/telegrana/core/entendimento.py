@@ -27,6 +27,13 @@ class ErroExtracao(RuntimeError):
         self.espera = espera
 
 
+class ErroLimiteConta(ErroExtracao):
+    """A pessoa bateu o limite diário de IA (core.limites, D051): a IA fica fora até amanhã."""
+
+    def __init__(self, motivo: str) -> None:
+        super().__init__(motivo, limite=True)
+
+
 class Extrator(Protocol):
     """Provedor de IA (Groq hoje). Erros de limite sobem para quem chamou."""
 

@@ -20,7 +20,7 @@ from telegrana.core import lancamentos_repo as repo
 from telegrana.core import seguranca as seg
 from telegrana.core import textos as t
 from telegrana.core.contexto import Contexto, agora
-from telegrana.core.entendimento import ErroExtracao, entende, para_prompt
+from telegrana.core.entendimento import ErroExtracao, ErroLimiteConta, entende, para_prompt
 from telegrana.core.extracao import CorrecaoIA
 from telegrana.core.interpretacao import (
     AMBIGUOS,
@@ -252,6 +252,9 @@ def _mensagem(
     r = Resultado(rotulo="lancamento", conta=p.account_id)
     try:
         entendido = entende(e.texto, ativas, regras, hoje, ctx.extrator)
+    except ErroLimiteConta:  # a pessoa bateu o limite diário de IA (D051)
+        r.rotulo = "lancamento.ia_limite_conta"
+        return r.diz(t.LIMITE_IA)
     except ErroExtracao as exc:
         r.rotulo = "lancamento.ia_limite" if exc.limite else "lancamento.ia_falhou"
         return r.diz(t.SOBRECARREGADO if exc.limite else t.IA_FALHOU)

@@ -16,6 +16,9 @@ Parameters:
     Type: String
     Description: Limite de permissões obrigatório (saída LambdaBoundaryArn da stack telegrana-bootstrap).
 
+Conditions:
+  Producao: !Equals [!Ref Env, prod]
+
 Globals:
   Function:
     Runtime: python3.14
@@ -154,6 +157,84 @@ Resources:
         Input: '{"origem": "agenda"}'
         RetryPolicy:
           MaximumRetryAttempts: 2
+
+  # -------------------------------------------------------------------
+  # Alarmes de erro (S8, D051): só em produção; e-mail pelo tópico telegrana-avisos.
+  # Qualquer linha de log com nível ERROR (o bot registra assim toda mensagem que falhou)
+  # e qualquer falha da própria Lambda (timeout, erro não tratado).
+  # -------------------------------------------------------------------
+  BotErrosFiltro:
+    Type: AWS::Logs::MetricFilter
+    Condition: Producao
+    Properties:
+      LogGroupName: !Ref BotLogGroup
+      FilterPattern: '{ $.level = "ERROR" }'
+      MetricTransformations:
+        - MetricNamespace: Telegrana
+          MetricName: !Sub "${Env}-bot-erros"
+          MetricValue: "1"
+
+  RotinasErrosFiltro:
+    Type: AWS::Logs::MetricFilter
+    Condition: Producao
+    Properties:
+      LogGroupName: !Ref RotinasLogGroup
+      FilterPattern: '{ $.level = "ERROR" }'
+      MetricTransformations:
+        - MetricNamespace: Telegrana
+          MetricName: !Sub "${Env}-rotinas-erros"
+          MetricValue: "1"
+
+  BotErrosAlarme:
+    Type: AWS::CloudWatch::Alarm
+    Condition: Producao
+    Properties:
+      AlarmName: !Sub "telegrana-${Env}-bot-erros"
+      AlarmDescription: Mensagem que falhou no bot (log com nível ERROR). Ver o log do bot.
+      Namespace: Telegrana
+      MetricName: !Sub "${Env}-bot-erros"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:telegrana-avisos"]
+
+  RotinasErrosAlarme:
+    Type: AWS::CloudWatch::Alarm
+    Condition: Producao
+    Properties:
+      AlarmName: !Sub "telegrana-${Env}-rotinas-erros"
+      AlarmDescription: Falha nas rotinas (lembretes, resumos, limpeza). Ver o log das rotinas.
+      Namespace: Telegrana
+      MetricName: !Sub "${Env}-rotinas-erros"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:telegrana-avisos"]
+
+  BotLambdaAlarme:
+    Type: AWS::CloudWatch::Alarm
+    Condition: Producao
+    Properties:
+      AlarmName: !Sub "telegrana-${Env}-bot-lambda"
+      AlarmDescription: A Lambda do bot falhou (timeout ou erro não tratado) — o Telegram reenvia o update.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref BotFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:telegrana-avisos"]
 
 Outputs:
   BotFunctionUrl:

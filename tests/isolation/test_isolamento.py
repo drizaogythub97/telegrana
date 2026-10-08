@@ -49,6 +49,7 @@ ISOLADAS: dict[str, tuple[str, str]] = {
     "card_invoices": ("id", "account_id = %(conta)s"),
     "invoice_notices": ("id", "account_id = %(conta)s"),
     "summary_sends": ("id", "account_id = %(conta)s"),
+    "account_usage": ("id", "account_id = %(conta)s"),
 }
 # Sem dados financeiros; acesso controlado por GRANT (ver 0001_fundacao.sql).
 GLOBAIS = frozenset(
@@ -171,6 +172,10 @@ def _cria_conta(app: db.Connection, external_id: str) -> Conta:
         cur.execute(
             "insert into telegrana.summary_sends (account_id, kind, period_start)"
             " values (%s, 'monthly', date_trunc('month', current_date))",
+            (conta.account_id,),
+        )
+        cur.execute(
+            "insert into telegrana.account_usage (account_id, day, messages) values (%s, current_date, 1)",
             (conta.account_id,),
         )
         cur.execute(

@@ -376,3 +376,19 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
 - **Resposta que não responde** (achado no roteiro M, 08/10/2026): respondendo com "Responder" a "Quanto você pagou desta fatura?" com outra coisa, o bot só repetia a pergunta — e uma frase curta respondida a "Qual é o nome do cartão?" podia virar nome de cartão. Agora, se a resposta claramente não tem a cara da resposta (`conta.nao_responde`: sem valor numa pergunta de valor; mais de 4 palavras ou "?" numa de nome; sem dias numa de dias; frase longa sem data/dia), ela segue como **mensagem nova**. Se virar conversa sem assunto novo, a IA recebe a pergunta aberta (`<pergunta_do_bot>`), lembra a pessoa de como responder, e a pergunta continua aberta para a próxima mensagem; assunto novo (ex.: `fixo_novo`) ganha da pergunta antiga. Mensagens soltas no Telegram Web seguem a mesma regra.
 - **Atalho**: "a escola é 900 e vence dia 5" virava a descrição "escola e e vence"; palavras de ligação (é, vence, cai, deu, custa…) saem da descrição e do nome do fixo.
 - **Descartado**: (a) pôr a resposta generativa dentro da extração: aumentaria toda chamada e mexeria no prompt avaliado; (b) mandar o histórico da conversa: mais tokens e mais dado pessoal no provedor. Próximo passo possível: incluir a última pergunta do bot como contexto.
+
+## D051 · 2026-10-08 · S8 — limites de uso por pessoa e decisões do endurecimento
+- **Decisões do Adriano (08/10/2026)**:
+  - limites **folgados** (o dobro do sugerido): 40 mensagens/min e 600/dia; 200 chamadas à IA/dia; 60 min de áudio/dia; 20 arquivos exportados/dia;
+  - kill-switch testado **de verdade só no dev** (mesmo caminho SNS → Lambda → e-mail, com filtro de teste);
+  - backup semanal **cifrado no chat do admin**;
+  - o usuário `adriano-dev` **continua administrador** — **risco aceito** (D017 previa a redução na S8). Mitigação que fica: MFA, `aws login` com sessão de até 12 h, nenhuma access key, deploy da aplicação só pelo CI.
+- **Limites** (`core/limites.py`, migração **0014**, tabela `account_usage` ISOLADA, só números):
+  - um contador por conta e dia (fuso de São Paulo); o minuto corrente vem do relógio do código (testável);
+  - mensagem = texto, áudio ou comando (botão não conta);
+  - IA: um invólucro do provedor (`Contador`) conta as chamadas de cada mensagem (extração, correção, consulta, escolha, conversa); passou do limite → `ErroLimiteConta` e o caminho sem IA continua (atalho, leitor de períodos, textos fixos), com o aviso "limite diário de uso da IA";
+  - áudio conferido ANTES de transcrever; arquivos contados pelos anexos enviados;
+  - aviso uma vez só (o primeiro excesso); os seguintes, no mesmo minuto ou dia, são ignorados em silêncio;
+  - o administrador não tem limite;
+  - limpeza: uso com mais de 35 dias sai na rotina (`purge_account_temporaries`).
+- **Descartado**: limite global por tempo (a cadeia de modelos do Groq e o aviso de cota já cobrem); bloquear a conta ao bater o limite (castigo desnecessário: o dia seguinte libera).
