@@ -109,8 +109,9 @@ class Groq:
         msgs = mensagens_consulta(texto, categorias, hoje)
         return self._corpo(modelo, msgs, "consulta", esquema_consulta())
 
-    def corpo_conversa(self, texto: str, modelo: str = "") -> dict[str, Any]:
-        return self._corpo(modelo, mensagens_conversa(texto), "conversa", esquema_conversa())
+    def corpo_conversa(self, texto: str, pergunta: str = "", modelo: str = "") -> dict[str, Any]:
+        msgs = mensagens_conversa(texto, pergunta)
+        return self._corpo(modelo, msgs, "conversa", esquema_conversa())
 
     def corpo_escolha(
         self, pergunta: str, opcoes: list[str], texto: str, modelo: str = ""
@@ -166,11 +167,14 @@ class Groq:
             )
         )
 
-    def conversa(self, texto: str) -> tuple[ConversaIA, str]:
-        """Mensagem que não é lançamento nem consulta: resposta curta + tela a abrir."""
+    def conversa(self, texto: str, pergunta: str = "") -> tuple[ConversaIA, str]:
+        """Mensagem que não é lançamento nem consulta: resposta curta + tela a abrir.
+        `pergunta`: a do bot que ficou sem resposta (contexto)."""
         self.ultimo_uso = None
         return self._cadeia.executa(
-            lambda modelo: self._chama(modelo, self.corpo_conversa(texto, modelo), ConversaIA)
+            lambda modelo: self._chama(
+                modelo, self.corpo_conversa(texto, pergunta, modelo), ConversaIA
+            )
         )
 
     def escolha(self, pergunta: str, opcoes: list[str], texto: str) -> tuple[EscolhaIA, str]:

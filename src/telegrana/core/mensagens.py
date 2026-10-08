@@ -47,6 +47,8 @@ class Entrada:
     contexto: str = ""  # 2ª linha da pergunta respondida (escrita pelo bot; ex.: a categoria)
     resposta_a: str | None = None  # id da mensagem do bot respondida (ex.: um recibo)
     audio: Audio | None = None  # mensagem de voz ou arquivo de áudio
+    # Pergunta do bot que esta mensagem deixou sem resposta (contexto para a conversa, D050).
+    pergunta_aberta: str = ""
 
 
 @dataclass(frozen=True, slots=True)

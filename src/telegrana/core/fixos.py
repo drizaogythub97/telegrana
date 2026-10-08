@@ -52,6 +52,9 @@ _SOBRAS_DE_RECORRENCIA = frozenset(
         "dia",
         "por",
         "ao",
+        "e",
+        "vence",
+        "cai",
     }
 )
 _DIA = re.compile(r"\bdia (\d{1,2})\b")

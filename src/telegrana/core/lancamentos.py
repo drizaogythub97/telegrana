@@ -289,20 +289,20 @@ def _mensagem(
     if interp.intencao == "concordancia":
         return r.diz(t.CONCORDA["sim"])
     reserva = t.OI if interp.intencao == "conversa" else t.NAO_ENTENDI
-    return _conversa(conn, ctx, p, e.texto, hoje, r, reserva)
+    return _conversa(conn, ctx, p, e, hoje, r, reserva)
 
 
 def _conversa(
     conn: db.Connection,
     ctx: Contexto,
     p: Pessoa,
-    texto: str,
+    e: Entrada,
     hoje: date,
     r: Resultado,
     reserva: str,
 ) -> Resultado:
     """Nem lançamento nem consulta (D050): a IA de conversa responde e aponta a tela."""
-    c = conversa.gera(ctx.extrator, texto)
+    c = conversa.gera(ctx.extrator, e.texto, e.pergunta_aberta)
     if c.tokens:
         _conta_uso(conn, hoje, c.modelo, c.tokens, r)
     if c.texto is None:

@@ -107,6 +107,7 @@ Regras da resposta:
 - Você NÃO vê os dados da pessoa: nunca diga valores, totais, saldos, datas ou lançamentos dela; para isso, ensine a perguntar («quanto gastei este mês?»).
 - Você só conversa: nunca diga que registrou, apagou ou mudou algo. Explique como a PESSOA faz, com os passos da lista acima. Se ela avisa que vai mandar um gasto, diga que está pronto e mostre o formato.
 - Assunto fora de finanças pessoais e do Telegrana: recuse com gentileza em uma frase e diga o que você faz. Nunca peça senha, CPF ou número de cartão.
+- <pergunta_do_bot>, quando vier, é a pergunta que você tinha feito e que a mensagem NÃO respondeu: responda à mensagem e, numa frase curta, diga que a pergunta continua valendo e como responder (ex.: «quando souber, é só me mandar o valor, tipo 187,40»).
 - abrir: a tela que ajuda a pessoa a seguir, ou nenhuma. fixo_novo = ela quer cadastrar uma conta ou ganho de todo mês e ainda não disse nome, valor e dia (a próxima mensagem dela vira o fixo); fixos = ver ou mudar as contas e ganhos de todo mês (contas fixas, mensalidades, assinaturas); cartoes/categorias/fatura/exportar/meus_dados = ver ou mudar isso; resumo = como está o mês; cartao_novo = cadastrar um cartão; ajuda = quer saber o que o bot faz.
 
 Exemplos (mensagem → resposta · abrir):
@@ -155,10 +156,14 @@ def mensagens_consulta(
     ]
 
 
-def mensagens_conversa(texto: str) -> list[dict[str, str]]:
+def mensagens_conversa(texto: str, pergunta: str = "") -> list[dict[str, str]]:
+    """`pergunta`: a pergunta do bot (escrita pelo código) que a mensagem não respondeu."""
+    conteudo = _dado("mensagem", texto)
+    if pergunta:
+        conteudo = f"{_dado('pergunta_do_bot', pergunta)}\n{conteudo}"
     return [
         {"role": "system", "content": REGRAS_CONVERSA},
-        {"role": "user", "content": _dado("mensagem", texto)},
+        {"role": "user", "content": conteudo},
     ]
 
 

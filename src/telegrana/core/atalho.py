@@ -102,6 +102,8 @@ LIMITE_PALAVRAS = 9
 _VAZIAS = frozenset(
     {"no", "na", "de", "do", "da", "em", "o", "a", "um", "uma", "reais", "real", "r", "rs"}
     | {"hoje", "hj", "ontem", "anteontem", "dia", "agora", "agr"}
+    # "a escola é 900 e vence dia 5" não vira "escola e e vence" (08/10/2026)
+    | {"e", "eh", "vence", "venceu", "vencimento", "cai", "custa", "custou", "deu", "ficou"}
 )
 _PAGAMENTO = re.compile(
     r"pix|deb|debito|dinheiro|especie|boleto|cred|credito|cartao|nu|nubank|inter|itau|c6|"
