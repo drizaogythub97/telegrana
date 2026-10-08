@@ -51,12 +51,14 @@ def limpa(texto: str) -> str:
     return seguro("\n".join(x for x in linhas if x), LIMITE)
 
 
-def gera(extrator: Any, texto: str) -> Conversa:
-    pergunta = getattr(extrator, "conversa", None)
-    if pergunta is None:
+def gera(extrator: Any, texto: str, pergunta_aberta: str = "") -> Conversa:
+    """`pergunta_aberta`: a pergunta do bot que a mensagem deixou sem resposta (escrita pelo
+    bot; a IA a usa para lembrar a pessoa)."""
+    chama = getattr(extrator, "conversa", None)
+    if chama is None:
         return Conversa(None)
     try:
-        ia, modelo = pergunta(texto)
+        ia, modelo = chama(texto, pergunta_aberta)
     except ErroExtracao:
         return Conversa(None)
     uso = getattr(extrator, "ultimo_uso", None)

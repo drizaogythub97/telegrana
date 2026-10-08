@@ -21,7 +21,7 @@ class IA:
         self.resposta = resposta
         self.ultimo_uso: Any = None
 
-    def conversa(self, texto: str) -> tuple[ConversaIA, str]:
+    def conversa(self, texto: str, pergunta: str = "") -> tuple[ConversaIA, str]:
         if self.resposta is None:
             raise ErroExtracao("limite", limite=True)
         return self.resposta, "m"

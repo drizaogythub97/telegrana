@@ -120,6 +120,7 @@
 | M3 | ✍️ `tenho um cartão novo` | Uma frase + a tela "💳 Qual é o nome do cartão?" |
 | M4 | ✍️ `me recomenda onde investir 5 mil` | Recusa gentil e o que o bot faz |
 | M5 | ✍️ `como faço pra apagar minha conta?` | Explica o /apagar_conta (não apaga nada) |
+| M6 | Responder (com "Responder") a uma pergunta de valor com `ainda não sei, depois te falo`; depois mandar só o valor | Resposta natural lembrando como responder; o valor mandado depois responde à pergunta |
 
 ## F — Limites e ajuda
 | Passo | O que fazer | O que deve acontecer |

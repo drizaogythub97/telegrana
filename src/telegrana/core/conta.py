@@ -60,6 +60,58 @@ def cabe(pergunta: str, texto: str, contexto: str = "") -> bool:
     return False
 
 
+def nao_responde(pergunta: str, texto: str) -> bool:
+    """Mesmo respondendo à pergunta (com "Responder"), a mensagem claramente é outra coisa?
+    ("Quero cadastrar um gasto fixo" para "Quanto você pagou?"). Na dúvida, não: o
+    tratador da pergunta decide, como antes."""
+    palavras = texto.split()
+    if pergunta in _VALORES:
+        valor = valores.interpreta(texto)
+        return valor.centavos is None and not valor.vago
+    if pergunta in _NOMES:
+        return len(palavras) > 4 or "?" in texto
+    if pergunta in _DIAS_DA_FATURA:
+        return cartoes.dois_dias(texto) is None and not any(c.isdigit() for c in texto)
+    if pergunta == "lc_data":  # datas vagas ("semana passada") ficam com o tratador
+        return len(palavras) > 5 and datas.expressao_em(texto) is None
+    if pergunta == "fi_dia":
+        return len(palavras) > 3 and fixos.dia_dito(texto) == 0
+    return False
+
+
+def _texto_da_pergunta(pergunta: str, contexto: str) -> str:
+    base = t.primeira_linha(t.PERGUNTAS[pergunta])
+    return f"{base} ({contexto})" if contexto else base
+
+
+def _como_mensagem_nova(
+    conn: db.Connection,
+    ctx: Contexto,
+    e: Entrada,
+    p: repo.Pessoa,
+    texto: str,
+    pergunta: str,
+    contexto: str,
+) -> Resultado:
+    """A mensagem não respondeu à pergunta: segue como mensagem nova (lançamento, consulta,
+    conversa). Se virar conversa, a IA sabe da pergunta, e ela continua aberta para a
+    próxima mensagem (D050)."""
+    nova = replace(
+        e,
+        texto=texto,
+        audio=None,
+        pergunta=None,
+        contexto="",
+        resposta_a=None,
+        pergunta_aberta=_texto_da_pergunta(pergunta, contexto),
+    )
+    r = trata(conn, ctx, nova, p)
+    if r.rotulo == "lancamento.conversa.nenhuma":  # conversa sem assunto novo
+        with db.account_context(conn, p.account_id) as cur:
+            lrepo.marca_pergunta(cur, p.account_id, p.user_id, pergunta, contexto)
+    return r
+
+
 def apagar(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Resultado:
     """/apagar_conta com confirmação dupla (vale também no meio do cadastro)."""
     r = Resultado(rotulo="conta.apagar")
@@ -97,6 +149,13 @@ def trata(conn: db.Connection, ctx: Contexto, e: Entrada, p: repo.Pessoa) -> Res
                 registra_aceites(cur, ctx, p)
             return Resultado(rotulo="conta.termos.aceitos").diz("✅ Obrigado! Tudo certo.")
         return Resultado(saidas=[tela_termos(ctx, mudaram=True)], rotulo="conta.termos.pendentes")
+    if (
+        e.audio is None
+        and e.pergunta in SOLTAS
+        and e.texto.strip()
+        and nao_responde(e.pergunta, e.texto)
+    ):  # respondeu à pergunta (com "Responder") com outra coisa
+        return _como_mensagem_nova(conn, ctx, e, p, e.texto, e.pergunta, e.contexto)
     solta = _resposta_solta(conn, ctx, e, p)
     if solta is not None:
         return solta
@@ -219,8 +278,8 @@ def _resposta_solta(
         resposta = replace(e, pergunta=pergunta, contexto=contexto, texto=texto, audio=None)
         r = trata(conn, ctx, resposta, p)
         r.rotulo += ".solta"
-    elif ouvido is not None:
-        r = trata(conn, ctx, replace(e, texto=ouvido, audio=None), p)  # já ouvido: segue
+    elif texto.strip():  # não tem a cara da resposta: mensagem nova, com a pergunta de contexto
+        r = _como_mensagem_nova(conn, ctx, e, p, texto, pergunta, contexto)
     else:
         return None
     return lancamentos._com_eco(r, ouvido, avisos)
