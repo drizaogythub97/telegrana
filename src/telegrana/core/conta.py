@@ -65,9 +65,10 @@ def nao_responde(pergunta: str, texto: str) -> bool:
     ("Quero cadastrar um gasto fixo" para "Quanto você pagou?"). Na dúvida, não: o
     tratador da pergunta decide, como antes."""
     palavras = texto.split()
-    if pergunta in _VALORES:
+    if pergunta in _VALORES:  # "não sei" fica com o tratador (pergunta de novo)
         valor = valores.interpreta(texto)
-        return valor.centavos is None and not valor.vago
+        sem_valor = valor.centavos is None and not valor.vago
+        return sem_valor and (len(palavras) > 3 or "?" in texto)
     if pergunta in _NOMES:
         return len(palavras) > 4 or "?" in texto
     if pergunta in _DIAS_DA_FATURA:
