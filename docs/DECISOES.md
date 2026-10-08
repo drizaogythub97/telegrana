@@ -419,3 +419,14 @@ Registro de decisões. Formato: número, data, decisão, motivo, alternativas de
   2. Resultado: `telegrana-dev-bot`, `-rotinas` e `-backup` com concorrência 0; as três de prod intactas; relatório `{"teste": true, "falhas": []}`; e-mail e aviso pelo Telegram enviados.
   3. Religado pelo procedimento do `deploy/README.md` (`delete-function-concurrency`); a rotina de dev respondeu 200 em seguida.
 - **Fica valendo para o upgrade da conta AWS** (antes de 30/03/2027): o kill-switch está provado ponta a ponta. Na S9 ele também precisa parar a EC2 do WhatsApp.
+
+## D054 · 2026-10-08 · S8 — revisão de segurança, manual de operação e avaliação
+- **Revisão completa** do checklist da seção 8 do PLANO, item a item, com evidência (arquivo, teste ou comando) em `docs/SEGURANCA.md`:
+  - nenhum item obrigatório em aberto; bandit sem achados; pip-audit sem vulnerabilidades; secret scanning, push protection e Dependabot ativos;
+  - ressalvas: `adriano-dev` administrador (risco aceito, D051) e verificação de IP do Telegram (opcional, não feita).
+- **CloudTrail** (pergunta aberta desde a S1.3): fica só o **histórico de eventos** (90 dias, grátis, ativo). Trilha em S3 não é criada: custaria fora do Always Free e o histórico basta para a escala atual. Rever no upgrade da conta.
+- **Manual de operação** em `docs/OPERACAO.md`: mapa rápido, o que fazer em cada alarme, incidente de segurança, kill-switch, backup e restauração, rotação de cada segredo, deploy e volta atrás.
+  - Incidente: registrar todo incidente por 5 anos e comunicar à ANPD em até 3 dias úteis quando houver risco relevante (Resolução CD/ANPD nº 15/2024, art. 6º; resumos consultados em 08/10/2026).
+- **Restauração ensaiada no Neon** (08/10/2026): exportado o dev pelo papel de backup (26 tabelas, 177 linhas), cifrado e aberto com uma chave temporária. Restaurado num banco vazio de um **branch filho** (25 tabelas e 162 linhas; a tabela de migrações é recriada pelas próprias migrações), com as contagens iguais e o RLS forçado de volta; o branch foi apagado.
+  - **Armadilha registrada**: os papéis do Neon são do branch, e o script de restauração troca as senhas deles. Então nunca restaurar dentro do branch `production` em uso.
+- **Avaliação da IA** (pendência da S6): 10 casos sintéticos (sem dado da família) no conjunto privado: 4 consultas, 2 concordâncias e 4 conversas ou fora do escopo. Total de 82 casos.
