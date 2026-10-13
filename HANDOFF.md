@@ -1,6 +1,6 @@
 # HANDOFF.md — Telegrana
 
-> Atualizado em 07/10/2026 · **S0 a S7 encerradas** · texto, áudio, fixos, lembretes, cartão com fatura, relatórios em texto e **exportação em PDF e planilha** no ar em dev e prod · próxima: **S8 — endurecimento e entrada da família**.
+> Atualizado em 13/10/2026 · **S0 a S8 encerradas** · texto, áudio, fixos, lembretes, cartão com fatura, relatórios, exportação, **conversa com IA**, **limites por pessoa, alarmes, backup semanal cifrado e kill-switch testado** no ar em dev e prod · próxima: **S9 — WhatsApp** (D022, PLANO 15).
 > **Repositório público (D015): nada de segredo nem dado pessoal neste arquivo.** Segredos: só o nome da variável e onde ela mora.
 
 ## Leia nesta ordem
@@ -8,12 +8,28 @@
 1. `CLAUDE.md` — regras permanentes (segurança, regras de ouro, protocolo de encerramento).
 2. Este arquivo.
 3. `docs/PLANO.md` — fonte da verdade. Revisões datadas de 29 e 30/09/2026; a seção 15 descreve o WhatsApp (S9).
-4. `docs/DECISOES.md` — D001 a D048. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
+4. `docs/DECISOES.md` — D001 a D054. As mais recentes mudam bastante o plano original: D015 (repositório público), D017 (acesso por `aws login`), D021/D026 (conta AWS nova com créditos), D022 (WhatsApp), D023 (base AWS), D024 (Neon), D025 (Groq), D027/D028 (avaliação da IA).
 5. `deploy/README.md` — base da conta AWS e como religar depois do kill-switch.
+6. `docs/OPERACAO.md` (alarmes, incidente, backup e restauração, rotação de segredos) e `docs/SEGURANCA.md` (checklist da seção 8 com evidências).
 
 ## Estado atual
 
 A S1 foi dividida em 5 micro-fases (aceito pelo Adriano em 30/09/2026). **S1.1 (esqueleto e CI)** concluída no PR #17 (`a69e6e7`); **S1.2 (banco)** no PR #19 (`d5caa19`); **S1.3 (infra e webhook)** no PR #20 (`07cd4db`). **S1.4 (entrada, cadastro, recuperação, comandos de conta e de admin)** no PR #24 (`d6bd378`, D033), com a correção do deploy no PR #25 (`8ae59fc`). **No ar em dev e prod** (produção publicada pela execução 36867652126 em 01/10/2026). O Adriano validou o cadastro completo dele no bot de dev pelo celular. **S1.5 (marca, perfil do bot e E2E simulado)** no PR #27 (`8ee82a7`, D034): a partir dela, **todo merge na `main` vai sozinho para produção** quando `deploy-dev` e `e2e` passam (primeira vez: execução 36890022856). Os textos legais estão publicados no Telegraph (D032). **Posicionamento revisto (D035)**: assistente financeiro **individual** com IA em destaque, em acesso antecipado por convite; lançamento público só depois dos pré-requisitos do PLANO, seção 16. O Adriano tem conta ativa em prod desde 01/10/2026 12:17.
+
+### S8 — encerrada em 13/10/2026 (D051–D054; PRs #70–#73)
+
+- **Limites por pessoa** (PR #70, `bca0989`, D051, migração **0014**, `core/limites.py`): "folgados" — 40 mensagens/min, 600/dia, 200 chamadas à IA/dia, 60 min de áudio/dia, 20 arquivos/dia; admin sem limite. `account_usage` (ISOLADA, só números). A IA é contada por um invólucro do provedor (`Contador`); passou do limite → `ErroLimiteConta` e o caminho sem IA continua. Aviso uma vez; excessos seguintes em silêncio.
+- **Alarmes de erro** (PR #70): só prod, e-mail pelo tópico `telegrana-avisos` — `bot-erros`, `rotinas-erros` (log com nível ERROR), `bot-lambda` (falha da Lambda) e `backup-falhou` (PR #71). O papel de deploy ganhou permissão para filtros e alarmes `telegrana-*` (bootstrap).
+- **Backup semanal cifrado** (PR #71, `80bd7c1`, D052, migração **0015**, `infra/backup.py`, `entrypoints/backup.py`): Lambda `telegrana-<env>-backup`, agenda só em prod (domingo 03:00). Papel `telegrana_backup` só leitura, por políticas de leitura explícitas (teste exige a política em toda tabela com RLS). CSVs + manifesto em `.tar.gz`, cifrado X25519 + ChaCha20-Poly1305 (`cryptography`) com a chave pública do SSM; a privada só com o Adriano (gerada em 08/10/2026). Chega como arquivo no chat do admin. Scripts: `backup_papel.py` (papel + URL no SSM), `backup_chave.py` (Adriano), `backup_abre.py`, `backup_restaura.py`. Restauração ensaiada no Neon num branch filho (D054).
+- **Kill-switch testado de verdade** (PR #72, `3e19e0f`, D053): `{"teste_somente": "telegrana-dev-"}` no tópico do orçamento para só o dev; em 08/10/2026 parou as 3 de dev, prod intacta, religado pelo README.
+- **Revisão de segurança e operação** (PR #73, `9330f66`, D054): `docs/SEGURANCA.md` (checklist 8.1–8.8 com evidências; nada obrigatório em aberto), `docs/OPERACAO.md`, CloudTrail só com o histórico de eventos, 10 casos de consulta/conversa no conjunto privado de avaliação (82 casos).
+- **Risco aceito**: `adriano-dev` segue administrador (D051).
+
+### Entre a S7 e a S8 — conversa (D049, D050; PRs #67–#69)
+
+- **Pergunta com botões aceita resposta escrita** (PR #67, `5d3a6dd`, D049, `core/escolha.py`): toda mensagem do bot com botões que termina em "?" fica aberta (pendência `pergunta` = `escolha`, 10 min, uma mensagem). O código resolve sim/não e o nome exato de uma opção; o resto vai à IA (`Groq.escolha`), que só aponta um número; a opção vira a mesma `acao` do botão. Perguntas de apagar, código, termos, cadastro, recuperação e admin: só com toque. Intenção nova `concordancia` ("ok", "exato", "valeu" → 👍). Trocar a categoria pelo recibo oferece lembrar a categoria NOVA.
+- **IA de conversa** (PR #68, `892adf1`, D050, `core/conversa.py`): quando a extração devolve `conversa`, `fora_do_escopo` ou nenhum lançamento, `Groq.conversa` responde em texto curto (sem links, sem dado da conta) e aponta UMA tela de lista fixa (o roteador abre como comando); `fixo_novo` faz a próxima mensagem com o dia virar fixo.
+- **Resposta que não responde** (PR #69, `24d8bec`): respondendo a uma pergunta com outra coisa (`conta.nao_responde`), a mensagem segue como nova; se virar conversa, a IA recebe a pergunta aberta e ela continua aberta. Atalho sem "escola e e vence".
 
 ### S7 — encerrada em 07/10/2026 (D048; PRs #63–#65)
 
@@ -212,34 +228,37 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 | #63 | `a444828` | **S7**: exportação em PDF e planilha (D048) |
 | #64 | `e78ac65` | arquivo desenhado fora da transação do banco |
 | #65 | `ea6a89e` | Lambda do bot com 512 MB e "enviando arquivo…" |
-| #66 | (este) | encerramento da S7 |
+| #66 | `1de37a3` | encerramento da S7 |
+| #67 | `5d3a6dd` | pergunta com botões aceita resposta escrita (D049) |
+| #68 | `892adf1` | IA de conversa (D050) |
+| #69 | `24d8bec` | resposta que não responde vira mensagem nova |
+| #70 | `bca0989` | **S8**: limites por pessoa e alarmes (D051) |
+| #71 | `80bd7c1` | backup semanal cifrado (D052) |
+| #72 | `3e19e0f` | kill-switch com teste real só no dev (D053) |
+| #73 | `9330f66` | revisão de segurança e manual de operação (D054) |
+| #74 | (este) | encerramento da S8 |
 
-## Ponto de partida exato da próxima sessão (S8 — endurecimento e entrada da família)
+## Ponto de partida exato da próxima sessão (S9 — WhatsApp)
 
-1. Ler os 5 documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (400 → `--remote` em janela própria; ID da conta no `login_session` do perfil).
-2. **S8 (PLANO seção 12, linha S8; seções 8 e 9)** — antes de codar, montar a lista e perguntar ao Adriano de uma vez o que for dele:
-   - **Revisão de segurança completa**: percorrer o checklist da seção 8 (8.1 a 8.8) item a item, com evidência (arquivo/teste/comando) numa tabela nova em `docs/` — o que falta vira PR. Rodar `/security-review` no código todo.
-   - **Kill-switch testado de verdade** (PLANO 9; obrigatório antes do upgrade da conta AWS até 30/03/2027): disparar em dev (SNS de teste → concorrência 0 nas Lambdas de dev → aviso ao admin) e religar pelo `deploy/README.md`; registrar data e resultado.
-   - **Limites de uso** por pessoa (mensagens/áudios/exportações por dia) e o comportamento quando a cota do Groq acaba (cadeia de modelos já existe; falta o aviso amigável e o teto por conta).
-   - **Backup** (PLANO 12, parágrafo "Backup (S8)"): o Neon Free só volta 6 h. Avaliar o export lógico semanal cifrado com chave pública (privada só com o Adriano, offline) enviado ao chat do admin; registrar a decisão (D049) e testar a restauração num branch do Neon.
-   - **Documentação de operação** (`docs/OPERACAO.md`): incidente (art. 48 da LGPD), religar após kill-switch, rotação de segredos, restauração do backup, como liberar um convidado.
-   - **Permissões do `adriano-dev`** reduzidas (D017 previa na S8), com o Adriano.
-   - Pendência da S6: casos de `consulta` (relatórios) no conjunto privado de avaliação da IA.
-3. Critério de saída da S8: o Adriano usa sozinho a produção por 2 semanas; depois gera o link para a família.
-4. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro (agente por texto no Telegram Web, áudios e celular com o Adriano) → encerramento.
+1. Ler os documentos acima. `git pull`; `python scripts/check_setup.py`. `aws login --profile telegrana` é do Adriano (400 → `--remote` em janela própria).
+2. **Antes de codar, com o Adriano, de uma vez** (PLANO 15, D022):
+   - **Chip dedicado** com WhatsApp num celular (só para ler o QR uma vez); nunca o número pessoal (risco de banimento).
+   - **Teto do orçamento**: hoje US$ 1/mês com kill-switch; a EC2 sempre ligada custa alguns dólares por mês (pagos pelos créditos até 09/2027). **Pesquisar o custo real antes de pedir** (EC2 `t4g.micro` + EBS + **IPv4 público, cobrado por hora desde 2024** — avaliar saída só por IPv6/egress-only se o WhatsApp aceitar). Pedir a aprovação do novo teto com o número exato.
+   - Confirmar o desenho do PLANO 15: gateway whatsmeow (Go) sem portas de entrada, SSM Session Manager, fila SQS de saída, vínculo `/whatsapp` com código de uso único, menus numerados, kill-switch parando a EC2.
+3. **Núcleo**: as identidades já são por canal (`user_channels`); o vínculo é `/whatsapp` → código de 10 min → mandar ao número do bot no WhatsApp. Todos os registros ficam na conta (não é migração).
+4. Protocolo de sempre: branch → PR → CI verde → merge (vai sozinho para prod) → roteiro → encerramento.
 
 ## Pendências do Adriano
 
-
-- **Quando a família começar a usar a produção** (D038 item 2): parar de usar a chave de produção nas avaliações locais (os tetos do `telegrana-dev` já estão aplicados desde 05/10/2026).
-
-- Opcional: mais 4 a 9 áudios (a voz da esposa, com o consentimento dela) em `tests/eval/data/audios/`, mais as linhas correspondentes em `audios.txt`.
-- Quando der: testar o convite com um segundo Telegram de verdade (ex.: o da esposa), para ver as telas do convidado.
-- ⏰ **Até 30/03/2027: upgrade da conta AWS para o plano pago** (senão a conta é fechada; provavelmente foi o que aconteceu com a conta antiga). O agente deve lembrar a partir de 01/2027 e só fazer com o kill-switch testado.
+- **S9**: providenciar o chip dedicado ao WhatsApp do bot e aprovar o novo teto do orçamento (o agente leva o custo pesquisado).
+- **Chave privada do backup**: guardada offline (gerada em 08/10/2026). Sem ela os backups não abrem. Testar a abertura de um backup com `scripts/backup_abre.py` quando puder (o de dev de 08/10/2026 serve).
+- **Quando a família começar a usar a produção** (D038 item 2): parar de usar a chave de produção nas avaliações locais.
+- Opcional: mais áudios reais (com consentimento) em `tests/eval/data/audios/`.
+- ⏰ **Até 30/03/2027: upgrade da conta AWS para o plano pago** (kill-switch já testado em 08/10/2026). O agente lembra a partir de 01/2027.
 
 ## Perguntas em aberto
 
-1. CloudTrail: basta o *Event history* (grátis, 90 dias) ou criar uma trilha em S3 (centavos, cobertos pelos créditos)? Recomendação do agente: só o Event history na V1. Confirmar com o Adriano na S1.3.
+1. ~~CloudTrail~~ — decidido na D054: só o histórico de eventos (90 dias, grátis); rever no upgrade da conta.
 2. ~~Como o CI roda a avaliação da IA sem publicar os dados~~ — decidido na D036 (bucket privado + OIDC só leitura + log só com métricas).
 
 ## Gotchas (acumulados)
@@ -248,6 +267,17 @@ O Telegrana registra gastos, ganhos e transferências **por texto**, com IA, em 
 - O admin tem bypass no ruleset, mas **não o use**: sempre branch → PR → esperar `qualidade`, `testes` e `segredos` verdes → `gh pr merge --squash`. Leia o CI com `mcp__ccd_pr__get_status` e confirme uma vez com `gh pr checks <n>`, sem ficar consultando em laço.
 - Arquivos gravados pelo Python no Windows saem com CRLF, e o hook `mixed-line-ending` interrompe o commit ao corrigir. Grave com `write_text(..., newline="\n")` ou refaça o `git add` e o commit.
 - O `uv` não está no PATH do Git Bash: use `~/AppData/Roaming/Python/Python314/Scripts/uv.exe`.
+- O computador do Adriano não tem unidade D:. Arquivos dele (ex.: chave do backup): a pasta do usuário, fora da Área de Trabalho (sincronizada com o OneDrive) e fora do projeto.
+
+**S8 (limites, backup, kill-switch)**
+- Duas sessões de pytest ao mesmo tempo no Neon de testes brigam pela senha dos papéis (a fixture recria as senhas): rode uma de cada vez.
+- No Git Bash, `aws ssm get-parameter --name /telegrana/...` vira caminho do Windows: prefixe `MSYS_NO_PATHCONV=1` (senão dá "ParameterNotFound" falso).
+- Heredoc do Git Bash estraga `\n` dentro de código Python: use o Write/Edit para trechos com barra invertida.
+- O boto3 do projeto não lê o `aws login` direto: use o perfil `telegrana-sdk` (credential_process) ou exporte as credenciais com `aws configure export-credentials --profile telegrana --format env`.
+- Restaurar backup: nunca no branch `production` em uso (o script troca as senhas dos papéis do branch). Branch filho + banco vazio (`docs/OPERACAO.md`).
+- `COPY FROM` não funciona com RLS valendo: a restauração tira o FORCE só durante a carga, na mesma transação.
+- A cota diária do Groq de dev acaba com provas reais + avaliação no mesmo dia; a avaliação fica "INCONCLUSIVA" (exit 2) e não é obrigatória no merge. Espaçar as provas (sleep entre chamadas).
+- A IA de conversa e a escolha consomem cota só em mensagens de conversa; lançamentos continuam com uma chamada.
 
 **IA e Groq (S2)**
 - Com os tetos de dev (D044), a avaliação do CI (cadeia, sem cache, ~90 mil tokens) cabe **uma vez por dia**: a segunda rodada sai INCONCLUSIVA por cota. Não é check obrigatório; refaça no dia seguinte (`workflow_dispatch`).
